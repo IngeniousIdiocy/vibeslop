@@ -24,11 +24,24 @@ def fetch_cfpb(params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.get("/complaints")
-async def get_complaints(search: Optional[str] = None, company: Optional[str] = None, size: int = 10):
+async def get_complaints(
+    search: Optional[str] = None,
+    company: Optional[str] = None,
+    product: Optional[str] = None,
+    date: Optional[str] = None,
+    state: Optional[str] = None,
+    size: int = 10,
+):
     """Proxy endpoint that returns complaints from the CFPB API."""
     params: Dict[str, Any] = {"size": size}
     if search:
         params["searchTerm"] = search
     if company:
         params["company"] = company
+    if product:
+        params["product"] = product
+    if date:
+        params["date_received_min"] = date
+    if state:
+        params["state"] = state
     return fetch_cfpb(params)

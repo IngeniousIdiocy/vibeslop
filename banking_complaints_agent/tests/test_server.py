@@ -2,7 +2,8 @@ import json
 import urllib.request
 import unittest
 from unittest.mock import patch
-from banking_complaints_agent.server import fetch_cfpb
+from banking_complaints_agent.server import fetch_cfpb, get_complaints
+import asyncio
 
 
 class TestFetchCFPB(unittest.TestCase):
@@ -29,6 +30,37 @@ class TestFetchCFPB(unittest.TestCase):
         with patch.object(urllib.request, "urlopen", dummy_urlopen):
             result = fetch_cfpb({"searchTerm": "test", "size": 1})
             self.assertEqual(result, sample_data)
+
+
+class TestGetComplaints(unittest.TestCase):
+    def test_get_complaints_params(self):
+        captured = {}
+
+        def dummy_fetch(params):
+            captured.update(params)
+            return {"ok": True}
+
+        with patch("banking_complaints_agent.server.fetch_cfpb", dummy_fetch):
+            asyncio.run(
+                get_complaints(
+                    search="foo",
+                    company="bar",
+                    product="Mortgage",
+                    date="2021-01-01",
+                    state="CA",
+                    size=5,
+                )
+            )
+
+        expected = {
+            "size": 5,
+            "searchTerm": "foo",
+            "company": "bar",
+            "product": "Mortgage",
+            "date_received_min": "2021-01-01",
+            "state": "CA",
+        }
+        self.assertEqual(captured, expected)
 
 
 if __name__ == "__main__":
