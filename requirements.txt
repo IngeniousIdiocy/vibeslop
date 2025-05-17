@@ -1,4 +1,5 @@
-fastapi
-uvicorn
 langgraph
-a2a
+a2a           # server-side A2A SDK (includes OpenAI wrapper)
+python-a2a    # client-side A2A SDK
+fastmcp       # MCP SDK + FastMCP wrapper
+requests      # HTTP utility used by a2a_facade.py
