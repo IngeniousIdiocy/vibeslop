@@ -26,3 +26,11 @@ curl 'http://localhost:8000/complaints?search=credit%20card&product=Mortgage&sta
 ```
 
 This will forward the request to the CFPB API and return the result.
+
+## Testing
+
+Run the unit tests with:
+
+```bash
+python -m unittest discover -s banking_complaints_agent/tests -v
+```
