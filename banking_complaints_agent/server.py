@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any, Union, List
 import json
 import urllib.request
 from urllib.parse import urlencode
-from mcp.server.fastmcp import FastMCP  # high‑level wrapper for the Model Context Protocol SDK
+from fastmcp import FastMCP  # high‑level wrapper for the Model Context Protocol SDK
 
 API_BASE = "https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/"
 MAX_PAGE_SIZE = 100  # hard limit per CCDB‑5 API spec
@@ -118,6 +118,9 @@ def search_complaints(
     return fetch_cfpb(params, as_csv=as_csv)
 
 if __name__ == "__main__":
-    # Run with `python server.py` for stdio transport,
-    # or `python server.py --transport http` to expose an HTTP endpoint.
+    """
+    When run directly, start the MCP server over HTTP on port 8000.
+    This mirrors the flags passed by run_mcp_server.sh but works
+    even if you invoke `python server.py` manually.
+    """
     mcp.run()

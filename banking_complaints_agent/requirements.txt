@@ -1,0 +1,14 @@
+# Core graph / agent libs
+langgraph>=0.4.5        # compile() helpers
+
+# Google A2A
+a2a>=0.44               # server-side SDK (AgentCard, A2AServer)
+python-a2a>=0.5.5       # client-side SDK (A2AClient)
+
+# Model Context Protocol
+mcp==1.9.0              # latest core SDK (no host/port args)
+fastmcp>=2.2.8          # wrapper that DOES support host/port & streamable-http
+
+# Utilities
+requests>=2.31.0
+watchfiles>=0.21        # auto-reload for run_mcp_server.sh --reload

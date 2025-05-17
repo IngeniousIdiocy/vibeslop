@@ -1,0 +1,2 @@
+[console_scripts]
+a2a = python_a2a.cli:main
