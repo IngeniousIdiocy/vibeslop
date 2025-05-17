@@ -26,3 +26,27 @@ curl 'http://localhost:8000/complaints?search=credit%20card&product=Mortgage&sta
 ```
 
 This will forward the request to the CFPB API and return the result.
+
+## Natural Language Agent
+
+A minimal natural language agent powered by `langgraph` and the `a2a` project
+can translate user questions into parameters for the MCP server. The agent
+requires a Groq API key and expects it in a file named `groq_api_key.txt` in
+this directory. The file is ignored by git. Put your key inside the file like:
+
+```text
+your_api_key_here
+```
+
+Then you can use the agent:
+
+```python
+from banking_complaints_agent import ComplaintNLAgent
+
+agent = ComplaintNLAgent(server_url="http://localhost:8000")
+result = agent.run("Show me mortgage complaints in CA from 2024")
+print(result)
+```
+
+Storing the key in an ignored file or environment variable keeps the key out of
+your public repository, which is generally considered a best practice.
