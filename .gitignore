@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# Local API key for Groq API
+banking_complaints_agent/groq_api_key.txt
