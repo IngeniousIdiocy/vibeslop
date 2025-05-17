@@ -7,3 +7,5 @@ See [GOALS.md](GOALS.md) for high-level objectives.
 ## Subprojects
 
 - **Banking Complaints Agent**: a minimal MCP server that fronts the [CFPB Consumer Complaints API](https://www.consumerfinance.gov/data-research/consumer-complaints/search/api/v1/). See [banking_complaints_agent/README.md](banking_complaints_agent/README.md) for details.
+
+- **Natural Language Agent**: demonstrates `a2a.OpenAI` with the `meta-llama/llama-4-scout-17b-16e-instruct` model.

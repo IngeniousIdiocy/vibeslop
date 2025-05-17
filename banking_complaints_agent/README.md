@@ -26,3 +26,7 @@ curl 'http://localhost:8000/complaints?search=credit%20card&product=Mortgage&sta
 ```
 
 This will forward the request to the CFPB API and return the result.
+
+This directory also includes `nl_agent.py`, a minimal natural language agent
+that calls `a2a.OpenAI` with the `meta-llama/llama-4-scout-17b-16e-instruct`
+model.
