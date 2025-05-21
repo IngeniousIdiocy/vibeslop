@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ollama Chat Client</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+}
+#chat {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+}
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+}
+.message {
+    margin-bottom: 10px;
+}
+.message.user {
+    text-align: right;
+}
+.message.assistant {
+    text-align: left;
+}
+#input-area {
+    display: flex;
+}
+#prompt {
+    flex: 1;
+    padding: 10px;
+    font-size: 1em;
+}
+button {
+    padding: 10px 15px;
+    margin-left: 5px;
+    font-size: 1em;
+}
+#error {
+    color: red;
+    margin-top: 5px;
+}
+#model {
+    width: 120px;
+}
+</style>
+</head>
+<body>
+<div id="chat">
+    <div id="messages"></div>
+    <div id="input-area">
+        <input type="text" id="model" value="llama3" title="Model" />
+        <input type="text" id="prompt" placeholder="Type your message" />
+        <button id="send">Send</button>
+        <button id="reset">Reset</button>
+    </div>
+    <div id="error"></div>
+</div>
+<script>
+(() => {
+    const messagesDiv = document.getElementById('messages');
+    const promptInput = document.getElementById('prompt');
+    const sendBtn = document.getElementById('send');
+    const resetBtn = document.getElementById('reset');
+    const errorDiv = document.getElementById('error');
+    const modelInput = document.getElementById('model');
+
+    let messages = [];
+
+    function addMessage(role, content) {
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        div.textContent = `${role === 'user' ? 'You' : 'Assistant'}: ${content}`;
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+    }
+
+    function sendMessage() {
+        const text = promptInput.value.trim();
+        if (!text) return;
+        showError('');
+        addMessage('user', text);
+        messages.push({ role: 'user', content: text });
+        promptInput.value = '';
+        const body = {
+            model: modelInput.value || 'llama3',
+            messages: messages,
+            stream: false
+        };
+        fetch('http://localhost:11434/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Server error: ' + res.status);
+            return res.json();
+        })
+        .then(data => {
+            if (!data || !data.message || !data.message.content) {
+                throw new Error('Invalid response from server');
+            }
+            const reply = data.message.content.trim();
+            addMessage('assistant', reply);
+            messages.push({ role: 'assistant', content: reply });
+        })
+        .catch(err => {
+            showError(err.toString());
+        });
+    }
+
+    function resetChat() {
+        messages = [];
+        messagesDiv.innerHTML = '';
+        promptInput.value = '';
+        showError('');
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    resetBtn.addEventListener('click', resetChat);
+    promptInput.addEventListener('keypress', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+})();
+</script>
+</body>
+</html>
