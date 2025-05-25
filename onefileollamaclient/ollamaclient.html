@@ -246,6 +246,18 @@ button {
     40% { transform: scale(1); opacity: 1; }
 }
 
+/* style for collapsible assistant thoughts */
+.think summary {
+    font-style: italic;
+    color: #666;
+    cursor: pointer;
+}
+
+.think {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
 @media (max-width: 768px) {
     #chat {
         margin: 10px;
@@ -319,6 +331,17 @@ button {
         this.style.height = Math.min(this.scrollHeight, 100) + 'px';
     });
 
+    function formatMessageText(raw) {
+        const escaped = raw
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        return escaped
+            .replace(/&lt;think&gt;/g, '<details class="think"><summary>Assistant thinks...</summary>')
+            .replace(/&lt;\/think&gt;/g, '</details>');
+    }
+
     function addMessage(role, content, isTyping = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${role}`;
@@ -340,7 +363,7 @@ button {
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.textContent = content;
+            contentDiv.innerHTML = formatMessageText(content);
             
             if (role === 'user') {
                 messageDiv.appendChild(contentDiv);
