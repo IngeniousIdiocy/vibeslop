@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat – Glassmorphism</title>
+    <style>
+        /*  ────────────────────────────────────────────────────────────────
+            GLOBAL STYLES - Enhanced with Glassmorphism
+        ───────────────────────────────────────────────────────────────── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bg-primary: #0a0a0a;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --accent: #00d4ff;
+            --accent-secondary: #ff006e;
+            --accent-tertiary: #8338ec;
+            --user-msg: rgba(0, 212, 255, 0.08);
+            --ai-msg: rgba(255, 255, 255, 0.03);
+            --think-bg: rgba(131, 56, 236, 0.08);
+            --blur-amount: 20px;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Animated gradient background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, var(--accent) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, var(--accent-secondary) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, var(--accent-tertiary) 0%, transparent 50%),
+                radial-gradient(circle at 90% 90%, #06ffa5 0%, transparent 50%);
+            filter: blur(100px);
+            opacity: 0.4;
+            animation: float 20s ease-in-out infinite;
+            z-index: -1;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+            33% { transform: translate(-20px, -20px) scale(1.1) rotate(120deg); }
+            66% { transform: translate(20px, -10px) scale(0.9) rotate(240deg); }
+        }
+
+        /* Glass panels */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--blur-amount));
+            -webkit-backdrop-filter: blur(var(--blur-amount));
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        /* Layout containers */
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        /* Collapsible Sidebar */
+        .sidebar {
+            position: relative;
+            width: 280px;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            box-shadow: 
+                inset 0 0 20px rgba(255, 255, 255, 0.05),
+                0 0 40px rgba(0, 212, 255, 0.1);
+        }
+        
+        .sidebar.collapsed {
+            width: 60px;
+            padding: 20px 10px;
+        }
+        
+        .sidebar-toggle {
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .sidebar-toggle:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 6px 30px rgba(0, 212, 255, 0.3);
+        }
+        
+        .sidebar-toggle svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-primary);
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar.collapsed .sidebar-toggle svg {
+            transform: rotate(180deg);
+        }
+        
+        .sidebar-content {
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+        
+        .sidebar.collapsed .sidebar-content {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            scroll-behavior: smooth;
+        }
+        
+        .chat-container::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .chat-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 5px;
+        }
+        
+        .chat-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .chat-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .input-container {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 30px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Input */
+        .input-wrapper {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        
+        .input-field {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 15px 20px;
+            color: var(--text-primary);
+            font-size: 16px;
+            line-height: 1.5;
+            resize: none;
+            min-height: 56px;
+            max-height: 200px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            box-shadow: 
+                inset 0 2px 4px rgba(0, 0, 0, 0.1),
+                0 0 0 0 rgba(0, 212, 255, 0);
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: rgba(0, 212, 255, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 
+                inset 0 2px 4px rgba(0, 0, 0, 0.1),
+                0 0 0 4px rgba(0, 212, 255, 0.1),
+                0 0 20px rgba(0, 212, 255, 0.2);
+        }
+        
+        .send-button {
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            border: none;
+            border-radius: 16px;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+            box-shadow: 
+                0 4px 15px rgba(0, 212, 255, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .send-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .send-button:hover::before {
+            width: 100px;
+            height: 100px;
+        }
+        
+        .send-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 6px 20px rgba(0, 212, 255, 0.4),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .send-button svg {
+            width: 24px;
+            height: 24px;
+            color: #fff;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Messages */
+        .message {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .message-avatar::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+        
+        .user-avatar {
+            background: linear-gradient(135deg, var(--accent), #0099ff);
+        }
+        
+        .ai-avatar {
+            background: linear-gradient(135deg, var(--accent-tertiary), var(--accent-secondary));
+        }
+        
+        .message-content {
+            flex: 1;
+        }
+        
+        .message-role {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .message-text {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 16px 20px;
+            line-height: 1.6;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+            box-shadow: 
+                0 4px 15px rgba(0, 0, 0, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            white-space: pre-wrap;
+        }
+        
+        .user-message .message-text {
+            background: var(--user-msg);
+            border-color: rgba(0, 212, 255, 0.2);
+            box-shadow: 
+                0 4px 15px rgba(0, 212, 255, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+        
+        .message-text pre {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            overflow-x: auto;
+            margin: 10px 0;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .message-text code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-family: 'SF Mono', Consolas, 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .message-text pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* Thinking section */
+        details.thinking-section {
+            background: var(--think-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(131, 56, 236, 0.2);
+            border-radius: 12px;
+            padding: 0 0 12px;
+            margin-bottom: 15px;
+            position: relative;
+            box-shadow: 
+                0 4px 15px rgba(131, 56, 236, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+        
+        summary.thinking-header {
+            list-style: none;
+            outline: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 15px 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        summary.thinking-header::-webkit-details-marker {
+            display: none;
+        }
+        
+        .thinking-content {
+            line-height: 1.6;
+            color: var(--text-primary);
+            padding: 0 20px;
+            white-space: pre-wrap;
+        }
+        
+        summary.thinking-header::after {
+            content: '▾';
+            margin-left: auto;
+            transition: transform 0.2s ease;
+        }
+        
+        details[open] summary.thinking-header::after {
+            transform: rotate(180deg);
+        }
+
+        /* Misc */
+        .model-selector {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 
+                0 2px 10px rgba(0, 0, 0, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+        
+        .model-selector:focus {
+            outline: none;
+            border-color: rgba(0, 212, 255, 0.5);
+            box-shadow: 
+                0 0 0 3px rgba(0, 212, 255, 0.1),
+                0 2px 10px rgba(0, 0, 0, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+        
+        .clear-button {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            box-shadow: 
+                0 2px 10px rgba(0, 0, 0, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .clear-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .clear-button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .clear-button:hover {
+            border-color: rgba(255, 0, 110, 0.5);
+            transform: translateY(-1px);
+            box-shadow: 
+                0 4px 15px rgba(255, 0, 110, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+        
+        .loading-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            padding: 10px 30px;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+        }
+        
+        .loading-indicator.active {
+            display: flex;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+            box-shadow: 0 0 10px var(--accent);
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% {
+                opacity: 0.3;
+                transform: translateY(0);
+            }
+            30% {
+                opacity: 1;
+                transform: translateY(-10px);
+            }
+        }
+        
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 12px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .message:hover .copy-button {
+            opacity: 1;
+        }
+        
+        .copy-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .error-message {
+            background: rgba(255, 59, 48, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            color: #FF3B30;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            animation: shake 0.5s ease;
+            box-shadow: 0 4px 15px rgba(255, 59, 48, 0.2);
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .stats {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 4px 0;
+        }
+        
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 500;
+            font-feature-settings: "tnum";
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 60px 20px;
+        }
+        
+        .empty-state h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+            font-weight: 300;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            opacity: 0.7;
+        }
+        
+        /* Label styling */
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Collapsible Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <button class="sidebar-toggle" onclick="toggleSidebar()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <div class="sidebar-content">
+                <h2>Settings</h2>
+                <div>
+                    <label for="model-select">Model</label>
+                    <select id="model-select" class="model-selector">
+                        <option value="">Loading models...</option>
+                    </select>
+                </div>
+                <button class="clear-button" onclick="clearChat()">Clear Chat</button>
+                <div class="stats" id="stats" style="display:none;">
+                    <div class="stat-item"><span>Messages</span><span class="stat-value" id="message-count">0</span></div>
+                    <div class="stat-item"><span>Tokens Streamed</span><span class="stat-value" id="tokens-streamed">0</span></div>
+                    <div class="stat-item"><span>Context Tokens</span><span class="stat-value" id="context-tokens">0</span></div>
+                    <div class="stat-item"><span>Last Message TPS</span><span class="stat-value" id="last-tps">—</span></div>
+                    <div class="stat-item"><span>Average TPS</span><span class="stat-value" id="avg-tps">—</span></div>
+                    <div class="stat-item"><span>Last Response Time</span><span class="stat-value" id="last-response-time">—</span></div>
+                    <div class="stat-item"><span>Total Time</span><span class="stat-value" id="total-time">0s</span></div>
+                </div>
+            </div>
+        </div>
+        <!-- Main chat pane -->
+        <div class="main-content">
+            <div class="header glass-panel"><h1>Ollama Chat</h1></div>
+            <div class="chat-container" id="chat-container">
+                <div class="empty-state"><h3>Start a conversation</h3><p>Select a model and type your message below</p></div>
+            </div>
+            <div class="loading-indicator" id="loading-indicator">
+                <div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+                <span>AI is thinking...</span>
+            </div>
+            <div class="input-container glass-panel">
+                <div class="input-wrapper">
+                    <textarea class="input-field" id="message-input" placeholder="Type your message..." onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                    <button class="send-button" onclick="sendMessage()">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ─────────────────────────────────────────────────────────────
+           STATE
+        ───────────────────────────────────────────────────────────── */
+        let messages = [];
+        let currentModel = '';
+        let tokensStreamed = 0;
+        let contextTokens = 0;
+        let messageStats = [];
+        let totalTime = 0;
+
+        /* ─────────────────────────────────────────────────────────────
+           SIDEBAR TOGGLE
+        ───────────────────────────────────────────────────────────── */
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           INIT
+        ───────────────────────────────────────────────────────────── */
+        window.onload = init;
+        async function init(){await loadModels();document.getElementById('message-input').focus();}
+        async function loadModels(){
+            try{
+                const res = await fetch('http://localhost:11434/api/tags');
+                const data = await res.json();
+                const sel = document.getElementById('model-select');
+                sel.innerHTML='';
+                if(data.models?.length){
+                    data.models.forEach(m=>{const o=document.createElement('option');o.value=m.name;o.textContent=m.name;sel.appendChild(o);});
+                    currentModel=data.models[0].name;sel.value=currentModel;
+                }else sel.innerHTML='<option>No models found</option>';
+            }catch(e){console.error(e);document.getElementById('model-select').innerHTML='<option>Error loading models</option>';showError('Failed to connect to Ollama. Make sure it\'s running on localhost:11434');}
+        }
+        document.getElementById('model-select').addEventListener('change',e=>currentModel=e.target.value);
+
+        /* ─────────────────────────────────────────────────────────────
+           UI HELPERS
+        ───────────────────────────────────────────────────────────── */
+        function autoResize(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}
+        function handleKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+        function copyToClipboard(text){navigator.clipboard.writeText(text).then(()=>{event.target.textContent='Copied!';setTimeout(()=>event.target.textContent='Copy',2000);});}
+        function formatMessage(content){return content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/```(\w+)?\n([\s\S]*?)```/g,(m,lang,code)=>`<pre><code class="language-${lang||'plaintext'}">${code.trim()}</code></pre>`)
+                .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>');}
+
+        /* ─────────────────────────────────────────────────────────────
+           MESSAGE CREATION HELPERS
+        ───────────────────────────────────────────────────────────── */
+        function addMessage(role,content){
+            const chat=document.getElementById('chat-container');
+            chat.querySelector('.empty-state')?.remove();
+            const msg=document.createElement('div');msg.className=`message ${role}-message`;
+            const avatar=document.createElement('div');avatar.className=`message-avatar ${role}-avatar`;avatar.textContent=role==='user'?'U':'AI';
+            const contentWrap=document.createElement('div');contentWrap.className='message-content';
+            const roleDiv=document.createElement('div');roleDiv.className='message-role';roleDiv.textContent=role==='user'?'You':'Assistant';
+            const textDiv=document.createElement('div');textDiv.className='message-text';textDiv.innerHTML=formatMessage(content);
+            const copyBtn=document.createElement('button');copyBtn.className='copy-button';copyBtn.textContent='Copy';copyBtn.onclick=()=>copyToClipboard(content);
+            textDiv.appendChild(copyBtn);contentWrap.appendChild(roleDiv);contentWrap.appendChild(textDiv);
+            msg.appendChild(avatar);msg.appendChild(contentWrap);chat.appendChild(msg);chat.scrollTop=chat.scrollHeight;
+            if(role==='user') messages.push({role,content});updateStatsDisplay();
+        }
+        function createAssistantMessage(){
+            const chat=document.getElementById('chat-container');chat.querySelector('.empty-state')?.remove();
+            const msg=document.createElement('div');msg.className='message assistant-message';
+            const avatar=document.createElement('div');avatar.className='message-avatar ai-avatar';avatar.textContent='AI';
+            const contentWrap=document.createElement('div');contentWrap.className='message-content';
+            const roleDiv=document.createElement('div');roleDiv.className='message-role';roleDiv.textContent='Assistant';
+            const textDiv=document.createElement('div');textDiv.className='message-text';const inner=document.createElement('div');textDiv.appendChild(inner);
+            contentWrap.appendChild(roleDiv);contentWrap.appendChild(textDiv);
+            msg.appendChild(avatar);msg.appendChild(contentWrap);chat.appendChild(msg);
+            return{msg,textEl:inner,contentWrap};
+        }
+        function createThinkingSection(){
+            const details=document.createElement('details');details.className='thinking-section';details.open=true;
+            const summary=document.createElement('summary');summary.className='thinking-header';summary.innerHTML='💭 <span>Model is thinking...</span>';
+            const content=document.createElement('div');content.className='thinking-content';
+            details.appendChild(summary);details.appendChild(content);return details;
+        }
+
+        function updateMessageText(el,content){
+            // Set the entire content like the thinking block does, don't append
+            el.textContent = content;
+            const btn=el.parentElement.querySelector('.copy-button');
+            if(!btn){const copy=document.createElement('button');copy.className='copy-button';copy.textContent='Copy';copy.onclick=()=>copyToClipboard(el.textContent);el.parentElement.appendChild(copy);}            
+            const chat=document.getElementById('chat-container');chat.scrollTop=chat.scrollHeight;
+        }
+        function updateThinkingContent(thinkingEl,content){thinkingEl.querySelector('.thinking-content').textContent=content;document.getElementById('chat-container').scrollTop=document.getElementById('chat-container').scrollHeight;}
+        
+        function finalizeMessageFormatting(el, content) {
+            // Apply formatting to the final message content while preserving whitespace
+            el.innerHTML = formatMessage(content);
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           ERROR + STATS (unchanged)
+        ───────────────────────────────────────────────────────────── */
+        function showError(msg){const chat=document.getElementById('chat-container');const err=document.createElement('div');err.className='error-message';err.textContent=msg;chat.appendChild(err);chat.scrollTop=chat.scrollHeight;}
+        function updateStatsDisplay(){const stats=document.getElementById('stats');const mc=document.getElementById('message-count');const ts=document.getElementById('tokens-streamed');const ct=document.getElementById('context-tokens');const userMessages=messages.filter(m=>m.role==='user').length;console.log('updateStatsDisplay called:',{tokensStreamed,contextTokens,userMessages});if(messages.length){stats.style.display='block';mc.textContent=userMessages;ts.textContent=tokensStreamed.toLocaleString();ct.textContent=contextTokens.toLocaleString()}else stats.style.display='none';}
+        function updateStats(stats,responseTime){totalTime+=responseTime;const lastTPS=stats.evalCount&&stats.evalDuration?(stats.evalCount/(stats.evalDuration/1e9)).toFixed(1):'—';const avgTPS=messageStats.length? (messageStats.reduce((s,v)=>s+v.tps,0)/messageStats.length).toFixed(1):'—';document.getElementById('last-tps').textContent=lastTPS!=='—'?`${lastTPS} tok/s`:'—';document.getElementById('avg-tps').textContent=avgTPS!=='—'?`${avgTPS} tok/s`:'—';document.getElementById('last-response-time').textContent=`${responseTime.toFixed(1)}s`;document.getElementById('total-time').textContent=formatTime(totalTime);}        
+        function formatTime(sec){if(sec<60)return`${sec.toFixed(0)}s`;if(sec<3600){const m=Math.floor(sec/60);const s=sec%60;return`${m}m ${s.toFixed(0)}s`;}const h=Math.floor(sec/3600);const m=Math.floor((sec%3600)/60);return`${h}h ${m}m`;}
+        function clearChat(){messages=[];tokensStreamed=0;contextTokens=0;messageStats=[];totalTime=0;document.getElementById('chat-container').innerHTML='<div class="empty-state"><h3>Start a conversation</h3><p>Select a model and type your message below</p></div>';updateStatsDisplay();}
+        
+        /* Helper functions for token tracking */
+        function estimateTokens(text){const result=Math.ceil(text.length/4);console.log('estimateTokens:',{textLength:text.length,result});return result;} // ~4 chars per token heuristic
+        function calculateContextTokens(){const result=messages.reduce((total,msg)=>total+estimateTokens(msg.content),0);console.log('calculateContextTokens:',{messagesLength:messages.length,result});return result;}
+
+        /* ─────────────────────────────────────────────────────────────
+           SEND MESSAGE (stream handling re-written to fix <think> bug)
+        ───────────────────────────────────────────────────────────── */
+        async function sendMessage(){
+            const input=document.getElementById('message-input');const msg=input.value.trim();if(!msg||!currentModel)return;addMessage('user',msg);input.value='';autoResize(input);
+            document.getElementById('loading-indicator').classList.add('active');
+            const startTime=Date.now();
+            try{
+                const res=await fetch('http://localhost:11434/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:currentModel,messages:messages.map(m=>({role:m.role,content:m.content})),stream:true})});
+                if(!res.ok) throw new Error('Failed to get response from Ollama');
+                const reader=res.body.getReader();const decoder=new TextDecoder();
+                let buffer='';let inThink=false;let thinkingEl=null;let thinkingContent='';let assistantSeed=null;let stats={};let streamedChars=0;let messageStartTime=Date.now();let estimatedTokensThisMessage=0;let assistantRawContent='';let justExitedThinking=false;
+                const createAssistantIfNeeded=()=>{
+                    if(!assistantSeed){assistantSeed=createAssistantMessage();}
+                    return assistantSeed;
+                };
+                while(true){const {value,done}=await reader.read();if(done)break;const chunk=decoder.decode(value);const lines=chunk.split('\n').filter(l=>l.trim());
+                    for(const line of lines){try{const data=JSON.parse(line);
+                        if(data.message?.content){buffer+=data.message.content;streamedChars+=data.message.content.length;const estimatedTokensForChunk=estimateTokens(data.message.content);tokensStreamed+=estimatedTokensForChunk;estimatedTokensThisMessage+=estimatedTokensForChunk;const elapsedSeconds=(Date.now()-messageStartTime)/1000;const estimatedTPS=(estimatedTokensThisMessage/elapsedSeconds) * 0.66;document.getElementById('last-tps').textContent=`~${estimatedTPS.toFixed(1)} tok/s`;console.log('Streaming chunk:',{contentLength:data.message.content.length,estimatedTokensForChunk,streamedChars,tokensStreamed,estimatedTPS});updateStatsDisplay();/* process buffer */
+                            while(buffer){if(!inThink){const idx=buffer.indexOf('<think>');if(idx===-1){/* all normal */let text=buffer;buffer='';if(justExitedThinking){text=text.replace(/^\s+/,'');justExitedThinking=false;}assistantRawContent+=text;if(assistantRawContent.trim()){const {textEl}=createAssistantIfNeeded();updateMessageText(textEl,assistantRawContent);}}
+                                else{let before=buffer.slice(0,idx);if(justExitedThinking){before=before.replace(/^\s+/,'');justExitedThinking=false;}assistantRawContent+=before;if(assistantRawContent.trim()){const {textEl}=createAssistantIfNeeded();updateMessageText(textEl,assistantRawContent);}buffer=buffer.slice(idx+7);inThink=true;if(!thinkingEl){const {contentWrap}=createAssistantIfNeeded();thinkingEl=createThinkingSection();contentWrap.insertBefore(thinkingEl,contentWrap.firstChild);}thinkingContent='';}
+                            }else{/* inside think */const idx=buffer.indexOf('</think>');if(idx===-1){thinkingContent+=buffer;buffer='';updateThinkingContent(thinkingEl,thinkingContent);}else{thinkingContent+=buffer.slice(0,idx);buffer=buffer.slice(idx+8);updateThinkingContent(thinkingEl,thinkingContent);inThink=false;thinkingContent='';justExitedThinking=true;}}
+                            }
+                        }
+                        if(data.done){stats={evalCount:data.eval_count||0,evalDuration:data.eval_duration||0,promptEvalCount:data.prompt_eval_count||0,promptEvalDuration:data.prompt_eval_duration||0,totalDuration:data.total_duration||0};console.log('Response done, stats:',stats);if(thinkingEl) thinkingEl.open=false; /* collapse when finished */
+                            /* Correct token estimate with actual count */if(stats.evalCount>0){const estimatedFromChars=Math.ceil(streamedChars/4);const tokensStreamedBefore=tokensStreamed;tokensStreamed=tokensStreamed-estimatedFromChars+stats.evalCount;console.log('Token correction:',{streamedChars,estimatedFromChars,tokensStreamedBefore,actualEvalCount:stats.evalCount,tokensStreamedAfter:tokensStreamed});}}
+                    }catch(e){console.error('parse error',e);} }
+                }
+                messages.push({role:'assistant',content:assistantRawContent.trim()});
+                
+                // Apply formatting to the final message while preserving whitespace
+                // if(assistantSeed && assistantRawContent.trim()) {
+                //     finalizeMessageFormatting(assistantSeed.textEl, assistantRawContent.trim());
+                // }
+                /* Update context tokens after adding message */contextTokens=calculateContextTokens();updateStatsDisplay();
+                if(stats.evalCount>0&&stats.evalDuration>0){const tps=(stats.evalCount/(stats.evalDuration/1e9)).toFixed(1);messageStats.push({tokens:stats.evalCount,duration:stats.evalDuration/1e9,tps:parseFloat(tps)});updateStats(stats,(Date.now()-startTime)/1000);}            
+            }catch(err){console.error(err);showError('Failed to get response from Ollama. Make sure it\'s running and the model is downloaded.');}
+            finally{document.getElementById('loading-indicator').classList.remove('active');}
+        }
+    </script>
+</body>
+</html>
