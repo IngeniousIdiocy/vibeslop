@@ -473,6 +473,13 @@
                 inset 0 1px 1px rgba(255, 255, 255, 0.05);
         }
         
+        .model-selector option {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            line-height: 1.4;
+        }
+        
         .model-selector:focus {
             outline: none;
             border-color: rgba(0, 212, 255, 0.5);
@@ -956,22 +963,19 @@
                             });
                             const showData = await showRes.json();
                             console.log('Model show data for', model.name, ':', showData); // Debug log
-                            let sizeGB = '?';
-                            
-                            // Try different possible size fields
-                            if (showData.size) {
-                                sizeGB = (showData.size / (1024**3)).toFixed(1);
-                            } else if (showData.details && showData.details.parameter_size) {
-                                sizeGB = showData.details.parameter_size;
-                            } else if (showData.details && showData.details.quantization_level) {
-                                // Sometimes size info is in other fields, try to extract from model name
-                                const match = model.name.match(/(\d+\.?\d*)[bB]/);
-                                if (match) sizeGB = match[1];
-                            }
                             
                             const o = document.createElement('option');
                             o.value = model.name;
-                            o.textContent = `${model.name} (${sizeGB}GB)`;
+                            
+                            // Create two-line display: name on first line, params + quantization on second
+                            let displayText = model.name;
+                            if (showData.details) {
+                                const params = showData.details.parameter_size || '?';
+                                const quant = showData.details.quantization_level || '?';
+                                displayText = `${model.name}\n  ${params} • ${quant}`;
+                            }
+                            
+                            o.textContent = displayText;
                             sel.appendChild(o);
                         } catch(e) {
                             // Fallback if show API fails
