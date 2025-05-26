@@ -684,6 +684,171 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+        
+        /* Load button styling */
+        .load-button {
+            background: 
+                linear-gradient(135deg, rgba(255, 59, 48, 0.3), rgba(255, 99, 88, 0.2)),
+                rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 
+                0 4px 15px rgba(255, 59, 48, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1),
+                0 0 20px rgba(255, 59, 48, 0.1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .load-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .load-button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .load-button.loading {
+            background: 
+                linear-gradient(135deg, rgba(255, 193, 7, 0.3), rgba(255, 213, 47, 0.2)),
+                rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 193, 7, 0.3);
+            cursor: not-allowed;
+            box-shadow: 
+                0 4px 15px rgba(255, 193, 7, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1),
+                0 0 20px rgba(255, 193, 7, 0.1);
+        }
+        
+        .load-button.loaded {
+            background: 
+                linear-gradient(135deg, rgba(52, 199, 89, 0.3), rgba(72, 219, 109, 0.2)),
+                rgba(255, 255, 255, 0.05);
+            border-color: rgba(52, 199, 89, 0.3);
+            box-shadow: 
+                0 4px 15px rgba(52, 199, 89, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1),
+                0 0 20px rgba(52, 199, 89, 0.1);
+        }
+        
+        .load-button:hover:not(.loading) {
+            transform: translateY(-1px);
+            box-shadow: 
+                0 6px 20px rgba(255, 59, 48, 0.3),
+                inset 0 1px 1px rgba(255, 255, 255, 0.15),
+                0 0 25px rgba(255, 59, 48, 0.15);
+        }
+        
+        .load-button.loading:hover {
+            box-shadow: 
+                0 6px 20px rgba(255, 193, 7, 0.3),
+                inset 0 1px 1px rgba(255, 255, 255, 0.15),
+                0 0 25px rgba(255, 193, 7, 0.15);
+        }
+        
+        .load-button.loaded:hover {
+            transform: translateY(-1px);
+            box-shadow: 
+                0 6px 20px rgba(52, 199, 89, 0.3),
+                inset 0 1px 1px rgba(255, 255, 255, 0.15),
+                0 0 25px rgba(52, 199, 89, 0.15);
+        }
+        
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Context slider styling */
+        .context-control {
+            margin-top: 5px;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        
+        .context-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+        
+        .context-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .context-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 212, 255, 0.5);
+        }
+        
+        .context-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+        }
+        
+        .context-value {
+            font-size: 12px;
+            color: var(--text-primary);
+            font-weight: 500;
+            min-width: 60px;
+            text-align: right;
+            font-feature-settings: "tnum";
+        }
     </style>
 </head>
 <body>
@@ -702,6 +867,16 @@
                     <select id="model-select" class="model-selector">
                         <option value="">Loading models...</option>
                     </select>
+                    <button id="load-button" class="load-button" onclick="loadModel()">
+                        <span id="load-text">Load Model</span>
+                    </button>
+                </div>
+                <div class="context-control">
+                    <label for="context-slider">Context Length</label>
+                    <div class="slider-container">
+                        <input type="range" id="context-slider" class="context-slider" min="0" max="5" value="0" step="1" oninput="updateContextValue()">
+                        <span id="context-value" class="context-value">2,048</span>
+                    </div>
                 </div>
                 <button class="clear-button" onclick="clearChat()">Clear Chat</button>
                 <div class="stats" id="stats" style="display:none;">
@@ -719,7 +894,7 @@
         <div class="main-content">
             <div class="header glass-panel"><h1>Ollama Chat</h1></div>
             <div class="chat-container" id="chat-container">
-                <div class="empty-state"><h3>Start a conversation</h3><p>Select a model and type your message below</p></div>
+                <div class="empty-state"><h3>Start a conversation</h3><p>Select a model, load it, and type your message below</p></div>
             </div>
             <div class="loading-indicator" id="loading-indicator">
                 <div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
@@ -741,11 +916,16 @@
            STATE
         ───────────────────────────────────────────────────────────── */
         let messages = [];
-        let currentModel = '';
+        let selectedModel = '';
+        let loadedModel = '';
+        let isLoading = false;
+        let contextLength = 2048;
         let tokensStreamed = 0;
         let contextTokens = 0;
         let messageStats = [];
         let totalTime = 0;
+        
+        const contextLengths = [2048, 8192, 16384, 32768, 65536, 131072];
 
         /* ─────────────────────────────────────────────────────────────
            SIDEBAR TOGGLE
@@ -759,7 +939,7 @@
            INIT
         ───────────────────────────────────────────────────────────── */
         window.onload = init;
-        async function init(){await loadModels();document.getElementById('message-input').focus();}
+        async function init(){await loadModels();await checkLoadedModel();document.getElementById('message-input').focus();}
         async function loadModels(){
             try{
                 const res = await fetch('http://localhost:11434/api/tags');
@@ -767,12 +947,144 @@
                 const sel = document.getElementById('model-select');
                 sel.innerHTML='';
                 if(data.models?.length){
-                    data.models.forEach(m=>{const o=document.createElement('option');o.value=m.name;o.textContent=m.name;sel.appendChild(o);});
-                    currentModel=data.models[0].name;sel.value=currentModel;
+                    for(const model of data.models) {
+                        try {
+                            const showRes = await fetch('http://localhost:11434/api/show', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({name: model.name})
+                            });
+                            const showData = await showRes.json();
+                            console.log('Model show data for', model.name, ':', showData); // Debug log
+                            let sizeGB = '?';
+                            
+                            // Try different possible size fields
+                            if (showData.size) {
+                                sizeGB = (showData.size / (1024**3)).toFixed(1);
+                            } else if (showData.details && showData.details.parameter_size) {
+                                sizeGB = showData.details.parameter_size;
+                            } else if (showData.details && showData.details.quantization_level) {
+                                // Sometimes size info is in other fields, try to extract from model name
+                                const match = model.name.match(/(\d+\.?\d*)[bB]/);
+                                if (match) sizeGB = match[1];
+                            }
+                            
+                            const o = document.createElement('option');
+                            o.value = model.name;
+                            o.textContent = `${model.name} (${sizeGB}GB)`;
+                            sel.appendChild(o);
+                        } catch(e) {
+                            // Fallback if show API fails
+                            const o = document.createElement('option');
+                            o.value = model.name;
+                            o.textContent = model.name;
+                            sel.appendChild(o);
+                        }
+                    }
+                    selectedModel = data.models[0].name;
+                    sel.value = selectedModel;
                 }else sel.innerHTML='<option>No models found</option>';
             }catch(e){console.error(e);document.getElementById('model-select').innerHTML='<option>Error loading models</option>';showError('Failed to connect to Ollama. Make sure it\'s running on localhost:11434');}
         }
-        document.getElementById('model-select').addEventListener('change',e=>currentModel=e.target.value);
+        document.getElementById('model-select').addEventListener('change', function(e) {
+            selectedModel = e.target.value;
+            // Reset load button when model changes
+            if (loadedModel !== selectedModel) {
+                loadedModel = '';
+                const loadBtn = document.getElementById('load-button');
+                const loadText = document.getElementById('load-text');
+                loadBtn.className = 'load-button';
+                loadText.textContent = 'Load Model';
+            }
+        });
+
+        async function checkLoadedModel() {
+            try {
+                const res = await fetch('http://localhost:11434/api/ps');
+                const data = await res.json();
+                
+                // Check if any models are currently loaded
+                if (data.models && data.models.length > 0) {
+                    const runningModel = data.models[0]; // Take the first loaded model
+                    const modelName = runningModel.name;
+                    
+                    // Check if this model exists in our dropdown
+                    const modelSelect = document.getElementById('model-select');
+                    const modelOption = Array.from(modelSelect.options).find(option => option.value === modelName);
+                    
+                    if (modelOption) {
+                        // Update state to reflect the loaded model
+                        selectedModel = modelName;
+                        loadedModel = modelName;
+                        modelSelect.value = modelName;
+                        
+                        // Update load button to show loaded state
+                        const loadBtn = document.getElementById('load-button');
+                        const loadText = document.getElementById('load-text');
+                        loadBtn.className = 'load-button loaded';
+                        loadText.textContent = 'Model Loaded';
+                        
+                        console.log('Detected pre-loaded model:', modelName);
+                    }
+                }
+            } catch (e) {
+                // Silently fail - this is just a convenience feature
+                console.log('Could not check for loaded models:', e);
+            }
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           MODEL LOADING
+        ───────────────────────────────────────────────────────────── */
+        async function loadModel() {
+            if (!selectedModel || isLoading) return;
+            
+            isLoading = true;
+            const loadBtn = document.getElementById('load-button');
+            const loadText = document.getElementById('load-text');
+            
+            loadBtn.className = 'load-button loading';
+            loadText.innerHTML = '<div class="spinner"></div>Loading...';
+            
+            try {
+                // Generate a simple prompt to "load" the model
+                const res = await fetch('http://localhost:11434/api/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        prompt: 'Hello',
+                        stream: false
+                    })
+                });
+                
+                if (res.ok) {
+                    loadedModel = selectedModel;
+                    loadBtn.className = 'load-button loaded';
+                    loadText.textContent = 'Model Loaded';
+                } else {
+                    throw new Error('Failed to load model');
+                }
+            } catch (e) {
+                console.error(e);
+                loadBtn.className = 'load-button';
+                loadText.textContent = 'Load Failed';
+                showError(`Failed to load model: ${selectedModel}`);
+                setTimeout(() => {
+                    loadText.textContent = 'Load Model';
+                }, 3000);
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        function updateContextValue() {
+            const slider = document.getElementById('context-slider');
+            const valueDisplay = document.getElementById('context-value');
+            const index = parseInt(slider.value);
+            contextLength = contextLengths[index];
+            valueDisplay.textContent = contextLength.toLocaleString();
+        }
 
         /* ─────────────────────────────────────────────────────────────
            UI HELPERS
@@ -840,7 +1152,7 @@
         function updateStatsDisplay(){const stats=document.getElementById('stats');const mc=document.getElementById('message-count');const ts=document.getElementById('tokens-streamed');const ct=document.getElementById('context-tokens');const userMessages=messages.filter(m=>m.role==='user').length;console.log('updateStatsDisplay called:',{tokensStreamed,contextTokens,userMessages});if(messages.length){stats.style.display='block';mc.textContent=userMessages;ts.textContent=tokensStreamed.toLocaleString();ct.textContent=contextTokens.toLocaleString()}else stats.style.display='none';}
         function updateStats(stats,responseTime){totalTime+=responseTime;const lastTPS=stats.evalCount&&stats.evalDuration?(stats.evalCount/(stats.evalDuration/1e9)).toFixed(1):'—';const avgTPS=messageStats.length? (messageStats.reduce((s,v)=>s+v.tps,0)/messageStats.length).toFixed(1):'—';document.getElementById('last-tps').textContent=lastTPS!=='—'?`${lastTPS} tok/s`:'—';document.getElementById('avg-tps').textContent=avgTPS!=='—'?`${avgTPS} tok/s`:'—';document.getElementById('last-response-time').textContent=`${responseTime.toFixed(1)}s`;document.getElementById('total-time').textContent=formatTime(totalTime);}        
         function formatTime(sec){if(sec<60)return`${sec.toFixed(0)}s`;if(sec<3600){const m=Math.floor(sec/60);const s=sec%60;return`${m}m ${s.toFixed(0)}s`;}const h=Math.floor(sec/3600);const m=Math.floor((sec%3600)/60);return`${h}h ${m}m`;}
-        function clearChat(){messages=[];tokensStreamed=0;contextTokens=0;messageStats=[];totalTime=0;document.getElementById('chat-container').innerHTML='<div class="empty-state"><h3>Start a conversation</h3><p>Select a model and type your message below</p></div>';updateStatsDisplay();}
+        function clearChat(){messages=[];tokensStreamed=0;contextTokens=0;messageStats=[];totalTime=0;document.getElementById('chat-container').innerHTML='<div class="empty-state"><h3>Start a conversation</h3><p>Select a model, load it, and type your message below</p></div>';updateStatsDisplay();}
         
         /* Helper functions for token tracking */
         function estimateTokens(text){const result=Math.ceil(text.length/4);console.log('estimateTokens:',{textLength:text.length,result});return result;} // ~4 chars per token heuristic
@@ -850,11 +1162,11 @@
            SEND MESSAGE (stream handling re-written to fix <think> bug)
         ───────────────────────────────────────────────────────────── */
         async function sendMessage(){
-            const input=document.getElementById('message-input');const msg=input.value.trim();if(!msg||!currentModel)return;addMessage('user',msg);input.value='';autoResize(input);
+            const input=document.getElementById('message-input');const msg=input.value.trim();if(!msg||!loadedModel)return;addMessage('user',msg);input.value='';autoResize(input);
             document.getElementById('loading-indicator').classList.add('active');
             const startTime=Date.now();
             try{
-                const res=await fetch('http://localhost:11434/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:currentModel,messages:messages.map(m=>({role:m.role,content:m.content})),stream:true})});
+                const res=await fetch('http://localhost:11434/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:loadedModel,messages:messages.map(m=>({role:m.role,content:m.content})),stream:true,options:{num_ctx:contextLength}})});
                 if(!res.ok) throw new Error('Failed to get response from Ollama');
                 const reader=res.body.getReader();const decoder=new TextDecoder();
                 let buffer='';let inThink=false;let thinkingEl=null;let thinkingContent='';let assistantSeed=null;let stats={};let streamedChars=0;let messageStartTime=Date.now();let estimatedTokensThisMessage=0;let assistantRawContent='';let justExitedThinking=false;
