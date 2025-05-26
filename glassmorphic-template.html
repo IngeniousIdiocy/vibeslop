@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glassmorphic Template</title>
+    <style>
+        /*  ────────────────────────────────────────────────────────────────
+            GLOBAL STYLES - Enhanced with Glassmorphism
+        ───────────────────────────────────────────────────────────────── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --bg-primary: #0a0a0a;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --accent: #00d4ff;
+            --accent-secondary: #ff006e;
+            --accent-tertiary: #8338ec;
+            --user-msg: rgba(0, 212, 255, 0.08);
+            --ai-msg: rgba(255, 255, 255, 0.03);
+            --think-bg: rgba(131, 56, 236, 0.08);
+            --blur-amount: 20px;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Animated gradient background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, var(--accent) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, var(--accent-secondary) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, var(--accent-tertiary) 0%, transparent 50%),
+                radial-gradient(circle at 90% 90%, #06ffa5 0%, transparent 50%);
+            filter: blur(100px);
+            opacity: 0.4;
+            animation: float 20s ease-in-out infinite;
+            z-index: -1;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+            33% { transform: translate(-20px, -20px) scale(1.1) rotate(120deg); }
+            66% { transform: translate(20px, -10px) scale(0.9) rotate(240deg); }
+        }
+
+        /* Glass panels */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--blur-amount));
+            -webkit-backdrop-filter: blur(var(--blur-amount));
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+
+        /* Layout containers */
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        /* Main content area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        /* Example glass panel sections */
+        .header {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            scroll-behavior: smooth;
+        }
+        
+        .content-area::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .content-area::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 5px;
+        }
+        
+        .content-area::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .content-area::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .footer {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 30px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Sidebar (optional) */
+        .sidebar {
+            position: relative;
+            width: 280px;
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            box-shadow: 
+                inset 0 0 20px rgba(255, 255, 255, 0.05),
+                0 0 40px rgba(0, 212, 255, 0.1);
+        }
+
+        /* Example glassmorphic elements */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 
+                0 4px 15px rgba(0, 0, 0, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-button {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 24px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 
+                0 2px 10px rgba(0, 0, 0, 0.1),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .glass-button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .glass-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 
+                0 4px 15px rgba(0, 212, 255, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+        }
+        
+        p {
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Optional Sidebar -->
+        <div class="sidebar">
+            <h2>Sidebar</h2>
+            <div class="glass-card">
+                <p>Sidebar content here</p>
+            </div>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <div class="header glass-panel">
+                <h1>Glassmorphic Template</h1>
+            </div>
+            
+            <div class="content-area">
+                <div class="glass-card">
+                    <h2>Welcome</h2>
+                    <p>This is a blank glassmorphic canvas template. The frosted glass effect with the scaling subtle spinning rainbow gradient is preserved.</p>
+                </div>
+                
+                <div class="glass-card">
+                    <h2>Ready to Build</h2>
+                    <p>Use this as a starting point for your single-file, single-page applications with the same aesthetic.</p>
+                    <button class="glass-button">Example Button</button>
+                </div>
+            </div>
+            
+            <div class="footer glass-panel">
+                <p>Footer content here</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
