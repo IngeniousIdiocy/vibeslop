@@ -122,6 +122,7 @@ body {
   font-size: 12px;
   display: none;
   transition: opacity 0.3s ease;
+  min-width: 220px;
 }
 #controls label {
   display: block;
@@ -131,10 +132,23 @@ body {
 #controls input[type="range"] {
   width: 150px;
   margin-bottom: 15px;
+  display: inline-block;
+  margin-right: 10px;
 }
 #controls .value {
   color: #06ffa5;
   font-weight: bold;
+  display: inline-block;
+  vertical-align: middle;
+}
+.desktop-only {
+  display: block;
+}
+/* Hide desktop-only controls on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .desktop-only {
+    display: none !important;
+  }
 }
 </style>
 </head>
@@ -144,13 +158,21 @@ body {
 <div id="instructions">panel</div>
 <div id="camera-toggle">📷</div>
 <div id="controls">
-  <label>Movement Speed</label>
-  <input type="range" id="moveSpeed" min="0.1" max="2" step="0.1" value="0.5">
-  <span class="value" id="moveSpeedValue">0.5</span>
+  <label>Panel Z-Depth (Landscape)</label>
+  <input type="range" id="panelZDepthLandscape" min="0" max="7" step="0.5" value="6">
+  <span class="value" id="panelZDepthLandscapeValue">6</span>
   
-  <label>Mouse Sensitivity</label>
-  <input type="range" id="mouseSensitivity" min="0.1" max="3" step="0.1" value="1">
-  <span class="value" id="mouseSensitivityValue">1</span>
+  <label>Panel Z-Depth (Portrait)</label>
+  <input type="range" id="panelZDepthPortrait" min="0" max="7" step="0.5" value="4.8">
+  <span class="value" id="panelZDepthPortraitValue">4.8</span>
+  
+  <label class="desktop-only">Movement Speed</label>
+  <input type="range" id="moveSpeed" min="0.1" max="2" step="0.1" value="0.5" class="desktop-only">
+  <span class="value desktop-only" id="moveSpeedValue">0.5</span>
+  
+  <label class="desktop-only">Mouse Sensitivity</label>
+  <input type="range" id="mouseSensitivity" min="0.1" max="3" step="0.1" value="1" class="desktop-only">
+  <span class="value desktop-only" id="mouseSensitivityValue">1</span>
   
   <label>Background Sphere Opacity</label>
   <input type="range" id="sphereOpacity" min="0" max="1" step="0.1" value="0.2">
@@ -203,14 +225,6 @@ body {
   <label>Content Panel Text</label>
   <input type="range" id="panelTextOpacity" min="0" max="1" step="0.1" value="0.9">
   <span class="value" id="panelTextOpacityValue">0.9</span>
-  
-  <label>Panel Z-Depth (Landscape)</label>
-  <input type="range" id="panelZDepthLandscape" min="0" max="7" step="0.5" value="6">
-  <span class="value" id="panelZDepthLandscapeValue">6</span>
-  
-  <label>Panel Z-Depth (Portrait)</label>
-  <input type="range" id="panelZDepthPortrait" min="0" max="7" step="0.5" value="5">
-  <span class="value" id="panelZDepthPortraitValue">5</span>
 </div>
 <canvas id="canvas"></canvas>
 
@@ -264,7 +278,7 @@ let spotlightIntensityValue = 5;
 let panelBgOpacityValue = 0;
 let panelTextOpacityValue = 0.9;
 let panelZDepthLandscapeValue = 6;
-let panelZDepthPortraitValue = 5;
+let panelZDepthPortraitValue = 4.8;
 
 // Setup control event listeners
 function setupControls() {
@@ -1216,9 +1230,9 @@ function onTouchMove(event) {
   const deltaX = touch.clientX - touchStartX;
   const deltaY = touch.clientY - touchStartY;
   
-  // Apply touch sensitivity (similar to mouse)
-  mouseX += deltaX * mouseSensitivityValue * 0.003;
-  mouseY += deltaY * mouseSensitivityValue * 0.003;
+  // Apply touch sensitivity (inverted for mobile)
+  mouseX -= deltaX * mouseSensitivityValue * 0.003;
+  mouseY -= deltaY * mouseSensitivityValue * 0.003;
   
   // Limit vertical rotation
   mouseY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, mouseY));
