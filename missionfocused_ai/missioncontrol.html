@@ -506,7 +506,7 @@ function updateRadar() {
 }
 
 // Floor grid
-const gridHelper = new THREE.GridHelper(50, 50, 0x54c6ff, 0x1a1a2e);
+const gridHelper = new THREE.GridHelper(50, 50, 0x1a1a2e, 0x1a1a2e);
 gridHelper.position.y = -2;
 scene.add(gridHelper);
 
@@ -780,7 +780,7 @@ function createControlStation(x, z) {
 
 // Create control stations
 createControlStation(-3, 6);
-createControlStation(0, 6.5);
+createControlStation(0, 6);
 createControlStation(3, 6);
 
 // Particles
