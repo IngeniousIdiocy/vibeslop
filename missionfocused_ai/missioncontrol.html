@@ -155,14 +155,30 @@ body {
   <label>Panel Matrix Intensity</label>
   <input type="range" id="panelMatrixIntensity" min="0" max="2" step="0.1" value="2">
   <span class="value" id="panelMatrixIntensityValue">2</span>
+  
+  <label>Lights Per Glass Layer</label>
+  <input type="range" id="lightsPerLayer" min="1" max="5" step="1" value="5">
+  <span class="value" id="lightsPerLayerValue">5</span>
+  
+  <label>Spotlight Intensity</label>
+  <input type="range" id="spotlightIntensity" min="5" max="50" step="5" value="5">
+  <span class="value" id="spotlightIntensityValue">5</span>
+  
+  <label>Content Panel Background</label>
+  <input type="range" id="panelBgOpacity" min="0" max="1" step="0.1" value="0">
+  <span class="value" id="panelBgOpacityValue">0</span>
+  
+  <label>Content Panel Text</label>
+  <input type="range" id="panelTextOpacity" min="0" max="1" step="0.1" value="0.9">
+  <span class="value" id="panelTextOpacityValue">0.9</span>
 </div>
 <canvas id="canvas"></canvas>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// Scene setup
+// Scene setup with darker fog for spotlight drama
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x000000, 5, 50);
+scene.fog = new THREE.Fog(0x000000, 3, 40); // Thicker, closer fog for more dramatic lighting
 
 // Original camera position (panels will always animate to this position)
 const ORIGINAL_CAMERA_POSITION = new THREE.Vector3(0, 3, 10);
@@ -200,6 +216,10 @@ let radarBgAlphaValue = 0.2;
 let radarLineAlphaValue = 1;
 let panelMatrixOpacityValue = 2;
 let panelMatrixIntensityValue = 2;
+let lightsPerLayerValue = 5;
+let spotlightIntensityValue = 5;
+let panelBgOpacityValue = 0;
+let panelTextOpacityValue = 0.9;
 
 // Setup control event listeners
 function setupControls() {
@@ -274,6 +294,34 @@ function setupControls() {
     panelMatrixIntensityValue = parseFloat(e.target.value);
     document.getElementById('panelMatrixIntensityValue').textContent = panelMatrixIntensityValue;
   });
+  
+  const lightsPerLayer = document.getElementById('lightsPerLayer');
+  const spotlightIntensity = document.getElementById('spotlightIntensity');
+  
+  lightsPerLayer.addEventListener('input', (e) => {
+    lightsPerLayerValue = parseInt(e.target.value);
+    document.getElementById('lightsPerLayerValue').textContent = lightsPerLayerValue;
+    // Recreate lights with new count
+    recreateLights();
+  });
+  
+  spotlightIntensity.addEventListener('input', (e) => {
+    spotlightIntensityValue = parseFloat(e.target.value);
+    document.getElementById('spotlightIntensityValue').textContent = spotlightIntensityValue;
+  });
+  
+  const panelBgOpacity = document.getElementById('panelBgOpacity');
+  const panelTextOpacity = document.getElementById('panelTextOpacity');
+  
+  panelBgOpacity.addEventListener('input', (e) => {
+    panelBgOpacityValue = parseFloat(e.target.value);
+    document.getElementById('panelBgOpacityValue').textContent = panelBgOpacityValue;
+  });
+  
+  panelTextOpacity.addEventListener('input', (e) => {
+    panelTextOpacityValue = parseFloat(e.target.value);
+    document.getElementById('panelTextOpacityValue').textContent = panelTextOpacityValue;
+  });
 }
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -289,12 +337,12 @@ camera.lookAt(ORIGINAL_CAMERA_TARGET);
 // Content for screens
 const screenContent = [
   {
-    title: "MISSION COMMAND",
+    title: "MISSION FOCUSED",
     content: "Automate to Amplify Your Mission\n\nMissionFocused.ai streamlines your nonprofit's back office so you can focus on impact.",
     color: 0x54c6ff
   },
   {
-    title: "ABOUT SECTOR",
+    title: "ABOUT US",
     content: "Born from a passion for nonprofit efficiency, MissionFocused.ai helps organizations slash overhead and channel more resources directly to mission.\n\nOur founders are veterans of the charity world who know the constraints of limited staff, outdated software, and rigid compliance.",
     color: 0xff5bc3
   },
@@ -304,7 +352,7 @@ const screenContent = [
     color: 0x8c62ff
   },
   {
-    title: "SERVICES DIVISION",
+    title: "SERVICES FOR NONPROFITS",
     content: "• Configure Finance AI Agents\n• CRM migrations & donor segmentation\n• Custom AI assistants for case management\n• Grant compliance & reporting automation",
     color: 0x06ffa5
   },
@@ -314,38 +362,68 @@ const screenContent = [
     color: 0x54c6ff
   },
   {
-    title: "INTEL BRIEFING",
+    title: "INTEL ON MISSION FOCUSED",
     content: "Q: Is MissionFocused.ai just for US nonprofits?\nA: No — multi-currency and GDPR compliant.\n\nQ: Can we deploy on-prem?\nA: Yes, via Kubernetes operator.\n\nQ: Discounts?\nA: Early adopters receive lifetime 30% off.",
     color: 0xff5bc3
   },
   {
-    title: "COMMUNICATIONS",
+    title: "CONTACT US",
     content: "CONTACT MISSION CONTROL\n\nhello@missionfocused.ai\n\nWe'd love to learn about your mission and help you achieve maximum impact with minimal overhead.",
     color: 0x8c62ff
   }
 ];
 
-// Enhanced ambient lighting for better purple/blue visibility
-const ambientLight = new THREE.AmbientLight(0x1a0a2e, 0.3);
+// Minimal ambient lighting to make spotlights dramatically visible
+const ambientLight = new THREE.AmbientLight(0x0a0a1a, 0.1);
 scene.add(ambientLight);
 
-// Moving lights for dynamic effect - enhanced for glassmorphic look
+// Dynamic lighting system for glassmorphism effects
 const lights = [];
-const lightColors = [0x54c6ff, 0xff5bc3, 0x06ffa5, 0x8c62ff];
-for (let i = 0; i < 4; i++) {
-  const light = new THREE.PointLight(
-    lightColors[i], 
-    3, 
-    40
-  );
-  light.position.set(
-    Math.random() * 30 - 15,
-    Math.random() * 10 - 2,
-    Math.random() * 30 - 15
-  );
-  scene.add(light);
-  lights.push(light);
+const baseColors = [0xff0080, 0x0080ff, 0x80ff00, 0xff8000]; // Bold, saturated colors
+
+// Function to create lights based on current settings
+function createLights() {
+  // Clear existing lights
+  lights.forEach(light => scene.remove(light));
+  lights.length = 0;
+  
+  // Create lights for each glass layer
+  for (let layer = 0; layer < 4; layer++) {
+    for (let lightIndex = 0; lightIndex < lightsPerLayerValue; lightIndex++) {
+      const light = new THREE.PointLight(
+        baseColors[layer], 
+        spotlightIntensityValue,
+        80
+      );
+      
+      // Position lights in small constrained boxes between glass panes
+      const zDepth = -9 - (layer * 3) + (lightIndex * 0.5); // Slight Z offset per light in layer
+      light.position.set(
+        (Math.random() - 0.5) * 20, // x = ±10 (smaller box than glass)
+        3 + Math.random() * 4,      // y = 3-7 (constrained height)
+        zDepth + Math.random() * 1  // slight z variation within layer
+      );
+      
+      // Store layer info for animation
+      light.userData = {
+        layer: layer,
+        lightIndex: lightIndex,
+        baseZ: zDepth
+      };
+      
+      scene.add(light);
+      lights.push(light);
+    }
+  }
 }
+
+// Function to recreate lights when settings change
+function recreateLights() {
+  createLights();
+}
+
+// Initial light creation
+createLights();
 
 // Radar system
 const radarCanvas = document.createElement('canvas');
@@ -358,8 +436,9 @@ const radarTexture = new THREE.CanvasTexture(radarCanvas);
 const radarMaterial = new THREE.MeshBasicMaterial({
   map: radarTexture,
   transparent: true,
-  opacity: 0.7,
-  side: THREE.DoubleSide
+  opacity: 0.8, // Slightly more opaque to maintain readability while showing glass effects
+  side: THREE.DoubleSide,
+  alphaTest: 0.1 // Allow better alpha blending with background glass effects
 });
 
 const radarMesh = new THREE.Mesh(radarGeometry, radarMaterial);
@@ -526,7 +605,7 @@ function updateRadar() {
   });
   
   // Draw sweep line (rotating)
-  radarRotation += 0.03;
+  radarRotation += 0.06;
   const sweepX = centerX + Math.cos(radarRotation) * radius;
   const sweepY = centerY + Math.sin(radarRotation) * radius;
   
@@ -599,59 +678,47 @@ const gridHelper = new THREE.GridHelper(50, 50, 0x1a1a2e, 0x1a1a2e);
 gridHelper.position.y = -2;
 scene.add(gridHelper);
 
-// Glass wall behind panels - enhanced for better light interaction
-const wallGeometry = new THREE.PlaneGeometry(40, 12);
-const wallMaterial = new THREE.MeshPhysicalMaterial({
-  color: 0x1a0a2e,
-  metalness: 0.1,
-  roughness: 0.1,
-  transparent: true,
-  opacity: 0.25,
-  side: THREE.DoubleSide,
-  transmission: 0.7,
-  ior: 1.4
-});
-const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-wall.position.z = -12;
-wall.position.y = 3;
-scene.add(wall);
-
-// Add additional glass panels for depth with glassmorphic effect
+// 4 massive glass panes between content and radar for seamless glassmorphism
 const glassPanels = [];
-for (let i = 0; i < 3; i++) {
+const glassColors = [0x800040, 0x004080, 0x408000, 0x804000]; // Match light colors but darker
+
+for (let i = 0; i < 4; i++) {
   const glassPanel = new THREE.Mesh(
-    new THREE.PlaneGeometry(15, 8),
+    new THREE.PlaneGeometry(100, 80), // MASSIVE size so edges are never visible from normal view
     new THREE.MeshPhysicalMaterial({
-      color: [0x2a0a3e, 0x1a0a2e, 0x0a1a2e][i],
-      metalness: 0.2,
-      roughness: 0.1,
+      color: glassColors[i],
+      metalness: 0.3, // Higher metalness for more intense reflections
+      roughness: 0.01, // Even smoother for maximum reflection
       transparent: true,
-      opacity: 0.15,
-      transmission: 0.8,
-      ior: 1.5
+      opacity: 0.35, // Higher opacity to make light effects more visible
+      transmission: 0.95, // Slightly reduced for more dramatic light interaction
+      ior: 2.0 + i * 0.3, // Even more dramatic IOR differences for each pane
+      side: THREE.DoubleSide
     })
   );
+  
+  // Position each pane between content panels (z=-5) and radar (z=-25)
   glassPanel.position.set(
-    (i - 1) * 15,
-    3,
-    -18 - i * 3
+    0,                    // Centered
+    15,                   // Position to cover the viewing area (bottom at y=-25, top at y=55)
+    -8 - (i * 3)         // z = -8, -11, -14, -17 (between content at -5 and radar at -25)
   );
-  glassPanel.rotation.y = (i - 1) * 0.2;
+  
   scene.add(glassPanel);
   glassPanels.push(glassPanel);
 }
 
-// Background glow sphere
+// Darker background sphere to make spotlights more dramatic
 const backgroundSphere = new THREE.Mesh(
-  new THREE.SphereGeometry(100, 32, 32),
+  new THREE.SphereGeometry(120, 32, 32),
   new THREE.MeshBasicMaterial({
-    color: 0x4b0082,
+    color: 0x1a0820, // Much darker purple
     transparent: true,
-    opacity: sphereOpacityValue,
+    opacity: sphereOpacityValue * 0.5, // Half opacity for darker background
     side: THREE.BackSide
   })
 );
-backgroundSphere.position.set(0, 0, -50);
+backgroundSphere.position.set(0, 0, -55); // Further back to encompass glass layers
 scene.add(backgroundSphere);
 
 // Create screens
@@ -668,7 +735,7 @@ function createScreen(content, index) {
     emissive: content.color,
     emissiveIntensity: 0.2,
     transparent: true,
-    opacity: 0.9,
+    opacity: panelBgOpacityValue,
     side: THREE.DoubleSide
   });
   
@@ -700,7 +767,7 @@ function createScreen(content, index) {
   const textMaterial = new THREE.MeshBasicMaterial({ 
     map: texture, 
     transparent: true,
-    opacity: 0.95
+    opacity: panelTextOpacityValue
   });
   const textMesh = new THREE.Mesh(geometry, textMaterial);
   textMesh.position.z = 0.01;
@@ -727,7 +794,7 @@ function createScreen(content, index) {
   // Angle panels slightly toward viewer
   group.rotation.y = -group.position.x * 0.03;
   
-  // Store original transform
+  // Store original transform and material references
   group.userData = {
     originalPosition: group.position.clone(),
     originalRotation: group.rotation.clone(),
@@ -736,6 +803,8 @@ function createScreen(content, index) {
     targetRotation: new THREE.Euler(0, 0, 0),
     targetScale: new THREE.Vector3(1.2, 1.2, 1.2),
     screen: screen,
+    screenMaterial: material,
+    textMaterial: textMaterial,
     index: index,
     animating: false,
     focused: false
@@ -1312,18 +1381,23 @@ function animate() {
   // Update camera movement
   updateCameraMovement();
   
-  // Animate lights - enhanced movement and color shifting
+  // Animate lights - each moves randomly in its assigned constrained box
   lights.forEach((light, i) => {
-    light.position.x = Math.sin(time + i * 1.5) * 15;
-    light.position.z = Math.cos(time + i * 1.5) * 15;
-    light.position.y = 3 + Math.sin(time * 2 + i) * 5;
+    const layer = light.userData.layer;
+    const lightIndex = light.userData.lightIndex;
+    const baseZ = light.userData.baseZ;
     
-    // Dynamic color shifting
-    const hue = (time * 50 + i * 90) % 360;
-    light.color.setHSL(hue / 360, 0.8, 0.5);
+    // Smooth random movement within small constrained box
+    light.position.x = Math.sin(time * 0.7 + i * 2) * 10;                    // x = ±10 (smaller than glass)
+    light.position.y = 5 + Math.sin(time * 0.9 + i * 1.3) * 2;              // y = 3-7 (constrained height)
+    light.position.z = baseZ + Math.sin(time * 0.5 + i * 1.7) * 1;          // z varies ±1 in layer
     
-    // Pulse intensity
-    light.intensity = 3 + Math.sin(time * 3 + i * 2) * 1.5;
+    // INTENSE color cycling for dramatic glass effects
+    const hue = (time * 100 + layer * 90 + lightIndex * 30) % 360; // Faster, bolder color changes
+    light.color.setHSL(hue / 360, 1.0, 0.8); // Maximum saturation and high brightness
+    
+    // Dynamic intensity based on user controls
+    light.intensity = spotlightIntensityValue + Math.sin(time * 6 + i * 3) * (spotlightIntensityValue * 0.8);
   });
   
   // Update radar system
@@ -1336,16 +1410,16 @@ function animate() {
   updatePanelMatrix();
   updatePanelBackgrounds();
   
-  // Animate glass panels with subtle rotation for glassmorphic effect
+  // Static glass panels - DRAMATIC material property changes for MAXIMUM intensity
   glassPanels.forEach((panel, i) => {
-    panel.rotation.y = (i - 1) * 0.2 + Math.sin(time * 0.2 + i) * 0.1;
-    panel.material.opacity = 0.15 + Math.sin(time + i) * 0.05;
+    // DRAMATIC opacity pulsing to enhance light interaction
+    panel.material.opacity = 0.35 + Math.sin(time * 3 + i * 1.5) * 0.25; // 0.1 to 0.6 range
+    
+    // EXTREME IOR shifts for dramatic light refraction
+    panel.material.ior = (2.0 + i * 0.3) + Math.sin(time * 2 + i) * 0.8; // 1.2 to 3.5 range
   });
   
-  // Animate main wall color for enhanced glassmorphic effect
-  const hue = (time * 20) % 360;
-  const color = new THREE.Color().setHSL((hue + 240) / 360, 0.6, 0.1); // Purple to blue range
-  wall.material.color = color;
+  // Background color effects handled by glass panels and sphere
   
   // Animate background glow sphere color and opacity
   const bgHue = (time * 15) % 120; // Slower cycle, 120 degree range
@@ -1366,10 +1440,18 @@ function animate() {
     screen.material.emissiveIntensity = 0.2 + Math.sin(time * 2 + i) * 0.1;
   });
   
-  // Float unfocused panels slightly
+  // Float unfocused panels slightly and update opacities
   screenGroups.forEach((group, i) => {
     if (!group.userData.focused && !group.userData.animating) {
       group.position.y = group.userData.originalPosition.y + Math.sin(time + i) * 0.1;
+    }
+    
+    // Update panel opacities from controls
+    if (group.userData.screenMaterial) {
+      group.userData.screenMaterial.opacity = panelBgOpacityValue;
+    }
+    if (group.userData.textMaterial) {
+      group.userData.textMaterial.opacity = panelTextOpacityValue;
     }
   });
   
