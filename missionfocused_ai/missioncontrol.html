@@ -15,7 +15,7 @@ body {
 #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 #instructions {
   position: fixed;
-  bottom: 20px;
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(84, 198, 255, 0.1);
@@ -26,6 +26,14 @@ body {
   font-size: 14px;
   text-align: center;
   z-index: 100;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
+}
+#instructions:hover {
+  background: rgba(84, 198, 255, 0.2);
+  border: 1px solid rgba(84, 198, 255, 0.5);
+  transform: translateX(-50%) scale(1.05);
 }
 #logo {
   position: fixed;
@@ -70,7 +78,7 @@ body {
 </head>
 <body>
 <div id="logo">MissionFocused.ai</div>
-<div id="instructions">Press 1-7 to summon screens • Press 0 or same number to return • Press C for lighting controls</div>
+<div id="instructions">panel</div>
 <div id="lighting-controls">
   <label>Background Sphere Opacity</label>
   <input type="range" id="sphereOpacity" min="0" max="1" step="0.1" value="0.2">
@@ -804,10 +812,12 @@ scene.add(particlesMesh);
 
 // Panel animation
 let currentFocus = -1;
+let globalAnimating = false;
 
 function animatePanel(group, toFront) {
   if (group.userData.animating) return;
   group.userData.animating = true;
+  globalAnimating = true;
   
   const startPos = group.position.clone();
   const startRot = group.rotation.clone();
@@ -822,6 +832,7 @@ function animatePanel(group, toFront) {
     if (progress >= 1) {
       group.userData.animating = false;
       group.userData.focused = toFront;
+      globalAnimating = false;
       return;
     }
     
@@ -846,6 +857,9 @@ function animatePanel(group, toFront) {
 }
 
 function focusScreen(index) {
+  // Ignore input while any animation is in progress
+  if (globalAnimating) return;
+  
   const group = screenGroups[index];
   
   if (currentFocus === index && group.userData.focused) {
@@ -863,16 +877,47 @@ function focusScreen(index) {
   }
 }
 
-// Keyboard controls
-window.addEventListener('keydown', (e) => {
-  const key = parseInt(e.key);
-  if (key >= 1 && key <= 7) {
-    focusScreen(key - 1);
-  } else if (key === 0) {
+// Panel cycling state
+let panelCycleState = 0; // 0-6 for panels 1-7, 7 for home state
+
+// Panel cycling button
+document.getElementById('instructions').addEventListener('click', () => {
+  // Ignore input while any animation is in progress
+  if (globalAnimating) return;
+  
+  if (panelCycleState >= 0 && panelCycleState <= 6) {
+    // Focus on panel (1-7)
+    focusScreen(panelCycleState);
+  } else {
+    // Home state - return all panels
     if (currentFocus !== -1) {
       animatePanel(screenGroups[currentFocus], false);
       currentFocus = -1;
     }
+  }
+  
+  // Increment cycle state with wrap-around
+  panelCycleState = (panelCycleState + 1) % 8; // 0-7, then back to 0
+});
+
+// Keyboard controls
+window.addEventListener('keydown', (e) => {
+  const key = parseInt(e.key);
+  if (key >= 1 && key <= 7) {
+    // Ignore input while any animation is in progress
+    if (globalAnimating) return;
+    focusScreen(key - 1);
+    // Sync button state with keyboard
+    panelCycleState = key; // Next click will advance from current panel
+  } else if (key === 0) {
+    // Ignore input while any animation is in progress
+    if (globalAnimating) return;
+    if (currentFocus !== -1) {
+      animatePanel(screenGroups[currentFocus], false);
+      currentFocus = -1;
+    }
+    // Sync button state
+    panelCycleState = 0; // Next click will go to panel 1
   } else if (e.key.toLowerCase() === 'c') {
     // Toggle lighting controls visibility
     const controls = document.getElementById('lighting-controls');
