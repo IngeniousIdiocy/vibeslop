@@ -171,8 +171,8 @@ body {
   <span class="value desktop-only" id="moveSpeedValue">0.5</span>
   
   <label class="desktop-only">Mouse Sensitivity</label>
-  <input type="range" id="mouseSensitivity" min="0.1" max="3" step="0.1" value="1" class="desktop-only">
-  <span class="value desktop-only" id="mouseSensitivityValue">1</span>
+  <input type="range" id="mouseSensitivity" min="0.1" max="6" step="0.1" value="3" class="desktop-only">
+  <span class="value desktop-only" id="mouseSensitivityValue">3</span>
   
   <label>Background Sphere Opacity</label>
   <input type="range" id="sphereOpacity" min="0" max="1" step="0.1" value="0.2">
@@ -240,7 +240,7 @@ const ORIGINAL_CAMERA_TARGET = new THREE.Vector3(0, 2, 0);
 
 // Camera movement variables
 let moveSpeedValue = 0.5;
-let mouseSensitivityValue = 1;
+let mouseSensitivityValue = 3;
 
 // Movement state
 const keys = {
@@ -892,6 +892,283 @@ function createScreen(content, index) {
 // Create all screens
 screenContent.forEach((content, i) => createScreen(content, i));
 
+// =============================================================================
+// PAINTBALL SYSTEM - Encapsulated paintball physics and effects
+// =============================================================================
+
+class PaintballSystem {
+  constructor(scene, camera, renderer) {
+    this.scene = scene;
+    this.camera = camera;
+    this.renderer = renderer;
+    
+    // Paintball physics
+    this.gravity = -9.8; // Realistic gravity
+    this.paintballs = []; // Active paintballs
+    this.paintSplatters = []; // Paint effects on surfaces
+    
+    // Paint colors
+    this.paintColors = [
+      0xff0040, // Hot pink
+      0x00ff40, // Bright green  
+      0x0040ff, // Electric blue
+      0xff8000, // Orange
+      0x8000ff, // Purple
+      0xffff00  // Yellow
+    ];
+    
+    // Collision detection
+    this.raycaster = new THREE.Raycaster();
+    this.collisionTargets = [];
+    
+    // Paint system
+    this.paintCanvases = new Map(); // Store paint canvases for each surface
+    
+    this.setupCollisionTargets();
+  }
+  
+  setupCollisionTargets() {
+    // Add all panels as collision targets
+    this.collisionTargets = [
+      ...screenGroups.map(group => group),
+      ...glassPanels,
+      gridHelper
+    ];
+  }
+  
+  launch(startPosition, direction, power = 15) {
+    if (!isCameraFree) return; // Only allow when camera is free
+    
+    const paintball = {
+      id: Date.now() + Math.random(),
+      mesh: this.createPaintballMesh(),
+      velocity: direction.clone().multiplyScalar(power),
+      startTime: performance.now(),
+      color: this.paintColors[Math.floor(Math.random() * this.paintColors.length)],
+      hasCollided: false
+    };
+    
+    paintball.mesh.position.copy(startPosition);
+    this.scene.add(paintball.mesh);
+    this.paintballs.push(paintball);
+  }
+  
+  createPaintballMesh() {
+    const geometry = new THREE.SphereGeometry(0.05, 8, 8);
+    const material = new THREE.MeshBasicMaterial({ 
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.8
+    });
+    return new THREE.Mesh(geometry, material);
+  }
+  
+  update(deltaTime) {
+    for (let i = this.paintballs.length - 1; i >= 0; i--) {
+      const paintball = this.paintballs[i];
+      
+      if (paintball.hasCollided) {
+        // Remove collided paintballs after a short delay
+        this.scene.remove(paintball.mesh);
+        this.paintballs.splice(i, 1);
+        continue;
+      }
+      
+      // Physics update
+      const elapsed = (performance.now() - paintball.startTime) / 1000;
+      
+      // Apply gravity to velocity
+      paintball.velocity.y += this.gravity * deltaTime;
+      
+      // Calculate new position
+      const newPosition = paintball.mesh.position.clone();
+      newPosition.add(paintball.velocity.clone().multiplyScalar(deltaTime));
+      
+      // Check for collision
+      const collision = this.checkCollision(paintball.mesh.position, newPosition);
+      
+      if (collision) {
+        this.handleCollision(paintball, collision);
+        paintball.hasCollided = true;
+      } else {
+        // Update position
+        paintball.mesh.position.copy(newPosition);
+        paintball.mesh.material.color.setHex(paintball.color);
+        
+        // Remove if too far away or too old
+        if (newPosition.y < -10 || elapsed > 10) {
+          this.scene.remove(paintball.mesh);
+          this.paintballs.splice(i, 1);
+        }
+      }
+    }
+  }
+  
+  checkCollision(currentPos, newPos) {
+    // Cast ray from current position to new position
+    const direction = newPos.clone().sub(currentPos).normalize();
+    const distance = currentPos.distanceTo(newPos);
+    
+    this.raycaster.set(currentPos, direction);
+    this.raycaster.far = distance;
+    
+    const intersects = this.raycaster.intersectObjects(this.collisionTargets, true);
+    
+    if (intersects.length > 0) {
+      return intersects[0];
+    }
+    
+    return null;
+  }
+  
+  handleCollision(paintball, collision) {
+    const hitPoint = collision.point;
+    const hitObject = collision.object;
+    
+    // Get surface normal - handle special cases like GridHelper
+    let surfaceNormal;
+    if (collision.face && collision.face.normal) {
+      // Standard mesh collision
+      surfaceNormal = collision.face.normal.clone();
+    } else if (hitObject.isGridHelper || hitObject.type === 'GridHelper') {
+      // GridHelper collision - assume upward normal
+      surfaceNormal = new THREE.Vector3(0, 1, 0);
+    } else {
+      // Fallback - calculate normal from hit point
+      const center = new THREE.Vector3();
+      hitObject.getWorldPosition(center);
+      surfaceNormal = hitPoint.clone().sub(center).normalize();
+      
+      // If still invalid, use upward normal
+      if (surfaceNormal.length() === 0) {
+        surfaceNormal = new THREE.Vector3(0, 1, 0);
+      }
+    }
+    
+    // Create paint splatter effect
+    this.createPaintSplatter(hitPoint, surfaceNormal, paintball.color, hitObject);
+    
+    // Position paintball at collision point
+    paintball.mesh.position.copy(hitPoint);
+  }
+  
+  createPaintSplatter(position, normal, color, hitObject) {
+    // Create organic splatter geometry - order of magnitude smaller
+    const baseSize = 0.02 + Math.random() * 0.03; // Much smaller: 0.02-0.05
+    const geometry = this.createOrganicSplatterGeometry(baseSize);
+    
+    // Create paint material
+    const material = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+    
+    const splatter = new THREE.Mesh(geometry, material);
+    
+    // Position splatter flush to surface with proper orientation
+    splatter.position.copy(position);
+    
+    // Proper orientation for flat surfaces - avoid lookAt issues
+    if (Math.abs(normal.y) > 0.9) {
+      // Floor/ceiling - normal is mostly up/down
+      splatter.rotation.x = normal.y > 0 ? -Math.PI/2 : Math.PI/2;
+      splatter.rotation.y = 0;
+      splatter.rotation.z = Math.random() * Math.PI * 2; // Random rotation around Y axis
+    } else if (Math.abs(normal.z) > 0.7) {
+      // Front/back faces - normal is mostly forward/backward
+      splatter.rotation.x = 0;
+      splatter.rotation.y = normal.z > 0 ? 0 : Math.PI;
+      splatter.rotation.z = Math.random() * Math.PI * 2; // Random rotation around Z axis
+    } else {
+      // Side faces - use lookAt as fallback but ensure flat positioning
+      const up = new THREE.Vector3(0, 1, 0);
+      splatter.lookAt(position.clone().add(normal));
+      splatter.rotateZ(Math.random() * Math.PI * 2);
+    }
+    
+    // Offset very slightly along normal to avoid z-fighting
+    splatter.position.add(normal.clone().multiplyScalar(0.0001));
+    
+    this.scene.add(splatter);
+    this.paintSplatters.push({
+      mesh: splatter,
+      createdAt: performance.now()
+    });
+  }
+  
+  createOrganicSplatterGeometry(baseRadius) {
+    // Create fractal-like splatter shape with chaotic edges
+    const points = [];
+    const numPoints = 16 + Math.floor(Math.random() * 8); // 16-24 points for complexity
+    
+    // Generate main splatter body with irregular radius
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * Math.PI * 2;
+      
+      // Fractal-like radius variation - multiple levels of chaos
+      const baseVariation = 0.7 + Math.random() * 0.6; // 0.7-1.3 multiplier
+      const mediumVariation = 0.8 + Math.random() * 0.4; // Secondary chaos
+      const fineVariation = 0.9 + Math.random() * 0.2; // Fine detail
+      
+      const radius = baseRadius * baseVariation * mediumVariation * fineVariation;
+      
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      
+      points.push(new THREE.Vector2(x, y));
+    }
+    
+    // Add random droplet extensions (paint drips/spatters)
+    const numDroplets = Math.floor(Math.random() * 4) + 2; // 2-5 droplets
+    for (let i = 0; i < numDroplets; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = baseRadius * (1.5 + Math.random() * 1.5); // Extend beyond main body
+      const dropletSize = baseRadius * (0.2 + Math.random() * 0.3);
+      
+      // Create small droplet
+      const dropletPoints = 6;
+      for (let j = 0; j < dropletPoints; j++) {
+        const dropletAngle = (j / dropletPoints) * Math.PI * 2;
+        const dropletRadius = dropletSize * (0.8 + Math.random() * 0.4);
+        
+        const x = Math.cos(angle) * distance + Math.cos(dropletAngle) * dropletRadius;
+        const y = Math.sin(angle) * distance + Math.sin(dropletAngle) * dropletRadius;
+        
+        points.push(new THREE.Vector2(x, y));
+      }
+    }
+    
+    // Create shape from points
+    const shape = new THREE.Shape(points);
+    
+    // Create geometry with minimal thickness for flat splatter
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: 0.001,
+      bevelEnabled: false
+    });
+  }
+  
+  // Method to clear all paint (if needed)
+  clearPaint() {
+    this.paintSplatters.forEach(splatter => {
+      this.scene.remove(splatter.mesh);
+    });
+    this.paintSplatters = [];
+  }
+  
+  // Get aiming direction from camera
+  getAimDirection() {
+    const direction = new THREE.Vector3();
+    this.camera.getWorldDirection(direction);
+    return direction;
+  }
+}
+
+// Initialize paintball system
+const paintballSystem = new PaintballSystem(scene, camera, renderer);
+
 // Function to update all panel backgrounds
 function updatePanelBackgrounds() {
   panelCanvases.forEach(panelInfo => {
@@ -1276,11 +1553,13 @@ function initPointerLock() {
 // Camera toggle functionality
 function toggleCamera() {
   const cameraButton = document.getElementById('camera-toggle');
+  const instructions = document.getElementById('instructions');
   
   if (isCameraFree) {
     // Lock camera and return to original position
     isCameraFree = false;
     cameraButton.classList.remove('active');
+    instructions.textContent = 'panel';
     
     // Exit pointer lock (desktop only)
     if (!isTouchDevice && document.exitPointerLock) {
@@ -1293,6 +1572,9 @@ function toggleCamera() {
     // Free camera
     isCameraFree = true;
     cameraButton.classList.add('active');
+    instructions.textContent = isTouchDevice ? 
+      'tap to shoot paintballs!' : 
+      'click to shoot paintballs! • P to clear paint';
     
     // Request pointer lock (desktop only)
     if (!isTouchDevice) {
@@ -1420,6 +1702,9 @@ window.addEventListener('keydown', (e) => {
     if (isCameraFree) {
       toggleCamera();
     }
+  } else if (key === 'p') {
+    // Clear all paint
+    paintballSystem.clearPaint();
   }
 });
 
@@ -1431,6 +1716,64 @@ window.addEventListener('keyup', (e) => {
   if (key === 'a') keys.a = false;
   if (key === 's') keys.s = false;
   if (key === 'd') keys.d = false;
+});
+
+// =============================================================================
+// PAINTBALL INPUT HANDLING
+// =============================================================================
+
+// Mouse click to launch paintballs
+renderer.domElement.addEventListener('click', (event) => {
+  // Only allow paintball shooting when camera is free
+  if (!isCameraFree) return;
+  
+  // Prevent shooting during pointer lock request
+  if (!isTouchDevice && !isPointerLocked) return;
+  
+  // Get camera position and direction
+  const startPosition = camera.position.clone();
+  const aimDirection = paintballSystem.getAimDirection();
+  
+  // Add slight random spread for realism
+  const spread = 0.02;
+  aimDirection.x += (Math.random() - 0.5) * spread;
+  aimDirection.y += (Math.random() - 0.5) * spread;
+  aimDirection.z += (Math.random() - 0.5) * spread;
+  aimDirection.normalize();
+  
+  // Launch paintball with power based on mouse position (simple aim adjustment)
+  const power = 15 + Math.random() * 5; // 15-20 power range
+  paintballSystem.launch(startPosition, aimDirection, power);
+  
+  // Prevent event bubbling
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+// Touch handling for mobile paintball launching
+renderer.domElement.addEventListener('touchend', (event) => {
+  // Only allow paintball shooting when camera is free
+  if (!isCameraFree || !isTouchDevice) return;
+  
+  // Only shoot on single finger tap
+  if (event.changedTouches.length !== 1) return;
+  
+  // Get camera position and direction
+  const startPosition = camera.position.clone();
+  const aimDirection = paintballSystem.getAimDirection();
+  
+  // Add slight random spread for realism
+  const spread = 0.02;
+  aimDirection.x += (Math.random() - 0.5) * spread;
+  aimDirection.y += (Math.random() - 0.5) * spread;
+  aimDirection.z += (Math.random() - 0.5) * spread;
+  aimDirection.normalize();
+  
+  // Launch paintball
+  const power = 15 + Math.random() * 5;
+  paintballSystem.launch(startPosition, aimDirection, power);
+  
+  event.preventDefault();
 });
 
 // Animation loop
@@ -1537,6 +1880,9 @@ function animate() {
   
   // Update camera movement
   updateCameraMovement();
+  
+  // Update paintball system
+  paintballSystem.update(0.016); // ~60fps delta time
   
   // Animate lights - each moves randomly in its assigned constrained box
   lights.forEach((light, i) => {
