@@ -66,6 +66,37 @@ body {
   background: rgba(6, 255, 165, 0.2);
   border: 1px solid rgba(6, 255, 165, 0.5);
 }
+#fire-button {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 0, 0, 0.2);
+  border: 1px solid rgba(255, 0, 0, 0.5);
+  padding: 15px;
+  border-radius: 50%;
+  backdrop-filter: blur(10px);
+  font-size: 18px;
+  text-align: center;
+  z-index: 100;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
+  width: 50px;
+  height: 50px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#fire-button:hover {
+  background: rgba(255, 0, 0, 0.3);
+  border: 1px solid rgba(255, 0, 0, 0.7);
+  transform: translateX(-50%) scale(1.05);
+}
+#fire-button.active {
+  background: rgba(255, 0, 0, 0.4);
+  border: 1px solid rgba(255, 0, 0, 0.8);
+}
 #settings-toggle {
   position: fixed;
   bottom: 10px;
@@ -150,6 +181,12 @@ body {
     display: none !important;
   }
 }
+/* Hide fire button on desktop devices */
+@media (hover: hover) and (pointer: fine) {
+  #fire-button {
+    display: none !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -157,6 +194,7 @@ body {
 <div id="settings-toggle">⚙️</div>
 <div id="instructions">panel</div>
 <div id="camera-toggle">📷</div>
+<div id="fire-button">🔴</div>
 <div id="controls">
   <label>Panel Z-Depth (Landscape)</label>
   <input type="range" id="panelZDepthLandscape" min="0" max="7" step="0.5" value="6">
@@ -1553,6 +1591,7 @@ function initPointerLock() {
 // Camera toggle functionality
 function toggleCamera() {
   const cameraButton = document.getElementById('camera-toggle');
+  const fireButton = document.getElementById('fire-button');
   const instructions = document.getElementById('instructions');
   
   if (isCameraFree) {
@@ -1560,6 +1599,11 @@ function toggleCamera() {
     isCameraFree = false;
     cameraButton.classList.remove('active');
     instructions.textContent = 'panel';
+    
+    // Hide fire button
+    if (isTouchDevice) {
+      fireButton.style.display = 'none';
+    }
     
     // Exit pointer lock (desktop only)
     if (!isTouchDevice && document.exitPointerLock) {
@@ -1573,8 +1617,13 @@ function toggleCamera() {
     isCameraFree = true;
     cameraButton.classList.add('active');
     instructions.textContent = isTouchDevice ? 
-      'tap to shoot paintballs!' : 
+      'aim & use fire button to shoot!' : 
       'click to shoot paintballs! • P to clear paint';
+    
+    // Show fire button on touch devices
+    if (isTouchDevice) {
+      fireButton.style.display = 'flex';
+    }
     
     // Request pointer lock (desktop only)
     if (!isTouchDevice) {
@@ -1750,13 +1799,10 @@ renderer.domElement.addEventListener('click', (event) => {
   event.stopPropagation();
 });
 
-// Touch handling for mobile paintball launching
-renderer.domElement.addEventListener('touchend', (event) => {
+// Fire button for mobile paintball launching
+document.getElementById('fire-button').addEventListener('touchend', (event) => {
   // Only allow paintball shooting when camera is free
   if (!isCameraFree || !isTouchDevice) return;
-  
-  // Only shoot on single finger tap
-  if (event.changedTouches.length !== 1) return;
   
   // Get camera position and direction
   const startPosition = camera.position.clone();
@@ -1773,7 +1819,13 @@ renderer.domElement.addEventListener('touchend', (event) => {
   const power = 15 + Math.random() * 5;
   paintballSystem.launch(startPosition, aimDirection, power);
   
+  // Visual feedback
+  const fireButton = document.getElementById('fire-button');
+  fireButton.classList.add('active');
+  setTimeout(() => fireButton.classList.remove('active'), 100);
+  
   event.preventDefault();
+  event.stopPropagation();
 });
 
 // Animation loop
