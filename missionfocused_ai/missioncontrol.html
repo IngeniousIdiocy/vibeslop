@@ -37,11 +37,57 @@ body {
   text-shadow: 0 0 20px rgba(84, 198, 255, 0.5);
   z-index: 100;
 }
+#lighting-controls {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(84, 198, 255, 0.3);
+  padding: 20px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  z-index: 100;
+  color: #fff;
+  font-family: monospace;
+  font-size: 12px;
+  display: none;
+  transition: opacity 0.3s ease;
+}
+#lighting-controls label {
+  display: block;
+  margin-bottom: 5px;
+  color: #54c6ff;
+}
+#lighting-controls input[type="range"] {
+  width: 150px;
+  margin-bottom: 15px;
+}
+#lighting-controls .value {
+  color: #06ffa5;
+  font-weight: bold;
+}
 </style>
 </head>
 <body>
 <div id="logo">MissionFocused.ai</div>
-<div id="instructions">Press 1-7 to summon screens • Press 0 or same number to return</div>
+<div id="instructions">Press 1-7 to summon screens • Press 0 or same number to return • Press C for lighting controls</div>
+<div id="lighting-controls">
+  <label>Background Sphere Opacity</label>
+  <input type="range" id="sphereOpacity" min="0" max="1" step="0.1" value="0.2">
+  <span class="value" id="sphereOpacityValue">0.2</span>
+  
+  <label>Background Sphere Intensity</label>
+  <input type="range" id="sphereIntensity" min="0" max="1" step="0.1" value="1">
+  <span class="value" id="sphereIntensityValue">1</span>
+  
+  <label>Fog Opacity</label>
+  <input type="range" id="fogOpacity" min="0" max="0.2" step="0.01" value="0.2">
+  <span class="value" id="fogOpacityValue">0.2</span>
+  
+  <label>Fog Saturation</label>
+  <input type="range" id="fogSaturation" min="0" max="1" step="0.1" value="1">
+  <span class="value" id="fogSaturationValue">1</span>
+</div>
 <canvas id="canvas"></canvas>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -49,6 +95,40 @@ body {
 // Scene setup
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x000000, 5, 50);
+
+// Lighting control variables
+let sphereOpacityValue = 0.2;
+let sphereIntensityValue = 1;
+let fogOpacityValue = 0.2;
+let fogSaturationValue = 1;
+
+// Setup lighting control event listeners
+function setupLightingControls() {
+  const sphereOpacity = document.getElementById('sphereOpacity');
+  const sphereIntensity = document.getElementById('sphereIntensity');
+  const fogOpacity = document.getElementById('fogOpacity');
+  const fogSaturation = document.getElementById('fogSaturation');
+  
+  sphereOpacity.addEventListener('input', (e) => {
+    sphereOpacityValue = parseFloat(e.target.value);
+    document.getElementById('sphereOpacityValue').textContent = sphereOpacityValue;
+  });
+  
+  sphereIntensity.addEventListener('input', (e) => {
+    sphereIntensityValue = parseFloat(e.target.value);
+    document.getElementById('sphereIntensityValue').textContent = sphereIntensityValue;
+  });
+  
+  fogOpacity.addEventListener('input', (e) => {
+    fogOpacityValue = parseFloat(e.target.value);
+    document.getElementById('fogOpacityValue').textContent = fogOpacityValue;
+  });
+  
+  fogSaturation.addEventListener('input', (e) => {
+    fogSaturationValue = parseFloat(e.target.value);
+    document.getElementById('fogSaturationValue').textContent = fogSaturationValue;
+  });
+}
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
@@ -214,7 +294,7 @@ const backgroundSphere = new THREE.Mesh(
   new THREE.MeshBasicMaterial({
     color: 0x4b0082,
     transparent: true,
-    opacity: 0.3,
+    opacity: sphereOpacityValue,
     side: THREE.BackSide
   })
 );
@@ -487,6 +567,14 @@ window.addEventListener('keydown', (e) => {
       animatePanel(screenGroups[currentFocus], false);
       currentFocus = -1;
     }
+  } else if (e.key.toLowerCase() === 'c') {
+    // Toggle lighting controls visibility
+    const controls = document.getElementById('lighting-controls');
+    if (controls.style.display === 'none' || controls.style.display === '') {
+      controls.style.display = 'block';
+    } else {
+      controls.style.display = 'none';
+    }
   }
 });
 
@@ -585,14 +673,15 @@ function animate() {
   const color = new THREE.Color().setHSL((hue + 240) / 360, 0.6, 0.1); // Purple to blue range
   wall.material.color = color;
   
-  // Animate background glow sphere color
+  // Animate background glow sphere color and opacity
   const bgHue = (time * 15) % 120; // Slower cycle, 120 degree range
-  const bgColor = new THREE.Color().setHSL((bgHue + 240) / 360, 0.8, 0.3); // Purple to blue
+  const bgColor = new THREE.Color().setHSL((bgHue + 240) / 360, 0.8, sphereIntensityValue); // Purple to blue
   backgroundSphere.material.color = bgColor;
+  backgroundSphere.material.opacity = sphereOpacityValue;
   
   // Animate fog color
   const fogHue = (time * 10) % 60; // Even slower, smaller range
-  const fogColor = new THREE.Color().setHSL((fogHue + 260) / 360, 0.7, 0.05); // Dark purple to dark blue
+  const fogColor = new THREE.Color().setHSL((fogHue + 260) / 360, fogSaturationValue, fogOpacityValue); // Dark purple to dark blue
   scene.fog.color = fogColor;
   
   // Animate particles
@@ -620,6 +709,9 @@ function animate() {
   
   renderer.render(scene, camera);
 }
+
+// Initialize lighting controls
+setupLightingControls();
 
 animate();
 
