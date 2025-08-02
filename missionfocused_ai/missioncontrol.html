@@ -237,6 +237,9 @@ const keys = {
 };
 let mouseX = 0, mouseY = 0;
 let isPointerLocked = false;
+let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+let touchStartX = 0;
+let touchStartY = 0;
 let isCameraFree = false;
 
 // Camera boundaries
@@ -1178,7 +1181,7 @@ function updateCameraMovement() {
 
 // Mouse movement for camera look
 function onMouseMove(event) {
-  if (!isPointerLocked || !isCameraFree) return;
+  if (!isPointerLocked || !isCameraFree || isTouchDevice) return;
   
   const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
   const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
@@ -1195,6 +1198,46 @@ function onMouseMove(event) {
   camera.rotation.x = -mouseY;
 }
 
+// Touch event handlers for mobile camera control
+function onTouchStart(event) {
+  if (!isCameraFree || !isTouchDevice) return;
+  event.preventDefault();
+  
+  const touch = event.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}
+
+function onTouchMove(event) {
+  if (!isCameraFree || !isTouchDevice) return;
+  event.preventDefault();
+  
+  const touch = event.touches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = touch.clientY - touchStartY;
+  
+  // Apply touch sensitivity (similar to mouse)
+  mouseX += deltaX * mouseSensitivityValue * 0.003;
+  mouseY += deltaY * mouseSensitivityValue * 0.003;
+  
+  // Limit vertical rotation
+  mouseY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, mouseY));
+  
+  // Apply rotation
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = -mouseX;
+  camera.rotation.x = -mouseY;
+  
+  // Update touch start position for continuous rotation
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}
+
+function onTouchEnd(event) {
+  if (!isCameraFree || !isTouchDevice) return;
+  event.preventDefault();
+}
+
 // Pointer lock handlers
 function onPointerLockChange() {
   isPointerLocked = document.pointerLockElement === renderer.domElement;
@@ -1209,6 +1252,11 @@ function initPointerLock() {
   document.addEventListener('pointerlockchange', onPointerLockChange);
   document.addEventListener('pointerlockerror', onPointerLockError);
   document.addEventListener('mousemove', onMouseMove);
+  
+  // Add touch event listeners for mobile support
+  renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+  renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+  renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
 }
 
 // Camera toggle functionality
@@ -1220,8 +1268,8 @@ function toggleCamera() {
     isCameraFree = false;
     cameraButton.classList.remove('active');
     
-    // Exit pointer lock
-    if (document.exitPointerLock) {
+    // Exit pointer lock (desktop only)
+    if (!isTouchDevice && document.exitPointerLock) {
       document.exitPointerLock();
     }
     
@@ -1232,8 +1280,10 @@ function toggleCamera() {
     isCameraFree = true;
     cameraButton.classList.add('active');
     
-    // Request pointer lock
-    renderer.domElement.requestPointerLock();
+    // Request pointer lock (desktop only)
+    if (!isTouchDevice) {
+      renderer.domElement.requestPointerLock();
+    }
   }
 }
 
