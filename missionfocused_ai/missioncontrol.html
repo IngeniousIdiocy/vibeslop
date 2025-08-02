@@ -208,6 +208,19 @@ for (let i = 0; i < 3; i++) {
   glassPanels.push(glassPanel);
 }
 
+// Background glow sphere
+const backgroundSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(100, 32, 32),
+  new THREE.MeshBasicMaterial({
+    color: 0x4b0082,
+    transparent: true,
+    opacity: 0.3,
+    side: THREE.BackSide
+  })
+);
+backgroundSphere.position.set(0, 0, -50);
+scene.add(backgroundSphere);
+
 // Create screens
 const screens = [];
 const screenGroups = [];
@@ -247,11 +260,36 @@ function createScreen(content, index) {
   ctx.font = 'bold 24px monospace';
   ctx.fillText(content.title, 20, 40);
   
-  // Draw content
+  // Draw content with word wrap
   ctx.font = '16px monospace';
   const lines = content.content.split('\n');
-  lines.forEach((line, i) => {
-    ctx.fillText(line, 20, 80 + i * 25);
+  const maxWidth = canvas.width - 40; // Leave 20px margin on each side
+  let currentY = 80;
+  
+  lines.forEach((line) => {
+    if (line.trim() === '') {
+      currentY += 25; // Empty line spacing
+      return;
+    }
+    
+    const words = line.split(' ');
+    let currentLine = '';
+    
+    for (let n = 0; n < words.length; n++) {
+      const testLine = currentLine + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      
+      if (testWidth > maxWidth && n > 0) {
+        ctx.fillText(currentLine, 20, currentY);
+        currentLine = words[n] + ' ';
+        currentY += 25;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    ctx.fillText(currentLine, 20, currentY);
+    currentY += 25;
   });
   
   const texture = new THREE.CanvasTexture(canvas);
@@ -286,8 +324,10 @@ function createScreen(content, index) {
   group.userData = {
     originalPosition: group.position.clone(),
     originalRotation: group.rotation.clone(),
-    targetPosition: new THREE.Vector3(0, 2.5, -1), // Much closer to dominate screen
+    originalScale: group.scale.clone(),
+    targetPosition: new THREE.Vector3(0, 2.5, 6), // Closer to dominate screen
     targetRotation: new THREE.Euler(0, 0, 0),
+    targetScale: new THREE.Vector3(1.2, 1.2, 1.2),
     screen: screen,
     index: index,
     animating: false,
@@ -385,8 +425,10 @@ function animatePanel(group, toFront) {
   
   const startPos = group.position.clone();
   const startRot = group.rotation.clone();
+  const startScale = group.scale.clone();
   const targetPos = toFront ? group.userData.targetPosition : group.userData.originalPosition;
   const targetRot = toFront ? group.userData.targetRotation : group.userData.originalRotation;
+  const targetScale = toFront ? group.userData.targetScale : group.userData.originalScale;
   
   let progress = 0;
   const animate = () => {
@@ -400,6 +442,7 @@ function animatePanel(group, toFront) {
     const eased = 1 - Math.pow(1 - progress, 3);
     
     group.position.lerpVectors(startPos, targetPos, eased);
+    group.scale.lerpVectors(startScale, targetScale, eased);
     
     // Slerp rotation for smooth animation
     group.rotation.x = startRot.x + (targetRot.x - startRot.x) * eased;
@@ -541,6 +584,16 @@ function animate() {
   const hue = (time * 20) % 360;
   const color = new THREE.Color().setHSL((hue + 240) / 360, 0.6, 0.1); // Purple to blue range
   wall.material.color = color;
+  
+  // Animate background glow sphere color
+  const bgHue = (time * 15) % 120; // Slower cycle, 120 degree range
+  const bgColor = new THREE.Color().setHSL((bgHue + 240) / 360, 0.8, 0.3); // Purple to blue
+  backgroundSphere.material.color = bgColor;
+  
+  // Animate fog color
+  const fogHue = (time * 10) % 60; // Even slower, smaller range
+  const fogColor = new THREE.Color().setHSL((fogHue + 260) / 360, 0.7, 0.05); // Dark purple to dark blue
+  scene.fog.color = fogColor;
   
   // Animate particles
   particlesMesh.rotation.y += 0.0005;
