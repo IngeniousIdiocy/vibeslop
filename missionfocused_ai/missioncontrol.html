@@ -35,6 +35,37 @@ body {
   border: 1px solid rgba(84, 198, 255, 0.5);
   transform: translateX(-50%) scale(1.05);
 }
+#camera-toggle {
+  position: fixed;
+  bottom: 10px;
+  left: calc(50% + 120px);
+  transform: translateX(-50%);
+  background: rgba(84, 198, 255, 0.1);
+  border: 1px solid rgba(84, 198, 255, 0.3);
+  padding: 15px;
+  border-radius: 50%;
+  backdrop-filter: blur(10px);
+  font-size: 18px;
+  text-align: center;
+  z-index: 100;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#camera-toggle:hover {
+  background: rgba(84, 198, 255, 0.2);
+  border: 1px solid rgba(84, 198, 255, 0.5);
+  transform: translateX(-50%) scale(1.05);
+}
+#camera-toggle.active {
+  background: rgba(6, 255, 165, 0.2);
+  border: 1px solid rgba(6, 255, 165, 0.5);
+}
 #logo {
   position: fixed;
   top: 20px;
@@ -45,7 +76,7 @@ body {
   text-shadow: 0 0 20px rgba(84, 198, 255, 0.5);
   z-index: 100;
 }
-#lighting-controls {
+#controls {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -61,16 +92,16 @@ body {
   display: none;
   transition: opacity 0.3s ease;
 }
-#lighting-controls label {
+#controls label {
   display: block;
   margin-bottom: 5px;
   color: #54c6ff;
 }
-#lighting-controls input[type="range"] {
+#controls input[type="range"] {
   width: 150px;
   margin-bottom: 15px;
 }
-#lighting-controls .value {
+#controls .value {
   color: #06ffa5;
   font-weight: bold;
 }
@@ -79,7 +110,16 @@ body {
 <body>
 <div id="logo">MissionFocused.ai</div>
 <div id="instructions">panel</div>
-<div id="lighting-controls">
+<div id="camera-toggle">📷</div>
+<div id="controls">
+  <label>Movement Speed</label>
+  <input type="range" id="moveSpeed" min="0.1" max="2" step="0.1" value="0.5">
+  <span class="value" id="moveSpeedValue">0.5</span>
+  
+  <label>Mouse Sensitivity</label>
+  <input type="range" id="mouseSensitivity" min="0.1" max="3" step="0.1" value="1">
+  <span class="value" id="mouseSensitivityValue">1</span>
+  
   <label>Background Sphere Opacity</label>
   <input type="range" id="sphereOpacity" min="0" max="1" step="0.1" value="0.2">
   <span class="value" id="sphereOpacityValue">0.2</span>
@@ -124,6 +164,32 @@ body {
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x000000, 5, 50);
 
+// Original camera position (panels will always animate to this position)
+const ORIGINAL_CAMERA_POSITION = new THREE.Vector3(0, 3, 10);
+const ORIGINAL_CAMERA_TARGET = new THREE.Vector3(0, 2, 0);
+
+// Camera movement variables
+let moveSpeedValue = 0.5;
+let mouseSensitivityValue = 1;
+
+// Movement state
+const keys = {
+  w: false,
+  a: false,
+  s: false,
+  d: false
+};
+let mouseX = 0, mouseY = 0;
+let isPointerLocked = false;
+let isCameraFree = false;
+
+// Camera boundaries
+const CAMERA_BOUNDS = {
+  x: { min: -20, max: 20 },
+  y: { min: 1, max: 8 },
+  z: { min: -15, max: 12 }
+};
+
 // Lighting control variables
 let sphereOpacityValue = 0.2;
 let sphereIntensityValue = 1;
@@ -135,8 +201,23 @@ let radarLineAlphaValue = 1;
 let panelMatrixOpacityValue = 2;
 let panelMatrixIntensityValue = 2;
 
-// Setup lighting control event listeners
-function setupLightingControls() {
+// Setup control event listeners
+function setupControls() {
+  // Camera controls
+  const moveSpeed = document.getElementById('moveSpeed');
+  const mouseSensitivity = document.getElementById('mouseSensitivity');
+  
+  moveSpeed.addEventListener('input', (e) => {
+    moveSpeedValue = parseFloat(e.target.value);
+    document.getElementById('moveSpeedValue').textContent = moveSpeedValue;
+  });
+  
+  mouseSensitivity.addEventListener('input', (e) => {
+    mouseSensitivityValue = parseFloat(e.target.value);
+    document.getElementById('mouseSensitivityValue').textContent = mouseSensitivityValue;
+  });
+  
+  // Lighting controls
   const sphereOpacity = document.getElementById('sphereOpacity');
   const sphereIntensity = document.getElementById('sphereIntensity');
   const fogOpacity = document.getElementById('fogOpacity');
@@ -201,9 +282,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// Fixed camera position
-camera.position.set(0, 3, 10);
-camera.lookAt(0, 2, 0);
+// Initialize camera position
+camera.position.copy(ORIGINAL_CAMERA_POSITION);
+camera.lookAt(ORIGINAL_CAMERA_TARGET);
 
 // Content for screens
 const screenContent = [
@@ -651,7 +732,7 @@ function createScreen(content, index) {
     originalPosition: group.position.clone(),
     originalRotation: group.rotation.clone(),
     originalScale: group.scale.clone(),
-    targetPosition: new THREE.Vector3(0, 2.5, 6), // Closer to dominate screen
+    targetPosition: new THREE.Vector3(ORIGINAL_CAMERA_POSITION.x, 2.5, 6), // Panels fly to original camera position
     targetRotation: new THREE.Euler(0, 0, 0),
     targetScale: new THREE.Vector3(1.2, 1.2, 1.2),
     screen: screen,
@@ -877,6 +958,174 @@ function focusScreen(index) {
   }
 }
 
+// Camera movement system
+function updateCameraMovement() {
+  // Only allow movement when camera is free
+  if (!isCameraFree) return;
+  
+  const velocity = new THREE.Vector3();
+  const direction = new THREE.Vector3();
+  
+  // Get camera direction for forward/back movement
+  camera.getWorldDirection(direction);
+  
+  // Get right vector for strafe movement
+  const right = new THREE.Vector3();
+  right.crossVectors(camera.up, direction).normalize();
+  
+  // Apply movement based on pressed keys
+  if (keys.w) velocity.add(direction.clone().multiplyScalar(moveSpeedValue));
+  if (keys.s) velocity.add(direction.clone().multiplyScalar(-moveSpeedValue));
+  if (keys.a) velocity.add(right.clone().multiplyScalar(moveSpeedValue));
+  if (keys.d) velocity.add(right.clone().multiplyScalar(-moveSpeedValue));
+  
+  // Apply movement with boundary checking and bounce
+  const newPosition = camera.position.clone().add(velocity);
+  
+  // Check collision with focused panel
+  if (currentFocus !== -1) {
+    const focusedPanel = screenGroups[currentFocus];
+    if (focusedPanel.userData.focused) {
+      const panelPos = focusedPanel.position;
+      const distance = newPosition.distanceTo(panelPos);
+      
+      // If too close to focused panel, bounce back
+      if (distance < 3) {
+        const direction = newPosition.clone().sub(panelPos).normalize();
+        newPosition.copy(panelPos.clone().add(direction.multiplyScalar(3)));
+        velocity.multiplyScalar(-0.3); // Bounce effect
+      }
+    }
+  }
+  
+  // Check X bounds with bounce
+  if (newPosition.x < CAMERA_BOUNDS.x.min) {
+    newPosition.x = CAMERA_BOUNDS.x.min;
+    velocity.x = Math.abs(velocity.x) * 0.3; // Bounce back
+  } else if (newPosition.x > CAMERA_BOUNDS.x.max) {
+    newPosition.x = CAMERA_BOUNDS.x.max;
+    velocity.x = -Math.abs(velocity.x) * 0.3; // Bounce back
+  }
+  
+  // Check Y bounds with bounce
+  if (newPosition.y < CAMERA_BOUNDS.y.min) {
+    newPosition.y = CAMERA_BOUNDS.y.min;
+    velocity.y = Math.abs(velocity.y) * 0.3; // Bounce back
+  } else if (newPosition.y > CAMERA_BOUNDS.y.max) {
+    newPosition.y = CAMERA_BOUNDS.y.max;
+    velocity.y = -Math.abs(velocity.y) * 0.3; // Bounce back
+  }
+  
+  // Check Z bounds with bounce
+  if (newPosition.z < CAMERA_BOUNDS.z.min) {
+    newPosition.z = CAMERA_BOUNDS.z.min;
+    velocity.z = Math.abs(velocity.z) * 0.3; // Bounce back
+  } else if (newPosition.z > CAMERA_BOUNDS.z.max) {
+    newPosition.z = CAMERA_BOUNDS.z.max;
+    velocity.z = -Math.abs(velocity.z) * 0.3; // Bounce back
+  }
+  
+  camera.position.copy(newPosition);
+}
+
+// Mouse movement for camera look
+function onMouseMove(event) {
+  if (!isPointerLocked || !isCameraFree) return;
+  
+  const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+  const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+  
+  mouseX += movementX * mouseSensitivityValue * 0.002;
+  mouseY += movementY * mouseSensitivityValue * 0.002;
+  
+  // Limit vertical rotation
+  mouseY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, mouseY));
+  
+  // Apply rotation
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = -mouseX;
+  camera.rotation.x = -mouseY;
+}
+
+// Pointer lock handlers
+function onPointerLockChange() {
+  isPointerLocked = document.pointerLockElement === renderer.domElement;
+}
+
+function onPointerLockError() {
+  console.log('Pointer lock error');
+}
+
+// Initialize pointer lock (without auto-start)
+function initPointerLock() {
+  document.addEventListener('pointerlockchange', onPointerLockChange);
+  document.addEventListener('pointerlockerror', onPointerLockError);
+  document.addEventListener('mousemove', onMouseMove);
+}
+
+// Camera toggle functionality
+function toggleCamera() {
+  const cameraButton = document.getElementById('camera-toggle');
+  
+  if (isCameraFree) {
+    // Lock camera and return to original position
+    isCameraFree = false;
+    cameraButton.classList.remove('active');
+    
+    // Exit pointer lock
+    if (document.exitPointerLock) {
+      document.exitPointerLock();
+    }
+    
+    // Smoothly return camera to original position
+    returnCameraToOriginal();
+  } else {
+    // Free camera
+    isCameraFree = true;
+    cameraButton.classList.add('active');
+    
+    // Request pointer lock
+    renderer.domElement.requestPointerLock();
+  }
+}
+
+// Smooth camera return to original position
+function returnCameraToOriginal() {
+  const startPos = camera.position.clone();
+  const startRotX = camera.rotation.x;
+  const startRotY = camera.rotation.y;
+  
+  let progress = 0;
+  const animate = () => {
+    progress += 0.03;
+    if (progress >= 1) {
+      camera.position.copy(ORIGINAL_CAMERA_POSITION);
+      camera.lookAt(ORIGINAL_CAMERA_TARGET);
+      mouseX = 0;
+      mouseY = 0;
+      return;
+    }
+    
+    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    // Smoothly interpolate position
+    camera.position.lerpVectors(startPos, ORIGINAL_CAMERA_POSITION, eased);
+    
+    // Smoothly interpolate rotation back to looking at target
+    const targetRotation = new THREE.Euler();
+    const tempCamera = new THREE.PerspectiveCamera();
+    tempCamera.position.copy(camera.position);
+    tempCamera.lookAt(ORIGINAL_CAMERA_TARGET);
+    targetRotation.copy(tempCamera.rotation);
+    
+    camera.rotation.x = startRotX + (targetRotation.x - startRotX) * eased;
+    camera.rotation.y = startRotY + (targetRotation.y - startRotY) * eased;
+    
+    requestAnimationFrame(animate);
+  };
+  animate();
+}
+
 // Panel cycling state
 let panelCycleState = 0; // 0-6 for panels 1-7, 7 for home state
 
@@ -900,16 +1149,30 @@ document.getElementById('instructions').addEventListener('click', () => {
   panelCycleState = (panelCycleState + 1) % 8; // 0-7, then back to 0
 });
 
-// Keyboard controls
+// Camera toggle button
+document.getElementById('camera-toggle').addEventListener('click', () => {
+  toggleCamera();
+});
+
+// WASD movement controls
 window.addEventListener('keydown', (e) => {
-  const key = parseInt(e.key);
-  if (key >= 1 && key <= 7) {
+  const key = e.key.toLowerCase();
+  
+  // WASD movement
+  if (key === 'w') keys.w = true;
+  if (key === 'a') keys.a = true;
+  if (key === 's') keys.s = true;
+  if (key === 'd') keys.d = true;
+  
+  // Panel controls
+  const numKey = parseInt(e.key);
+  if (numKey >= 1 && numKey <= 7) {
     // Ignore input while any animation is in progress
     if (globalAnimating) return;
-    focusScreen(key - 1);
+    focusScreen(numKey - 1);
     // Sync button state with keyboard
-    panelCycleState = key; // Next click will advance from current panel
-  } else if (key === 0) {
+    panelCycleState = numKey; // Next click will advance from current panel
+  } else if (numKey === 0) {
     // Ignore input while any animation is in progress
     if (globalAnimating) return;
     if (currentFocus !== -1) {
@@ -918,15 +1181,30 @@ window.addEventListener('keydown', (e) => {
     }
     // Sync button state
     panelCycleState = 0; // Next click will go to panel 1
-  } else if (e.key.toLowerCase() === 'c') {
-    // Toggle lighting controls visibility
-    const controls = document.getElementById('lighting-controls');
+  } else if (key === 'c') {
+    // Toggle controls visibility
+    const controls = document.getElementById('controls');
     if (controls.style.display === 'none' || controls.style.display === '') {
       controls.style.display = 'block';
     } else {
       controls.style.display = 'none';
     }
+  } else if (key === 'escape') {
+    // Lock camera if it's currently free
+    if (isCameraFree) {
+      toggleCamera();
+    }
   }
+});
+
+window.addEventListener('keyup', (e) => {
+  const key = e.key.toLowerCase();
+  
+  // WASD movement
+  if (key === 'w') keys.w = false;
+  if (key === 'a') keys.a = false;
+  if (key === 's') keys.s = false;
+  if (key === 'd') keys.d = false;
 });
 
 // Animation loop
@@ -1031,6 +1309,9 @@ function animate() {
   requestAnimationFrame(animate);
   time += 0.01;
   
+  // Update camera movement
+  updateCameraMovement();
+  
   // Animate lights - enhanced movement and color shifting
   lights.forEach((light, i) => {
     light.position.x = Math.sin(time + i * 1.5) * 15;
@@ -1098,8 +1379,11 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-// Initialize lighting controls
-setupLightingControls();
+// Initialize controls
+setupControls();
+
+// Initialize pointer lock event listeners
+initPointerLock();
 
 // Initialize matrix effect
 initializeMatrix();
