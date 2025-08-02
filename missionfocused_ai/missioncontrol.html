@@ -1094,6 +1094,10 @@ function recreateIntelPanel() {
     screens.splice(intelIndex, 0, newGroup.userData.screen);
     screenGroups.splice(intelIndex, 0, newGroup);
     
+    // Update collision detection targets to include the new panel geometry
+    paintballSystem.setupCollisionTargets();
+    console.log('🎯 Updated collision targets for new geometry');
+    
     console.log('✅ Intel panel recreation complete');
   } else {
     console.log('❌ No existing group found to recreate');
