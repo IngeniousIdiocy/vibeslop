@@ -684,7 +684,7 @@ const glassColors = [0x800040, 0x004080, 0x408000, 0x804000]; // Match light col
 
 for (let i = 0; i < 4; i++) {
   const glassPanel = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 80), // MASSIVE size so edges are never visible from normal view
+    new THREE.PlaneGeometry(150, 130), // MASSIVE size so edges are never visible from normal view
     new THREE.MeshPhysicalMaterial({
       color: glassColors[i],
       metalness: 0.3, // Higher metalness for more intense reflections
@@ -976,6 +976,9 @@ function animatePanel(group, toFront) {
   const targetRot = toFront ? group.userData.targetRotation : group.userData.originalRotation;
   const targetScale = toFront ? group.userData.targetScale : group.userData.originalScale;
   
+  // Store camera target for smooth tracking
+  const startCameraTarget = ORIGINAL_CAMERA_TARGET.clone();
+  
   let progress = 0;
   const animate = () => {
     progress += 0.025;
@@ -983,6 +986,8 @@ function animatePanel(group, toFront) {
       group.userData.animating = false;
       group.userData.focused = toFront;
       globalAnimating = false;
+      // Restore camera to original target
+      camera.lookAt(ORIGINAL_CAMERA_TARGET);
       return;
     }
     
@@ -999,6 +1004,13 @@ function animatePanel(group, toFront) {
     // Add floating effect when focused
     if (toFront) {
       group.position.y = targetPos.y + Math.sin(progress * Math.PI) * 0.3;
+    }
+    
+    // Camera tracks the center of the panel as it moves (only on fly in)
+    if (toFront) {
+      const currentCameraTarget = new THREE.Vector3();
+      currentCameraTarget.lerpVectors(startCameraTarget, group.position, eased);
+      camera.lookAt(currentCameraTarget);
     }
     
     requestAnimationFrame(animate);
