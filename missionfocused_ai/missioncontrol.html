@@ -87,6 +87,18 @@ body {
   <label>Fog Saturation</label>
   <input type="range" id="fogSaturation" min="0" max="1" step="0.1" value="1">
   <span class="value" id="fogSaturationValue">1</span>
+  
+  <label>Radar Plane Opacity</label>
+  <input type="range" id="radarOpacity" min="0" max="1" step="0.1" value="0.7">
+  <span class="value" id="radarOpacityValue">0.7</span>
+  
+  <label>Radar Background Alpha</label>
+  <input type="range" id="radarBgAlpha" min="0" max="0.2" step="0.01" value="0.05">
+  <span class="value" id="radarBgAlphaValue">0.05</span>
+  
+  <label>Radar Line Alpha</label>
+  <input type="range" id="radarLineAlpha" min="0" max="1" step="0.1" value="0.3">
+  <span class="value" id="radarLineAlphaValue">0.3</span>
 </div>
 <canvas id="canvas"></canvas>
 
@@ -101,6 +113,9 @@ let sphereOpacityValue = 0.2;
 let sphereIntensityValue = 1;
 let fogOpacityValue = 0.2;
 let fogSaturationValue = 1;
+let radarOpacityValue = 0.7;
+let radarBgAlphaValue = 0.05;
+let radarLineAlphaValue = 0.3;
 
 // Setup lighting control event listeners
 function setupLightingControls() {
@@ -127,6 +142,25 @@ function setupLightingControls() {
   fogSaturation.addEventListener('input', (e) => {
     fogSaturationValue = parseFloat(e.target.value);
     document.getElementById('fogSaturationValue').textContent = fogSaturationValue;
+  });
+  
+  const radarOpacity = document.getElementById('radarOpacity');
+  const radarBgAlpha = document.getElementById('radarBgAlpha');
+  const radarLineAlpha = document.getElementById('radarLineAlpha');
+  
+  radarOpacity.addEventListener('input', (e) => {
+    radarOpacityValue = parseFloat(e.target.value);
+    document.getElementById('radarOpacityValue').textContent = radarOpacityValue;
+  });
+  
+  radarBgAlpha.addEventListener('input', (e) => {
+    radarBgAlphaValue = parseFloat(e.target.value);
+    document.getElementById('radarBgAlphaValue').textContent = radarBgAlphaValue;
+  });
+  
+  radarLineAlpha.addEventListener('input', (e) => {
+    radarLineAlphaValue = parseFloat(e.target.value);
+    document.getElementById('radarLineAlphaValue').textContent = radarLineAlphaValue;
   });
 }
 
@@ -201,45 +235,172 @@ for (let i = 0; i < 4; i++) {
   lights.push(light);
 }
 
-// Add enhanced spot lights for dramatic purple/blue glassmorphic effect
-const spotLight1 = new THREE.SpotLight(0x6a0dad, 8); // Deep purple
-spotLight1.position.set(-10, 12, 8);
-spotLight1.angle = Math.PI / 3;
-spotLight1.penumbra = 0.4;
-spotLight1.decay = 2;
-spotLight1.distance = 50;
-scene.add(spotLight1);
+// Radar system
+const radarCanvas = document.createElement('canvas');
+radarCanvas.width = 512;
+radarCanvas.height = 512;
+const radarCtx = radarCanvas.getContext('2d');
 
-const spotLight2 = new THREE.SpotLight(0x0066cc, 8); // Deep blue
-spotLight2.position.set(10, 12, 8);
-spotLight2.angle = Math.PI / 3;
-spotLight2.penumbra = 0.4;
-spotLight2.decay = 2;
-spotLight2.distance = 50;
-scene.add(spotLight2);
+const radarGeometry = new THREE.PlaneGeometry(50, 25); // Full grid width, half height
+const radarTexture = new THREE.CanvasTexture(radarCanvas);
+const radarMaterial = new THREE.MeshBasicMaterial({
+  map: radarTexture,
+  transparent: true,
+  opacity: 0.7,
+  side: THREE.DoubleSide
+});
 
-// Add additional rotating spotlights for glassmorphic back panel lighting
-const spotLight3 = new THREE.SpotLight(0x8a2be2, 6); // Blue violet
-spotLight3.position.set(0, 15, -10);
-spotLight3.angle = Math.PI / 2;
-spotLight3.penumbra = 0.6;
-spotLight3.decay = 1.5;
-spotLight3.distance = 40;
-spotLight3.target.position.set(0, 3, -12);
-scene.add(spotLight3);
-scene.add(spotLight3.target);
+const radarMesh = new THREE.Mesh(radarGeometry, radarMaterial);
+radarMesh.position.set(0, -2, -25); // Animation center at floor level
+radarMesh.rotation.x = 0; // Vertical on wall
+scene.add(radarMesh);
 
-const spotLight4 = new THREE.SpotLight(0x4b0082, 6); // Indigo
-spotLight4.position.set(0, 15, -10);
-spotLight4.angle = Math.PI / 2;
-spotLight4.penumbra = 0.6;
-spotLight4.decay = 1.5;
-spotLight4.distance = 40;
-spotLight4.target.position.set(0, 3, -12);
-scene.add(spotLight4);
-scene.add(spotLight4.target);
+// Bogey tracking data
+const bogeys = [
+  { x: 0.3, y: 0.2, speed: 0.02, direction: Math.PI / 4, lastPing: 0, lastDirectionChange: 0, baseSpeed: 0.02 },
+  { x: -0.4, y: 0.1, speed: 0.015, direction: -Math.PI / 3, lastPing: 0, lastDirectionChange: 0, baseSpeed: 0.015 },
+  { x: 0.1, y: -0.35, speed: 0.025, direction: Math.PI * 0.8, lastPing: 0, lastDirectionChange: 0, baseSpeed: 0.025 },
+  { x: -0.2, y: -0.3, speed: 0.018, direction: Math.PI * 1.2, lastPing: 0, lastDirectionChange: 0, baseSpeed: 0.018 }
+];
 
-// Floor grid
+let radarRotation = 0;
+
+// Radar drawing function
+function updateRadar() {
+  const centerX = radarCanvas.width / 2;
+  const centerY = radarCanvas.height / 2;
+  const radius = centerX - 20;
+  
+  // Clear canvas (transparent background)
+  radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
+  
+  // Set up clipping to show only top half
+  radarCtx.save();
+  radarCtx.beginPath();
+  radarCtx.rect(0, 0, radarCanvas.width, radarCanvas.height / 2);
+  radarCtx.clip();
+  
+  // Draw radar circles (glassmorphic) with controllable alpha
+  radarCtx.strokeStyle = `rgba(84, 198, 255, ${radarLineAlphaValue})`;
+  radarCtx.lineWidth = 1;
+  for (let i = 1; i <= 4; i++) {
+    radarCtx.beginPath();
+    radarCtx.arc(centerX, centerY, (radius / 4) * i, 0, Math.PI * 2);
+    radarCtx.stroke();
+  }
+  
+  // Draw crosshairs
+  radarCtx.beginPath();
+  radarCtx.moveTo(centerX - radius, centerY);
+  radarCtx.lineTo(centerX + radius, centerY);
+  radarCtx.moveTo(centerX, centerY - radius);
+  radarCtx.lineTo(centerX, centerY + radius);
+  radarCtx.stroke();
+  
+  // Update bogey positions with random movement
+  bogeys.forEach(bogey => {
+    // Random direction changes
+    bogey.lastDirectionChange += 1;
+    if (bogey.lastDirectionChange > 30 + Math.random() * 120) { // Change direction every 30-150 frames
+      bogey.direction += (Math.random() - 0.5) * Math.PI * 0.8; // Random turn up to ±72 degrees
+      bogey.lastDirectionChange = 0;
+    }
+    
+    // Random speed variations
+    bogey.speed = bogey.baseSpeed * (0.5 + Math.random() * 1.5); // 50% to 200% of base speed
+    
+    // Add small random jitter to movement
+    const jitterX = (Math.random() - 0.5) * 0.005;
+    const jitterY = (Math.random() - 0.5) * 0.005;
+    
+    // Move bogey
+    bogey.x += Math.cos(bogey.direction) * bogey.speed + jitterX;
+    bogey.y += Math.sin(bogey.direction) * bogey.speed + jitterY;
+    
+    // Keep bogeys in bounds with more random bouncing
+    const distance = Math.sqrt(bogey.x * bogey.x + bogey.y * bogey.y);
+    if (distance > 0.9) {
+      // Random bounce angle instead of simple reverse
+      const bounceAngle = Math.atan2(bogey.y, bogey.x) + Math.PI + (Math.random() - 0.5) * Math.PI * 0.5;
+      bogey.direction = bounceAngle;
+      bogey.lastDirectionChange = 0; // Reset direction change timer
+    }
+    
+    // Limit to radar range
+    if (distance > 0.95) {
+      bogey.x *= 0.9;
+      bogey.y *= 0.9;
+    }
+  });
+  
+  // Draw sweep line (rotating)
+  radarRotation += 0.03;
+  const sweepX = centerX + Math.cos(radarRotation) * radius;
+  const sweepY = centerY + Math.sin(radarRotation) * radius;
+  
+  // Sweep trail effect
+  const gradient = radarCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+  gradient.addColorStop(0, 'rgba(0, 255, 100, 0.8)');
+  gradient.addColorStop(0.3, 'rgba(0, 255, 100, 0.4)');
+  gradient.addColorStop(1, 'rgba(0, 255, 100, 0)');
+  
+  radarCtx.save();
+  radarCtx.translate(centerX, centerY);
+  radarCtx.rotate(radarRotation);
+  radarCtx.beginPath();
+  radarCtx.moveTo(0, 0);
+  radarCtx.arc(0, 0, radius, -Math.PI / 6, Math.PI / 6);
+  radarCtx.closePath();
+  radarCtx.fillStyle = gradient;
+  radarCtx.fill();
+  radarCtx.restore();
+  
+  // Draw sweep line
+  radarCtx.strokeStyle = 'rgba(0, 255, 100, 1)';
+  radarCtx.lineWidth = 2;
+  radarCtx.beginPath();
+  radarCtx.moveTo(centerX, centerY);
+  radarCtx.lineTo(sweepX, sweepY);
+  radarCtx.stroke();
+  
+  // Draw bogeys
+  bogeys.forEach(bogey => {
+    const bogeyX = centerX + bogey.x * radius;
+    const bogeyY = centerY + bogey.y * radius;
+    
+    // Calculate if bogey should be highlighted (recently swept)
+    const bogeyAngle = Math.atan2(bogey.y, bogey.x);
+    let angleDiff = Math.abs(radarRotation - bogeyAngle);
+    if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+    
+    if (angleDiff < 0.2) {
+      bogey.lastPing = time;
+    }
+    
+    // Draw bogey with fade effect
+    const timeSincePing = time - bogey.lastPing;
+    const alpha = Math.max(0, 1 - timeSincePing * 0.3);
+    
+    if (alpha > 0) {
+      radarCtx.fillStyle = `rgba(255, 100, 100, ${alpha})`;
+      radarCtx.beginPath();
+      radarCtx.arc(bogeyX, bogeyY, 4, 0, Math.PI * 2);
+      radarCtx.fill();
+      
+      // Draw target rings
+      radarCtx.strokeStyle = `rgba(255, 100, 100, ${alpha * 0.5})`;
+      radarCtx.lineWidth = 1;
+      radarCtx.beginPath();
+      radarCtx.arc(bogeyX, bogeyY, 8, 0, Math.PI * 2);
+      radarCtx.stroke();
+    }
+  });
+  
+  // Restore canvas context (remove clipping)
+  radarCtx.restore();
+  
+  radarTexture.needsUpdate = true;
+}
 
 // Floor grid
 const gridHelper = new THREE.GridHelper(50, 50, 0x54c6ff, 0x1a1a2e);
@@ -694,25 +855,11 @@ function animate() {
     light.intensity = 3 + Math.sin(time * 3 + i * 2) * 1.5;
   });
   
-  // Animate spot lights with enhanced movement and intensity
-  spotLight1.position.x = Math.sin(time * 0.3) * 25;
-  spotLight1.position.z = Math.cos(time * 0.3) * 15;
-  spotLight1.intensity = 8 + Math.sin(time * 2) * 3;
+  // Update radar system
+  updateRadar();
   
-  spotLight2.position.x = Math.sin(time * 0.3 + Math.PI) * 25;
-  spotLight2.position.z = Math.cos(time * 0.3 + Math.PI) * 15;
-  spotLight2.intensity = 8 + Math.sin(time * 2 + Math.PI) * 3;
-  
-  // Rotate the glassmorphic back panel spotlights for dramatic effect
-  spotLight3.position.x = Math.sin(time * 0.8) * 12;
-  spotLight3.position.z = -10 + Math.cos(time * 0.8) * 3;
-  spotLight3.intensity = 6 + Math.sin(time * 3) * 2;
-  spotLight3.target.position.x = Math.sin(time * 0.4) * 8;
-  
-  spotLight4.position.x = Math.cos(time * 0.6) * 15;
-  spotLight4.position.z = -10 + Math.sin(time * 0.6) * 3;
-  spotLight4.intensity = 6 + Math.cos(time * 2.5) * 2;
-  spotLight4.target.position.x = Math.cos(time * 0.4) * 8;
+  // Update radar plane opacity
+  radarMaterial.opacity = radarOpacityValue;
   
   // Animate glass panels with subtle rotation for glassmorphic effect
   glassPanels.forEach((panel, i) => {
@@ -753,11 +900,6 @@ function animate() {
   
   // Update control stations
   updateControlStations();
-  
-  // Subtle camera drift
-  camera.position.x = Math.sin(time * 0.2) * 0.5;
-  camera.position.y = 3 + Math.sin(time * 0.3) * 0.2;
-  camera.lookAt(0, 2, 0);
   
   renderer.render(scene, camera);
 }
