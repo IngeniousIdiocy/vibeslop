@@ -99,6 +99,14 @@ body {
   <label>Radar Line Alpha</label>
   <input type="range" id="radarLineAlpha" min="0" max="1" step="0.1" value="1">
   <span class="value" id="radarLineAlphaValue">1</span>
+  
+  <label>Panel Matrix Opacity</label>
+  <input type="range" id="panelMatrixOpacity" min="0" max="2" step="0.1" value="2">
+  <span class="value" id="panelMatrixOpacityValue">2</span>
+  
+  <label>Panel Matrix Intensity</label>
+  <input type="range" id="panelMatrixIntensity" min="0" max="2" step="0.1" value="2">
+  <span class="value" id="panelMatrixIntensityValue">2</span>
 </div>
 <canvas id="canvas"></canvas>
 
@@ -116,6 +124,8 @@ let fogSaturationValue = 1;
 let radarOpacityValue = 1;
 let radarBgAlphaValue = 0.2;
 let radarLineAlphaValue = 1;
+let panelMatrixOpacityValue = 2;
+let panelMatrixIntensityValue = 2;
 
 // Setup lighting control event listeners
 function setupLightingControls() {
@@ -161,6 +171,19 @@ function setupLightingControls() {
   radarLineAlpha.addEventListener('input', (e) => {
     radarLineAlphaValue = parseFloat(e.target.value);
     document.getElementById('radarLineAlphaValue').textContent = radarLineAlphaValue;
+  });
+  
+  const panelMatrixOpacity = document.getElementById('panelMatrixOpacity');
+  const panelMatrixIntensity = document.getElementById('panelMatrixIntensity');
+  
+  panelMatrixOpacity.addEventListener('input', (e) => {
+    panelMatrixOpacityValue = parseFloat(e.target.value);
+    document.getElementById('panelMatrixOpacityValue').textContent = panelMatrixOpacityValue;
+  });
+  
+  panelMatrixIntensity.addEventListener('input', (e) => {
+    panelMatrixIntensityValue = parseFloat(e.target.value);
+    document.getElementById('panelMatrixIntensityValue').textContent = panelMatrixIntensityValue;
   });
 }
 
@@ -264,6 +287,86 @@ const bogeys = [
 ];
 
 let radarRotation = 0;
+
+// Shared panel matrix system
+const panelMatrixCanvas = document.createElement('canvas');
+panelMatrixCanvas.width = 1024;
+panelMatrixCanvas.height = 1024;
+const panelMatrixCtx = panelMatrixCanvas.getContext('2d');
+
+// Panel matrix columns
+const panelMatrixColumns = [];
+const columnCount = 80; // More columns for larger canvas
+
+// Initialize panel matrix
+function initializePanelMatrix() {
+  for (let i = 0; i < columnCount; i++) {
+    panelMatrixColumns.push({
+      x: (i * 12) + Math.random() * 4,
+      y: Math.random() * -1000,
+      speed: 0.5 + Math.random() * 1,
+      chars: [],
+      lastChar: 0
+    });
+  }
+}
+
+// Update shared panel matrix
+function updatePanelMatrix() {
+  // Clear canvas
+  panelMatrixCtx.clearRect(0, 0, panelMatrixCanvas.width, panelMatrixCanvas.height);
+  
+  panelMatrixColumns.forEach(column => {
+    // Move column down
+    column.y += column.speed;
+    
+    // Add new character occasionally
+    column.lastChar += 1;
+    if (column.lastChar > 15 + Math.random() * 30) {
+      column.chars.push({
+        char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
+        y: column.y,
+        alpha: 1
+      });
+      column.lastChar = 0;
+    }
+    
+    // Update and draw characters
+    for (let j = column.chars.length - 1; j >= 0; j--) {
+      const char = column.chars[j];
+      
+      // Character fades as it gets older
+      const distanceFromHead = column.y - char.y;
+      char.alpha = Math.max(0, 1 - (distanceFromHead / 120));
+      
+      if (char.alpha > 0) {
+        // Calculate alpha with intensity control
+        const finalAlpha = char.alpha * panelMatrixIntensityValue;
+        
+        if (j === column.chars.length - 1) {
+          // Head character - brighter
+          panelMatrixCtx.fillStyle = `rgba(150, 255, 150, ${finalAlpha})`;
+          panelMatrixCtx.font = 'bold 14px monospace';
+        } else {
+          // Trail characters
+          panelMatrixCtx.fillStyle = `rgba(100, 200, 100, ${finalAlpha * 0.7})`;
+          panelMatrixCtx.font = '12px monospace';
+        }
+        
+        panelMatrixCtx.fillText(char.char, column.x, char.y);
+      } else {
+        // Remove faded characters
+        column.chars.splice(j, 1);
+      }
+    }
+    
+    // Reset column when it goes off screen
+    if (column.y > panelMatrixCanvas.height + 100) {
+      column.y = Math.random() * -300;
+      column.chars = [];
+    }
+  });
+}
 
 // Radar drawing function
 function updateRadar() {
@@ -465,6 +568,7 @@ scene.add(backgroundSphere);
 // Create screens
 const screens = [];
 const screenGroups = [];
+const panelCanvases = []; // Store panel canvases for animation updates
 
 function createScreen(content, index) {
   const group = new THREE.Group();
@@ -487,53 +591,23 @@ function createScreen(content, index) {
   canvas.height = 384;
   const ctx = canvas.getContext('2d');
   
+  // Store canvas info for animation updates
+  const panelInfo = {
+    canvas: canvas,
+    ctx: ctx,
+    texture: null,
+    content: content,
+    index: index
+  };
+  
+  // Initial draw - will be updated in animation loop
   // Draw background
   ctx.fillStyle = 'rgba(0,0,0,0.8)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   
-  // Draw border
-  ctx.strokeStyle = `rgba(${content.color >> 16 & 255}, ${content.color >> 8 & 255}, ${content.color & 255}, 0.8)`;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
-  
-  // Draw title
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 24px monospace';
-  ctx.fillText(content.title, 20, 40);
-  
-  // Draw content with word wrap
-  ctx.font = '16px monospace';
-  const lines = content.content.split('\n');
-  const maxWidth = canvas.width - 40; // Leave 20px margin on each side
-  let currentY = 80;
-  
-  lines.forEach((line) => {
-    if (line.trim() === '') {
-      currentY += 25; // Empty line spacing
-      return;
-    }
-    
-    const words = line.split(' ');
-    let currentLine = '';
-    
-    for (let n = 0; n < words.length; n++) {
-      const testLine = currentLine + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      const testWidth = metrics.width;
-      
-      if (testWidth > maxWidth && n > 0) {
-        ctx.fillText(currentLine, 20, currentY);
-        currentLine = words[n] + ' ';
-        currentY += 25;
-      } else {
-        currentLine = testLine;
-      }
-    }
-    ctx.fillText(currentLine, 20, currentY);
-    currentY += 25;
-  });
-  
   const texture = new THREE.CanvasTexture(canvas);
+  panelInfo.texture = texture;
+  
   const textMaterial = new THREE.MeshBasicMaterial({ 
     map: texture, 
     transparent: true,
@@ -541,6 +615,9 @@ function createScreen(content, index) {
   });
   const textMesh = new THREE.Mesh(geometry, textMaterial);
   textMesh.position.z = 0.01;
+  
+  // Store panel info for updates
+  panelCanvases.push(panelInfo);
   
   group.add(screen);
   group.add(textMesh);
@@ -584,6 +661,74 @@ function createScreen(content, index) {
 
 // Create all screens
 screenContent.forEach((content, i) => createScreen(content, i));
+
+// Function to update all panel backgrounds
+function updatePanelBackgrounds() {
+  panelCanvases.forEach(panelInfo => {
+    const { canvas, ctx, content, index } = panelInfo;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw matrix background (sample from shared canvas)
+    if (panelMatrixOpacityValue > 0) {
+      const sampleX = (index * 120) % (panelMatrixCanvas.width - canvas.width);
+      const sampleY = Math.floor(index / 4) * 250 % (panelMatrixCanvas.height - canvas.height);
+      
+      ctx.globalAlpha = panelMatrixOpacityValue;
+      ctx.drawImage(panelMatrixCanvas, sampleX, sampleY, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+    }
+    
+    // Draw background
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw border
+    ctx.strokeStyle = `rgba(${content.color >> 16 & 255}, ${content.color >> 8 & 255}, ${content.color & 255}, 0.8)`;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+    
+    // Draw title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 24px monospace';
+    ctx.fillText(content.title, 20, 40);
+    
+    // Draw content with word wrap
+    ctx.font = '16px monospace';
+    const lines = content.content.split('\n');
+    const maxWidth = canvas.width - 40;
+    let currentY = 80;
+    
+    lines.forEach((line) => {
+      if (line.trim() === '') {
+        currentY += 25;
+        return;
+      }
+      
+      const words = line.split(' ');
+      let currentLine = '';
+      
+      for (let n = 0; n < words.length; n++) {
+        const testLine = currentLine + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        const testWidth = metrics.width;
+        
+        if (testWidth > maxWidth && n > 0) {
+          ctx.fillText(currentLine, 20, currentY);
+          currentLine = words[n] + ' ';
+          currentY += 25;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      ctx.fillText(currentLine, 20, currentY);
+      currentY += 25;
+    });
+    
+    panelInfo.texture.needsUpdate = true;
+  });
+}
 
 // Control stations
 const controlStations = [];
@@ -861,6 +1006,10 @@ function animate() {
   // Update radar plane opacity
   radarMaterial.opacity = radarOpacityValue;
   
+  // Update panel matrix system
+  updatePanelMatrix();
+  updatePanelBackgrounds();
+  
   // Animate glass panels with subtle rotation for glassmorphic effect
   glassPanels.forEach((panel, i) => {
     panel.rotation.y = (i - 1) * 0.2 + Math.sin(time * 0.2 + i) * 0.1;
@@ -909,6 +1058,9 @@ setupLightingControls();
 
 // Initialize matrix effect
 initializeMatrix();
+
+// Initialize panel matrix
+initializePanelMatrix();
 
 animate();
 
