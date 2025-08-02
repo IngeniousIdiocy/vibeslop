@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MissionFocused.ai - Mission Control</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+}
+#canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+#instructions {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(84, 198, 255, 0.1);
+  border: 1px solid rgba(84, 198, 255, 0.3);
+  padding: 15px 30px;
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+  font-size: 14px;
+  text-align: center;
+  z-index: 100;
+}
+#logo {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #54c6ff;
+  text-shadow: 0 0 20px rgba(84, 198, 255, 0.5);
+  z-index: 100;
+}
+</style>
+</head>
+<body>
+<div id="logo">MissionFocused.ai</div>
+<div id="instructions">Press 1-7 to summon screens • Press 0 or same number to return</div>
+<canvas id="canvas"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// Scene setup
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x000000, 5, 50);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+// Fixed camera position
+camera.position.set(0, 3, 10);
+camera.lookAt(0, 2, 0);
+
+// Content for screens
+const screenContent = [
+  {
+    title: "MISSION COMMAND",
+    content: "Automate to Amplify Your Mission\n\nMissionFocused.ai streamlines your nonprofit's back office so you can focus on impact.",
+    color: 0x54c6ff
+  },
+  {
+    title: "ABOUT SECTOR",
+    content: "Born from a passion for nonprofit efficiency, MissionFocused.ai helps organizations slash overhead and channel more resources directly to mission.\n\nOur founders are veterans of the charity world who know the constraints of limited staff, outdated software, and rigid compliance.",
+    color: 0xff5bc3
+  },
+  {
+    title: "PLATFORM SYSTEMS",
+    content: "• No-Code Workflows\n• Composable Data Hub\n• AI Document Copilot\n• Audit-Ready Ledger\n\nDrag-and-drop builders, unified APIs, OCR + LLMs, and immutable transaction logging.",
+    color: 0x8c62ff
+  },
+  {
+    title: "SERVICES DIVISION",
+    content: "• Configure Finance AI Agents\n• CRM migrations & donor segmentation\n• Custom AI assistants for case management\n• Grant compliance & reporting automation",
+    color: 0x06ffa5
+  },
+  {
+    title: "SECURITY PROTOCOLS",
+    content: "NEVER LOSE INFORMATION\nCollect web snippets, docs, and emails from any device. Instant, secure sync.\n\nHARDENED SECURITY\nEnd-to-end encryption. Export anytime, integrate with Zapier, self-host on request.",
+    color: 0x54c6ff
+  },
+  {
+    title: "INTEL BRIEFING",
+    content: "Q: Is MissionFocused.ai just for US nonprofits?\nA: No — multi-currency and GDPR compliant.\n\nQ: Can we deploy on-prem?\nA: Yes, via Kubernetes operator.\n\nQ: Discounts?\nA: Early adopters receive lifetime 30% off.",
+    color: 0xff5bc3
+  },
+  {
+    title: "COMMUNICATIONS",
+    content: "CONTACT MISSION CONTROL\n\nhello@missionfocused.ai\n\nWe'd love to learn about your mission and help you achieve maximum impact with minimal overhead.",
+    color: 0x8c62ff
+  }
+];
+
+// Enhanced ambient lighting for better purple/blue visibility
+const ambientLight = new THREE.AmbientLight(0x1a0a2e, 0.3);
+scene.add(ambientLight);
+
+// Moving lights for dynamic effect - enhanced for glassmorphic look
+const lights = [];
+const lightColors = [0x54c6ff, 0xff5bc3, 0x06ffa5, 0x8c62ff];
+for (let i = 0; i < 4; i++) {
+  const light = new THREE.PointLight(
+    lightColors[i], 
+    3, 
+    40
+  );
+  light.position.set(
+    Math.random() * 30 - 15,
+    Math.random() * 10 - 2,
+    Math.random() * 30 - 15
+  );
+  scene.add(light);
+  lights.push(light);
+}
+
+// Add enhanced spot lights for dramatic purple/blue glassmorphic effect
+const spotLight1 = new THREE.SpotLight(0x6a0dad, 8); // Deep purple
+spotLight1.position.set(-10, 12, 8);
+spotLight1.angle = Math.PI / 3;
+spotLight1.penumbra = 0.4;
+spotLight1.decay = 2;
+spotLight1.distance = 50;
+scene.add(spotLight1);
+
+const spotLight2 = new THREE.SpotLight(0x0066cc, 8); // Deep blue
+spotLight2.position.set(10, 12, 8);
+spotLight2.angle = Math.PI / 3;
+spotLight2.penumbra = 0.4;
+spotLight2.decay = 2;
+spotLight2.distance = 50;
+scene.add(spotLight2);
+
+// Add additional rotating spotlights for glassmorphic back panel lighting
+const spotLight3 = new THREE.SpotLight(0x8a2be2, 6); // Blue violet
+spotLight3.position.set(0, 15, -10);
+spotLight3.angle = Math.PI / 2;
+spotLight3.penumbra = 0.6;
+spotLight3.decay = 1.5;
+spotLight3.distance = 40;
+spotLight3.target.position.set(0, 3, -12);
+scene.add(spotLight3);
+scene.add(spotLight3.target);
+
+const spotLight4 = new THREE.SpotLight(0x4b0082, 6); // Indigo
+spotLight4.position.set(0, 15, -10);
+spotLight4.angle = Math.PI / 2;
+spotLight4.penumbra = 0.6;
+spotLight4.decay = 1.5;
+spotLight4.distance = 40;
+spotLight4.target.position.set(0, 3, -12);
+scene.add(spotLight4);
+scene.add(spotLight4.target);
+
+// Floor grid
+
+// Floor grid
+const gridHelper = new THREE.GridHelper(50, 50, 0x54c6ff, 0x1a1a2e);
+gridHelper.position.y = -2;
+scene.add(gridHelper);
+
+// Glass wall behind panels - enhanced for better light interaction
+const wallGeometry = new THREE.PlaneGeometry(40, 12);
+const wallMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0x1a0a2e,
+  metalness: 0.1,
+  roughness: 0.1,
+  transparent: true,
+  opacity: 0.25,
+  side: THREE.DoubleSide,
+  transmission: 0.7,
+  ior: 1.4
+});
+const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+wall.position.z = -12;
+wall.position.y = 3;
+scene.add(wall);
+
+// Add additional glass panels for depth with glassmorphic effect
+const glassPanels = [];
+for (let i = 0; i < 3; i++) {
+  const glassPanel = new THREE.Mesh(
+    new THREE.PlaneGeometry(15, 8),
+    new THREE.MeshPhysicalMaterial({
+      color: [0x2a0a3e, 0x1a0a2e, 0x0a1a2e][i],
+      metalness: 0.2,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.15,
+      transmission: 0.8,
+      ior: 1.5
+    })
+  );
+  glassPanel.position.set(
+    (i - 1) * 15,
+    3,
+    -18 - i * 3
+  );
+  glassPanel.rotation.y = (i - 1) * 0.2;
+  scene.add(glassPanel);
+  glassPanels.push(glassPanel);
+}
+
+// Create screens
+const screens = [];
+const screenGroups = [];
+
+function createScreen(content, index) {
+  const group = new THREE.Group();
+  
+  const geometry = new THREE.PlaneGeometry(4, 3);
+  const material = new THREE.MeshPhongMaterial({
+    color: content.color,
+    emissive: content.color,
+    emissiveIntensity: 0.2,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide
+  });
+  
+  const screen = new THREE.Mesh(geometry, material);
+  
+  // Create text texture
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 384;
+  const ctx = canvas.getContext('2d');
+  
+  // Draw background
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw border
+  ctx.strokeStyle = `rgba(${content.color >> 16 & 255}, ${content.color >> 8 & 255}, ${content.color & 255}, 0.8)`;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+  
+  // Draw title
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText(content.title, 20, 40);
+  
+  // Draw content
+  ctx.font = '16px monospace';
+  const lines = content.content.split('\n');
+  lines.forEach((line, i) => {
+    ctx.fillText(line, 20, 80 + i * 25);
+  });
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  const textMaterial = new THREE.MeshBasicMaterial({ 
+    map: texture, 
+    transparent: true,
+    opacity: 0.95
+  });
+  const textMesh = new THREE.Mesh(geometry, textMaterial);
+  textMesh.position.z = 0.01;
+  
+  group.add(screen);
+  group.add(textMesh);
+  
+  // Position screens in two rows
+  const row = index < 4 ? 0 : 1;
+  const col = index < 4 ? index : index - 4;
+  const colsInRow = index < 4 ? 4 : 3;
+  
+  const xSpacing = 9;
+  const ySpacing = 4;
+  const xOffset = -(colsInRow - 1) * xSpacing / 2;
+  
+  group.position.x = xOffset + col * xSpacing;
+  group.position.y = row === 0 ? 5 : 1;
+  group.position.z = -5;
+  
+  // Angle panels slightly toward viewer
+  group.rotation.y = -group.position.x * 0.03;
+  
+  // Store original transform
+  group.userData = {
+    originalPosition: group.position.clone(),
+    originalRotation: group.rotation.clone(),
+    targetPosition: new THREE.Vector3(0, 2.5, -1), // Much closer to dominate screen
+    targetRotation: new THREE.Euler(0, 0, 0),
+    screen: screen,
+    index: index,
+    animating: false,
+    focused: false
+  };
+  
+  scene.add(group);
+  screens.push(screen);
+  screenGroups.push(group);
+  
+  return group;
+}
+
+// Create all screens
+screenContent.forEach((content, i) => createScreen(content, i));
+
+// Control stations
+const controlStations = [];
+
+function createControlStation(x, z) {
+  const group = new THREE.Group();
+  
+  // Base
+  const baseGeometry = new THREE.BoxGeometry(2, 0.5, 1);
+  const baseMaterial = new THREE.MeshPhongMaterial({ 
+    color: 0x1a1a2e,
+    emissive: 0x54c6ff,
+    emissiveIntensity: 0.1
+  });
+  const base = new THREE.Mesh(baseGeometry, baseMaterial);
+  group.add(base);
+  
+  // Screen
+  const screenGeometry = new THREE.PlaneGeometry(1.8, 0.8);
+  const screenMaterial = new THREE.MeshPhongMaterial({ 
+    color: 0x54c6ff,
+    emissive: 0x54c6ff,
+    emissiveIntensity: 0.5
+  });
+  const screen = new THREE.Mesh(screenGeometry, screenMaterial);
+  screen.position.y = 0.5;
+  screen.rotation.x = -Math.PI / 6;
+  group.add(screen);
+  
+  // Animated display canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  const displayMaterial = new THREE.MeshBasicMaterial({ map: texture });
+  const display = new THREE.Mesh(screenGeometry, displayMaterial);
+  display.position.copy(screen.position);
+  display.position.z += 0.01;
+  display.rotation.copy(screen.rotation);
+  group.add(display);
+  
+  group.position.set(x, 0, z);
+  scene.add(group);
+  
+  controlStations.push({ group, canvas, ctx, texture });
+}
+
+// Create control stations
+createControlStation(-3, 6);
+createControlStation(0, 6.5);
+createControlStation(3, 6);
+
+// Particles
+const particlesGeometry = new THREE.BufferGeometry();
+const particlesCount = 1000;
+const posArray = new Float32Array(particlesCount * 3);
+
+for (let i = 0; i < particlesCount * 3; i++) {
+  posArray[i] = (Math.random() - 0.5) * 50;
+}
+
+particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+const particlesMaterial = new THREE.PointsMaterial({
+  size: 0.02,
+  color: 0x54c6ff,
+  transparent: true,
+  opacity: 0.6
+});
+const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+scene.add(particlesMesh);
+
+// Panel animation
+let currentFocus = -1;
+
+function animatePanel(group, toFront) {
+  if (group.userData.animating) return;
+  group.userData.animating = true;
+  
+  const startPos = group.position.clone();
+  const startRot = group.rotation.clone();
+  const targetPos = toFront ? group.userData.targetPosition : group.userData.originalPosition;
+  const targetRot = toFront ? group.userData.targetRotation : group.userData.originalRotation;
+  
+  let progress = 0;
+  const animate = () => {
+    progress += 0.025;
+    if (progress >= 1) {
+      group.userData.animating = false;
+      group.userData.focused = toFront;
+      return;
+    }
+    
+    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    group.position.lerpVectors(startPos, targetPos, eased);
+    
+    // Slerp rotation for smooth animation
+    group.rotation.x = startRot.x + (targetRot.x - startRot.x) * eased;
+    group.rotation.y = startRot.y + (targetRot.y - startRot.y) * eased;
+    group.rotation.z = startRot.z + (targetRot.z - startRot.z) * eased;
+    
+    // Add floating effect when focused
+    if (toFront) {
+      group.position.y = targetPos.y + Math.sin(progress * Math.PI) * 0.3;
+    }
+    
+    requestAnimationFrame(animate);
+  };
+  animate();
+}
+
+function focusScreen(index) {
+  const group = screenGroups[index];
+  
+  if (currentFocus === index && group.userData.focused) {
+    // Return to original position
+    animatePanel(group, false);
+    currentFocus = -1;
+  } else {
+    // Return previous panel if any
+    if (currentFocus !== -1 && currentFocus !== index) {
+      animatePanel(screenGroups[currentFocus], false);
+    }
+    // Bring new panel forward
+    animatePanel(group, true);
+    currentFocus = index;
+  }
+}
+
+// Keyboard controls
+window.addEventListener('keydown', (e) => {
+  const key = parseInt(e.key);
+  if (key >= 1 && key <= 7) {
+    focusScreen(key - 1);
+  } else if (key === 0) {
+    if (currentFocus !== -1) {
+      animatePanel(screenGroups[currentFocus], false);
+      currentFocus = -1;
+    }
+  }
+});
+
+// Animation loop
+let time = 0;
+
+function updateControlStations() {
+  controlStations.forEach((station, i) => {
+    const { ctx, canvas, texture } = station;
+    
+    // Clear canvas
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw grid
+    ctx.strokeStyle = 'rgba(84, 198, 255, 0.3)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 20) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    
+    // Draw waveform
+    ctx.strokeStyle = '#54c6ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += 5) {
+      const y = canvas.height / 2 + Math.sin((x + time * 50) * 0.05 + i) * 30;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    
+    // Draw data points
+    ctx.fillStyle = '#06ffa5';
+    for (let j = 0; j < 5; j++) {
+      const x = (time * 30 + j * 50) % canvas.width;
+      const y = canvas.height / 2 + Math.sin(time + j + i) * 20;
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    texture.needsUpdate = true;
+  });
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.01;
+  
+  // Animate lights - enhanced movement and color shifting
+  lights.forEach((light, i) => {
+    light.position.x = Math.sin(time + i * 1.5) * 15;
+    light.position.z = Math.cos(time + i * 1.5) * 15;
+    light.position.y = 3 + Math.sin(time * 2 + i) * 5;
+    
+    // Dynamic color shifting
+    const hue = (time * 50 + i * 90) % 360;
+    light.color.setHSL(hue / 360, 0.8, 0.5);
+    
+    // Pulse intensity
+    light.intensity = 3 + Math.sin(time * 3 + i * 2) * 1.5;
+  });
+  
+  // Animate spot lights with enhanced movement and intensity
+  spotLight1.position.x = Math.sin(time * 0.3) * 25;
+  spotLight1.position.z = Math.cos(time * 0.3) * 15;
+  spotLight1.intensity = 8 + Math.sin(time * 2) * 3;
+  
+  spotLight2.position.x = Math.sin(time * 0.3 + Math.PI) * 25;
+  spotLight2.position.z = Math.cos(time * 0.3 + Math.PI) * 15;
+  spotLight2.intensity = 8 + Math.sin(time * 2 + Math.PI) * 3;
+  
+  // Rotate the glassmorphic back panel spotlights for dramatic effect
+  spotLight3.position.x = Math.sin(time * 0.8) * 12;
+  spotLight3.position.z = -10 + Math.cos(time * 0.8) * 3;
+  spotLight3.intensity = 6 + Math.sin(time * 3) * 2;
+  spotLight3.target.position.x = Math.sin(time * 0.4) * 8;
+  
+  spotLight4.position.x = Math.cos(time * 0.6) * 15;
+  spotLight4.position.z = -10 + Math.sin(time * 0.6) * 3;
+  spotLight4.intensity = 6 + Math.cos(time * 2.5) * 2;
+  spotLight4.target.position.x = Math.cos(time * 0.4) * 8;
+  
+  // Animate glass panels with subtle rotation for glassmorphic effect
+  glassPanels.forEach((panel, i) => {
+    panel.rotation.y = (i - 1) * 0.2 + Math.sin(time * 0.2 + i) * 0.1;
+    panel.material.opacity = 0.15 + Math.sin(time + i) * 0.05;
+  });
+  
+  // Animate main wall color for enhanced glassmorphic effect
+  const hue = (time * 20) % 360;
+  const color = new THREE.Color().setHSL((hue + 240) / 360, 0.6, 0.1); // Purple to blue range
+  wall.material.color = color;
+  
+  // Animate particles
+  particlesMesh.rotation.y += 0.0005;
+  
+  // Pulse screens
+  screens.forEach((screen, i) => {
+    screen.material.emissiveIntensity = 0.2 + Math.sin(time * 2 + i) * 0.1;
+  });
+  
+  // Float unfocused panels slightly
+  screenGroups.forEach((group, i) => {
+    if (!group.userData.focused && !group.userData.animating) {
+      group.position.y = group.userData.originalPosition.y + Math.sin(time + i) * 0.1;
+    }
+  });
+  
+  // Update control stations
+  updateControlStations();
+  
+  // Subtle camera drift
+  camera.position.x = Math.sin(time * 0.2) * 0.5;
+  camera.position.y = 3 + Math.sin(time * 0.3) * 0.2;
+  camera.lookAt(0, 2, 0);
+  
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// Handle resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
