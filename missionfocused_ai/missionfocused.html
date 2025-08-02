@@ -1,118 +1,233 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MissionFocused.ai</title>
-    <!-- 2025-07-26 build v3: restored dynamic floating-lights animation (no other changes) -->
-    <style>
-        /* ──────────────────────────────────────────────────────────────
-           GLOBAL STYLES & BACKGROUND
-        ────────────────────────────────────────────────────────────── */
-        *{margin:0;padding:0;box-sizing:border-box}
-        :root{
-            --bg-primary:#0d1018;
-            --glass-bg:rgba(255,255,255,.05);
-            --glass-border:rgba(255,255,255,.12);
-            --glass-shadow:0 8px 32px rgba(0,0,0,.4);
-            --text-primary:rgba(255,255,255,.96);
-            --text-secondary:rgba(255,255,255,.75);
-            --accent:#54c6ff;--accent-secondary:#ff5bc3;--accent-tertiary:#8c62ff;--accent-green:#06ffa5;
-            --blur-amount:20px;
-        }
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.6;overflow-x:hidden;padding-top:80px;min-height:100vh}
-        /* animated background lights */
-        body::before{
-            content:'';position:fixed;inset:0;
-            background:
-                radial-gradient(circle at 20% 80%,var(--accent) 0%,transparent 50%),
-                radial-gradient(circle at 80% 20%,var(--accent-secondary) 0%,transparent 50%),
-                radial-gradient(circle at 40% 40%,var(--accent-tertiary) 0%,transparent 50%),
-                radial-gradient(circle at 90% 90%,var(--accent-green) 0%,transparent 50%);
-            filter:blur(100px);opacity:.45;
-            animation:floatLights 28s ease-in-out infinite;
-            z-index:-1;
-        }
-        @keyframes floatLights{
-            0%,100%{transform:translate(0,0) scale(1) rotate(0deg)}
-            33%{transform:translate(-30px,-40px) scale(1.1) rotate(120deg)}
-            66%{transform:translate(25px,-15px) scale(.9) rotate(240deg)}
-        }
-        /* NAV */
-        .top-nav{position:fixed;top:0;left:0;right:0;padding:20px 40px;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);backdrop-filter:blur(30px);border-bottom:1px solid rgba(255,255,255,.1);z-index:10}
-        .logo{font-size:1.3rem;font-weight:600}
-        .cta-button{padding:14px 30px;border:none;border-radius:12px;cursor:pointer;color:var(--text-primary);background:rgba(255,255,255,.1);backdrop-filter:blur(12px);transition:.3s}
-        .cta-button:hover{background:rgba(255,255,255,.18);transform:translateY(-2px)}
-        /* TYPOGRAPHY */
-        h1,h2,h3{letter-spacing:-.4px;line-height:1.25}
-        h1{font-size:3rem;background:linear-gradient(135deg,var(--text-primary),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-        h2{font-size:1.9rem;margin-bottom:.45em}
-        h3{font-size:1.35rem;margin-bottom:.3em;color:var(--accent)}
-        /* UNIVERSAL LAYOUT */
-        section{padding:80px 20px;max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
-        .glass{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(var(--blur-amount));box-shadow:var(--glass-shadow);border-radius:16px;padding:40px;margin-bottom:10px}
-        .hero{text-align:center;padding:140px 20px 120px}
-        /* FEATURE GRID */
-        .feature-list{display:flex;flex-wrap:wrap;gap:20px}
-        .feature{flex:1 1 260px;min-height:180px;padding:24px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(10px);box-shadow:0 4px 15px rgba(0,0,0,.12),inset 0 1px 1px rgba(255,255,255,.07)}
-        /* LISTS */
-        .service-list,.faq-list{margin-left:22px}
-        .service-list li,.faq-list li{margin-bottom:.6em}
-        /* TRUST SVG RINGS */
-        .trust-section{display:flex;flex-wrap:wrap;justify-content:center;gap:60px}
-        .trust-item{text-align:center;max-width:320px;display:flex;flex-direction:column;align-items:center;gap:20px}
-        .trust-icon{position:relative;width:160px;height:160px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
-        .trust-icon svg{width:60px;height:60px;fill:none;stroke:var(--accent);stroke-width:3;z-index:3}
-        .trust-icon .glow{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,var(--accent) 0%,rgba(84,198,255,.15) 45%,transparent 70%);filter:blur(12px);z-index:1}
-        .trust-icon::before,.trust-icon::after{content:"";position:absolute;inset:0;border-radius:50%;background:repeating-radial-gradient(circle,transparent 0 4px,rgba(84,198,255,.35) 4px 6px,transparent 6px 8px);animation:radar 6s linear infinite;opacity:.65;z-index:2}
-        .trust-icon::after{animation-delay:3s}
-        @keyframes radar{from{transform:scale(.6) rotate(0deg)}to{transform:scale(1.6) rotate(720deg);opacity:0}}
-        /* CONTACT PANEL */
-        .contact-container{display:flex;flex-direction:column;align-items:center;gap:24px}
-        .contact-container form{display:flex;flex-direction:column;gap:16px;width:100%;max-width:480px}
-        input,textarea{width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.02);color:var(--text-primary)}
-        textarea{min-height:140px;resize:vertical}
-        footer{margin-top:80px;text-align:center;padding:40px 0;color:var(--text-secondary)}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MissionFocused.ai</title>
+
+<!-- 2025‑08‑01 build v5: trust section re‑aligned with text‑first layout + mission‑aligned WebGL icons -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<style>
+/* ──────────────────────────────────────────────────────────────
+   GLOBAL STYLES  (unchanged)
+────────────────────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0d1018;
+  --glass-bg:rgba(255,255,255,.05);
+  --glass-border:rgba(255,255,255,.12);
+  --glass-shadow:0 8px 32px rgba(0,0,0,.4);
+  --text-primary:rgba(255,255,255,.96);
+  --text-secondary:rgba(255,255,255,.75);
+  --accent:#54c6ff;--accent-secondary:#ff5bc3;--accent-tertiary:#8c62ff;--accent-green:#06ffa5;
+  --blur-amount:20px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.6;overflow-x:hidden;padding-top:80px;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:
+    radial-gradient(circle at 20% 80%,var(--accent) 0%,transparent 50%),
+    radial-gradient(circle at 80% 20%,var(--accent-secondary) 0%,transparent 50%),
+    radial-gradient(circle at 40% 40%,var(--accent-tertiary) 0%,transparent 50%),
+    radial-gradient(circle at 90% 90%,var(--accent-green) 0%,transparent 50%);
+  filter:blur(100px);opacity:.45;animation:floatLights 28s ease-in-out infinite;z-index:-1}
+@keyframes floatLights{0%,100%{transform:translate(0,0) scale(1) rotate(0deg)}
+  33%{transform:translate(-30px,-40px) scale(1.1) rotate(120deg)}
+  66%{transform:translate(25px,-15px) scale(.9) rotate(240deg)}}
+.top-nav{position:fixed;top:0;left:0;right:0;padding:20px 40px;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);backdrop-filter:blur(30px);border-bottom:1px solid rgba(255,255,255,.1);z-index:10}
+.logo{font-size:1.3rem;font-weight:600}
+.cta-button{padding:14px 30px;border:none;border-radius:12px;cursor:pointer;color:var(--text-primary);background:rgba(255,255,255,.1);backdrop-filter:blur(12px);transition:.3s}
+.cta-button:hover{background:rgba(255,255,255,.18);transform:translateY(-2px)}
+h1,h2,h3{letter-spacing:-.4px;line-height:1.25}
+h1{font-size:3rem;background:linear-gradient(135deg,var(--text-primary),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+h2{font-size:1.9rem;margin-bottom:.45em}
+h3{font-size:1.35rem;margin-bottom:.3em;color:var(--accent)}
+section{padding:80px 20px;max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.glass{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(var(--blur-amount));box-shadow:var(--glass-shadow);border-radius:16px;padding:40px;margin-bottom:10px}
+.hero{text-align:center;padding:140px 20px 120px}
+.feature-list{display:flex;flex-wrap:wrap;gap:20px}
+.feature{flex:1 1 260px;min-height:180px;padding:24px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(10px);box-shadow:0 4px 15px rgba(0,0,0,.12),inset 0 1px 1px rgba(255,255,255,.07)}
+.service-list,.faq-list{margin-left:22px}
+.service-list li,.faq-list li{margin-bottom:.6em}
+.contact-container{display:flex;flex-direction:column;align-items:center;gap:24px}
+.contact-container form{display:flex;flex-direction:column;gap:16px;width:100%;max-width:480px}
+input,textarea{width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.02);color:var(--text-primary)}
+textarea{min-height:140px;resize:vertical}
+footer{margin-top:80px;text-align:center;padding:40px 0;color:var(--text-secondary)}
+
+/* ──────────────────────────────────────────────────────────────
+   TRUST BLOCK – revised
+────────────────────────────────────────────────────────────── */
+.trust-section{display:flex;flex-wrap:wrap;justify-content:center;gap:60px;margin-top:40px}
+.trust-item{text-align:center;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:18px}
+.trust-icon{position:relative;width:180px;height:180px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.trust-icon canvas{position:absolute;inset:0;width:100%;height:100%}
+.trust-icon .glow{content:"";position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle,var(--accent) 0%,rgba(84,198,255,.15) 45%,transparent 70%);
+  filter:blur(12px);z-index:0}
+</style>
 </head>
+
 <body>
-    <nav class="top-nav"><div class="logo">MissionFocused.ai</div><button class="cta-button" id="login-btn">Login</button></nav>
-    <header class="hero glass"><h1>Automate to Amplify Your Mission</h1><p>MissionFocused.ai streamlines your nonprofit's back office so you can focus on impact.</p><button class="cta-button" onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">Get in Touch</button></header>
+<nav class="top-nav"><div class="logo">MissionFocused.ai</div><button class="cta-button" id="login-btn">Login</button></nav>
 
-    <!-- ABOUT -->
-    <section id="about" class="about glass"><h2>About Us</h2><p>Born from a passion for nonprofit efficiency, MissionFocused.ai helps organizations slash overhead and channel more resources directly to mission.</p><p>Our founders are veterans of the charity world who know the constraints of limited staff, outdated software, and rigid compliance. We package best-in-class automation into an affordable SaaS platform so nonprofits of any size can modernize without hiring an army of developers.</p></section>
+<header class="hero glass">
+  <h1>Automate to Amplify Your Mission</h1>
+  <p>MissionFocused.ai streamlines your nonprofit's back office so you can focus on impact.</p>
+  <button class="cta-button" onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">Get in Touch</button>
+</header>
 
-    <!-- FEATURES -->
-    <section id="features" class="features glass"><h2>Platform Highlights</h2><div class="feature-list">
-        <div class="feature"><h3>No-Code Workflows</h3><p>Drag-and-drop builders let program managers automate grants, reimbursements, and donor receipts without engineering tickets.</p></div>
-        <div class="feature"><h3>Composable Data Hub</h3><p>Unified API stitches together QuickBooks, Salesforce NPSP, and Google Workspace so data lives in one real-time graph.</p></div>
-        <div class="feature"><h3>AI Document Copilot</h3><p>OCR + LLMs classify invoices, pull GL codes, and draft acknowledgment letters in minutes—not days.</p></div>
-        <div class="feature"><h3>Audit-Ready Ledger</h3><p>Every transaction is immutably hashed and time-stamped, giving auditors one-click access to evidence.</p></div>
-    </div></section>
+<!-- ABOUT -->
+<section id="about" class="about glass">
+  <h2>About Us</h2>
+  <p>Born from a passion for nonprofit efficiency, MissionFocused.ai helps organizations slash overhead and channel more resources directly to mission.</p>
+  <p>Our founders are veterans of the charity world who know the constraints of limited staff, outdated software, and rigid compliance. We package best‑in‑class automation into an affordable SaaS platform so nonprofits of any size can modernize without hiring an army of developers.</p>
+</section>
 
-    <!-- SERVICES -->
-    <section id="services" class="services glass"><h2>Professional Services</h2><ul class="service-list"><li>Configure and build your own Finance AI Agent to automate finance functions</li><li>CRM migrations &amp; donor segmentation</li><li>Custom AI assistants for case management</li><li>Grant compliance &amp; reporting automation</li></ul></section>
+<!-- FEATURES -->
+<section id="features" class="features glass">
+  <h2>Platform Highlights</h2>
+  <div class="feature-list">
+    <div class="feature"><h3>No‑Code Workflows</h3><p>Drag‑and‑drop builders let program managers automate grants, reimbursements, and donor receipts without engineering tickets.</p></div>
+    <div class="feature"><h3>Composable Data Hub</h3><p>Unified API stitches together QuickBooks, Salesforce NPSP, and Google Workspace so data lives in one real‑time graph.</p></div>
+    <div class="feature"><h3>AI Document Copilot</h3><p>OCR + LLMs classify invoices, pull GL codes, and draft acknowledgment letters in minutes—not days.</p></div>
+    <div class="feature"><h3>Audit‑Ready Ledger</h3><p>Every transaction is immutably hashed and time‑stamped, giving auditors one‑click access to evidence.</p></div>
+  </div>
+</section>
 
-    <!-- TRUST -->
-    <section id="trust" class="trust glass"><h2>Why Organizations Trust Us</h2><div class="trust-section">
-        <div class="trust-item"><div class="trust-icon"><span class="glow"></span><svg viewBox="0 0 24 24"><path d="M17 8V7a5 5 0 00-10 0v1H5v13h14V8h-2zm-8-1a3 3 0 016 0v1H9V7zm8 13H7V10h10v10z"/></svg></div><h3>Never Lose Information</h3><p>Collect web snippets, docs, and emails from mobile, desktop, online or offline. Instant, secure sync.</p></div>
-        <div class="trust-item"><div class="trust-icon"><span class="glow"></span><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div><h3>Hardened Security</h3><p>End-to-end encryption means only you can read your data — <em>not even us</em>.</p><p><em>Secure yet open</em> — export anytime, integrate with Zapier, and self-host on request.</p></div>
-    </div></section>
+<!-- SERVICES -->
+<section id="services" class="services glass">
+  <h2>Professional Services</h2>
+  <ul class="service-list">
+    <li>Configure and build your own Finance AI Agent to automate finance functions</li>
+    <li>CRM migrations &amp; donor segmentation</li>
+    <li>Custom AI assistants for case management</li>
+    <li>Grant compliance &amp; reporting automation</li>
+  </ul>
+</section>
 
-    <!-- FAQ -->
-    <section id="faq" class="faq glass"><h2>FAQ</h2><ul class="faq-list"><li><strong>Is MissionFocused.ai just for US nonprofits?</strong> No — our platform supports multi-currency and GDPR compliance.</li><li><strong>Can we deploy on-prem?</strong> Yes, via our Kubernetes operator.</li><li><strong>Do you offer discounts?</strong> Early adopters receive a lifetime 30 % subscription discount.</li></ul></section>
+<!-- TRUST – new animations, original text structure -->
+<section id="trust" class="trust glass">
+  <h2>Why Organizations Trust Us</h2>
 
-    <!-- CONTACT -->
-    <section id="contact" class="contact glass"><div class="contact-container"><h2>Contact</h2><p>We'd love to learn about your mission. Email <a href="mailto:hello@missionfocused.ai">hello@missionfocused.ai</a> or send us a note:</p>
-        <form>
-            <input placeholder="Name" required>
-            <input placeholder="Email" type="email" required>
-            <textarea placeholder="Tell us about your challenges…"></textarea>
-            <button class="cta-button" type="submit">Send</button>
-        </form>
-    </div></section>
+  <div class="trust-section">
+    <!-- Never Lose Information -->
+    <div class="trust-item">
+      <div id="orbitIcon" class="trust-icon"><span class="glow"></span></div>
+      <h3>Never Lose Information</h3>
+      <p>Collect web snippets, docs, and emails from mobile, desktop, online or offline. Instant, secure sync.</p>
+    </div>
 
-    <!-- FOOTER -->
-    <footer>© 2025 MissionFocused.ai</footer>
+    <!-- Hardened Security -->
+    <div class="trust-item">
+      <div id="shieldIcon" class="trust-icon"><span class="glow"></span></div>
+      <h3>Hardened Security</h3>
+      <p>End‑to‑end encryption means only you can read your data — <em>not even us</em>.</p>
+      <p><em>Secure yet open</em> — export anytime, integrate with Zapier, and self‑host on request.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="faq glass">
+  <h2>FAQ</h2>
+  <ul class="faq-list">
+    <li><strong>Is MissionFocused.ai just for US nonprofits?</strong> No — our platform supports multi‑currency and GDPR compliance.</li>
+    <li><strong>Can we deploy on‑prem?</strong> Yes, via our Kubernetes operator.</li>
+    <li><strong>Do you offer discounts?</strong> Early adopters receive a lifetime 30 % subscription discount.</li>
+  </ul>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" class="contact glass">
+  <div class="contact-container">
+    <h2>Contact</h2>
+    <p>We'd love to learn about your mission. Email <a href="mailto:hello@missionfocused.ai">hello@missionfocused.ai</a> or send us a note:</p>
+    <form>
+      <input placeholder="Name" required>
+      <input placeholder="Email" type="email" required>
+      <textarea placeholder="Tell us about your challenges…"></textarea>
+      <button class="cta-button" type="submit">Send</button>
+    </form>
+  </div>
+</section>
+
+<footer>© 2025 MissionFocused.ai</footer>
+
+<!-- ──────────────────────────────────────────────────────────────
+     SCRIPTS
+────────────────────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   ORBIT SKETCH  – “Never Lose Information”
+══════════════════════════════════════════════════════════════ */
+const orbitSketch = (p)=>{
+  const ORBITS = 60;
+  let container,cw,ch;
+  let dots=[];
+  p.setup=()=>{
+    container=document.getElementById('orbitIcon');
+    cw=container.clientWidth;ch=container.clientHeight;
+    p.createCanvas(cw,ch,p.WEBGL).parent(container);
+    p.angleMode(p.RADIANS);
+    p.strokeWeight(3);p.noFill();
+    for(let i=0;i<ORBITS;i++){
+      dots.push({
+        r:p.random(28,75),
+        ang:p.random(p.TWO_PI),
+        spd:p.random(.006,.02)*(p.random()<.5?1:-1)
+      });
+    }
+  };
+  p.draw=()=>{
+    p.clear();                     // transparent background
+    p.rotateX(-0.55);              // gentle 3‑D tilt
+    /* central vault */
+    p.push();
+      p.stroke(84,198,255,220);
+      p.sphere(12,8,6);
+    p.pop();
+    /* orbit paths */
+    p.stroke(84,198,255,70);
+    for(let r=35;r<=75;r+=10){p.ellipse(0,0,r*2);}
+    /* dots */
+    p.stroke(84,198,255,200);
+    for(const d of dots){
+      d.ang+=d.spd;
+      const x=d.r*Math.cos(d.ang), y=d.r*Math.sin(d.ang);
+      p.push();p.translate(x,y,0);p.point(0,0);p.pop();
+    }
+  };
+  p.windowResized=()=>{cw=container.clientWidth;ch=container.clientHeight;p.resizeCanvas(cw,ch);}
+};
+new p5(orbitSketch);
+
+/* ══════════════════════════════════════════════════════════════
+   SHIELD SKETCH – “Hardened Security”
+══════════════════════════════════════════════════════════════ */
+const shieldSketch=(p)=>{
+  let container,cw,ch,angle=0;
+  p.setup=()=>{
+    container=document.getElementById('shieldIcon');
+    cw=container.clientWidth;ch=container.clientHeight;
+    p.createCanvas(cw,ch,p.WEBGL).parent(container);
+    p.angleMode(p.DEGREES);
+    p.noFill();p.stroke(84,198,255,200);p.strokeWeight(2);
+  };
+  p.draw=()=>{
+    p.clear();
+    p.rotateX(18);p.rotateY(angle);
+    /* outer defensive torus */
+    p.push();p.torus(65,4,36,18);p.pop();
+    /* inner shielded core (low‑poly sphere for faceted feel) */
+    p.push();
+      p.rotateY(angle*1.3);
+      p.sphere(38,6,4);
+    p.pop();
+    angle+=0.8;
+  };
+  p.windowResized=()=>{cw=container.clientWidth;ch=container.clientHeight;p.resizeCanvas(cw,ch);}
+};
+new p5(shieldSketch);
+</script>
 </body>
 </html>

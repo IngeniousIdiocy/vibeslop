@@ -41,6 +41,31 @@ def fetch_cfpb(params: Dict[str, Any], as_csv: bool = False) -> Union[Dict[str, 
             pass
         raise RuntimeError(f"CFPB API error: {detail}") from http_err
 
+# ---------------------------------------------------------------------------
+# Convenience async wrapper used by tests
+# ---------------------------------------------------------------------------
+async def get_complaints(
+    search: Optional[str] = None,
+    company: Optional[str] = None,
+    product: Optional[str] = None,
+    date: Optional[str] = None,
+    state: Optional[str] = None,
+    size: int = 10,
+) -> Dict[str, Any]:
+    """Asynchronously fetch complaints with simplified parameters."""
+    params: Dict[str, Any] = {"size": size}
+    if search:
+        params["searchTerm"] = search
+    if company:
+        params["company"] = company
+    if product:
+        params["product"] = product
+    if date:
+        params["date_received_min"] = date
+    if state:
+        params["state"] = state
+    return fetch_cfpb(params)
+
 @mcp.tool(description="Search CFPB consumer‑finance complaints (CCDB‑5 API)")
 def search_complaints(
     search_term: Optional[str] = None,
