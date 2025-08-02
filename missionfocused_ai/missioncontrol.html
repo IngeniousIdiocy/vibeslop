@@ -196,6 +196,12 @@ body {
 <div id="camera-toggle">📷</div>
 <div id="fire-button">🔴</div>
 <div id="controls">
+  <label>Custom Image for Intel Panel</label>
+  <input type="file" id="customImageFile" accept="image/*" style="margin-bottom: 10px; width: 100%;">
+  
+  <label>Use Custom Image</label>
+  <input type="checkbox" id="useCustomImage" style="margin-bottom: 15px;">
+  
   <label>Panel Z-Depth (Landscape)</label>
   <input type="range" id="panelZDepthLandscape" min="0" max="7" step="0.5" value="6">
   <span class="value" id="panelZDepthLandscapeValue">6</span>
@@ -221,7 +227,7 @@ body {
   <span class="value" id="sphereIntensityValue">1</span>
   
   <label>Fog Opacity</label>
-  <input type="range" id="fogOpacity" min="0" max="0.2" step="0.01" value="0.2">
+  <input type="range" id="fogOpacity" min="0" max="1" step="0.01" value="0.2">
   <span class="value" id="fogOpacityValue">0.2</span>
   
   <label>Fog Saturation</label>
@@ -313,6 +319,11 @@ let panelMatrixOpacityValue = 2;
 let panelMatrixIntensityValue = 2;
 let lightsPerLayerValue = 5;
 let spotlightIntensityValue = 5;
+
+// Custom image variables
+let useCustomImageValue = false;
+let customImageTexture = null;
+let originalImageAspectRatio = 1;
 let panelBgOpacityValue = 0;
 let panelTextOpacityValue = 0.9;
 let panelZDepthLandscapeValue = 6;
@@ -405,6 +416,81 @@ function setupControls() {
   spotlightIntensity.addEventListener('input', (e) => {
     spotlightIntensityValue = parseFloat(e.target.value);
     document.getElementById('spotlightIntensityValue').textContent = spotlightIntensityValue;
+  });
+  
+  // Custom image controls
+  const customImageFile = document.getElementById('customImageFile');
+  const useCustomImage = document.getElementById('useCustomImage');
+  
+  customImageFile.addEventListener('change', (e) => {
+    console.log('🖼️ File picker changed:', e.target.files);
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      console.log('✅ Valid image file selected:', file.name, file.type);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        console.log('📖 FileReader loaded, creating image...');
+        const img = new Image();
+        img.onload = () => {
+          console.log('🖼️ Image loaded! Dimensions:', img.width, 'x', img.height);
+          // Store aspect ratio
+          originalImageAspectRatio = img.width / img.height;
+          console.log('📐 Aspect ratio:', originalImageAspectRatio);
+          
+          // Create texture with proper aspect ratio preservation
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Use reasonable canvas size while maintaining aspect ratio
+          const maxCanvasSize = 1024;
+          let canvasWidth, canvasHeight;
+          
+          if (img.width > img.height) {
+            canvasWidth = Math.min(maxCanvasSize, img.width);
+            canvasHeight = canvasWidth / originalImageAspectRatio;
+          } else {
+            canvasHeight = Math.min(maxCanvasSize, img.height);
+            canvasWidth = canvasHeight * originalImageAspectRatio;
+          }
+          
+          canvas.width = canvasWidth;
+          canvas.height = canvasHeight;
+          
+          // Clear canvas and draw image
+          ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+          ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+          
+          customImageTexture = new THREE.CanvasTexture(canvas);
+          customImageTexture.minFilter = THREE.LinearFilter;
+          customImageTexture.magFilter = THREE.LinearFilter;
+          customImageTexture.wrapS = THREE.ClampToEdgeWrapping;
+          customImageTexture.wrapT = THREE.ClampToEdgeWrapping;
+          console.log('🎨 Texture created:', customImageTexture);
+          console.log('🎨 Canvas dimensions:', canvasWidth, 'x', canvasHeight);
+        };
+        img.onerror = () => {
+          console.error('❌ Failed to load image');
+        };
+        img.src = event.target.result;
+      };
+      reader.onerror = () => {
+        console.error('❌ FileReader error');
+      };
+      reader.readAsDataURL(file);
+    } else {
+      console.log('❌ No valid image file selected');
+    }
+  });
+  
+  useCustomImage.addEventListener('change', (e) => {
+    useCustomImageValue = e.target.checked;
+    console.log('🔄 Toggle changed - Use custom image:', useCustomImageValue);
+    console.log('🖼️ Custom texture available:', !!customImageTexture);
+    console.log('👁️ Current focus panel:', currentFocus);
+    
+    // Always recreate the intel panel when toggle changes
+    console.log('🔄 Recreating intel panel...');
+    recreateIntelPanel();
   });
   
   const panelBgOpacity = document.getElementById('panelBgOpacity');
@@ -851,39 +937,88 @@ function createScreen(content, index) {
   
   const screen = new THREE.Mesh(geometry, material);
   
-  // Create text texture
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 384;
-  const ctx = canvas.getContext('2d');
+  // Create texture (either text or custom image)
+  let texture;
+  let panelInfo = null;
+  let customGeometry = null; // Declare in outer scope
   
-  // Store canvas info for animation updates
-  const panelInfo = {
-    canvas: canvas,
-    ctx: ctx,
-    texture: null,
-    content: content,
-    index: index
-  };
+  // Check if this is the intel panel (index 5) and custom image is enabled
+  console.log('🔍 createScreen called for index:', index);
+  console.log('🔍 useCustomImageValue:', useCustomImageValue);
+  console.log('🔍 customImageTexture exists:', !!customImageTexture);
   
-  // Initial draw - will be updated in animation loop
-  // Draw background
-  ctx.fillStyle = 'rgba(0,0,0,0.8)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  panelInfo.texture = texture;
+  if (index === 5 && useCustomImageValue && customImageTexture) {
+    console.log('🖼️ Using custom image for intel panel');
+    // Use custom image texture
+    texture = customImageTexture.clone();
+    
+    // Calculate geometry size to maintain aspect ratio while keeping similar visual scale
+    const baseArea = 4 * 3; // 12 square units - maintain similar visual presence
+    const maxDimension = 4.5; // Prevent panels from getting too large
+    
+    let newWidth, newHeight;
+    
+    if (originalImageAspectRatio >= 1) {
+      // Landscape or square image - scale based on area but cap width
+      newWidth = Math.min(maxDimension, Math.sqrt(baseArea * originalImageAspectRatio));
+      newHeight = newWidth / originalImageAspectRatio;
+    } else {
+      // Portrait image - scale based on area but cap height  
+      newHeight = Math.min(maxDimension, Math.sqrt(baseArea / originalImageAspectRatio));
+      newWidth = newHeight * originalImageAspectRatio;
+    }
+    
+    console.log('📏 Image aspect ratio:', originalImageAspectRatio);
+    console.log('📏 Panel dimensions:', newWidth.toFixed(2), 'x', newHeight.toFixed(2));
+    console.log('📏 Image orientation:', originalImageAspectRatio >= 1 ? 'Landscape/Square' : 'Portrait');
+    
+    // Create new geometry to maintain aspect ratio
+    customGeometry = new THREE.PlaneGeometry(newWidth, newHeight);
+    screen.geometry = customGeometry;
+    
+    // We'll use customGeometry for the textMesh too
+    console.log('📏 Geometry updated with dimensions:', newWidth.toFixed(2), 'x', newHeight.toFixed(2));
+  } else {
+    console.log('📝 Using text texture for panel');
+    // Create text texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 384;
+    const ctx = canvas.getContext('2d');
+    
+    // Store canvas info for animation updates
+    panelInfo = {
+      canvas: canvas,
+      ctx: ctx,
+      texture: null,
+      content: content,
+      index: index
+    };
+    
+    // Initial draw - will be updated in animation loop
+    // Draw background
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    texture = new THREE.CanvasTexture(canvas);
+    panelInfo.texture = texture;
+  }
   
   const textMaterial = new THREE.MeshBasicMaterial({ 
     map: texture, 
     transparent: true,
     opacity: panelTextOpacityValue
   });
-  const textMesh = new THREE.Mesh(geometry, textMaterial);
+  
+  // Use custom geometry if we created one, otherwise use default
+  const meshGeometry = customGeometry || geometry;
+  const textMesh = new THREE.Mesh(meshGeometry, textMaterial);
   textMesh.position.z = 0.01;
   
-  // Store panel info for updates
-  panelCanvases.push(panelInfo);
+  // Store panel info for updates (only for text panels)
+  if (panelInfo) {
+    panelCanvases.push(panelInfo);
+  }
   
   group.add(screen);
   group.add(textMesh);
@@ -925,6 +1060,44 @@ function createScreen(content, index) {
   screenGroups.push(group);
   
   return group;
+}
+
+// Function to recreate just the intel panel (index 5)
+function recreateIntelPanel() {
+  console.log('🔄 recreateIntelPanel called');
+  const intelIndex = 5;
+  const group = screenGroups[intelIndex];
+  console.log('🎯 Found existing group:', !!group);
+  
+  if (group) {
+    console.log('🗑️ Removing old group from scene');
+    // Remove the old group
+    scene.remove(group);
+    
+    // Remove from arrays
+    screens.splice(intelIndex, 1);
+    screenGroups.splice(intelIndex, 1);
+    
+    // Find and remove the panel canvas info
+    const panelCanvasIndex = panelCanvases.findIndex(panel => panel.index === intelIndex);
+    if (panelCanvasIndex !== -1) {
+      console.log('🗑️ Removing panel canvas info');
+      panelCanvases.splice(panelCanvasIndex, 1);
+    }
+    
+    console.log('🔨 Creating new panel...');
+    // Create new panel
+    const newGroup = createScreen(screenContent[intelIndex], intelIndex);
+    
+    console.log('📦 Inserting new group into arrays');
+    // Insert back into arrays at the correct position
+    screens.splice(intelIndex, 0, newGroup.userData.screen);
+    screenGroups.splice(intelIndex, 0, newGroup);
+    
+    console.log('✅ Intel panel recreation complete');
+  } else {
+    console.log('❌ No existing group found to recreate');
+  }
 }
 
 // Create all screens
