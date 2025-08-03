@@ -600,8 +600,8 @@ body {
   <span class="value" id="sphereIntensityValue">1</span>
   
   <label>Fog Opacity</label>
-  <input type="range" id="fogOpacity" min="0" max="1" step="0.01" value="0.2">
-  <span class="value" id="fogOpacityValue">0.2</span>
+  <input type="range" id="fogOpacity" min="0" max="1" step="0.01" value="0.1">
+  <span class="value" id="fogOpacityValue">0.1</span>
   
   <label>Fog Saturation</label>
   <input type="range" id="fogSaturation" min="0" max="1" step="0.1" value="1">
@@ -632,8 +632,8 @@ body {
   <span class="value" id="lightsPerLayerValue">5</span>
   
   <label>Spotlight Intensity</label>
-  <input type="range" id="spotlightIntensity" min="5" max="50" step="5" value="5">
-  <span class="value" id="spotlightIntensityValue">5</span>
+  <input type="range" id="spotlightIntensity" min="1" max="10" step="1" value="3">
+  <span class="value" id="spotlightIntensityValue">3</span>
   
   <label>Content Panel Background</label>
   <input type="range" id="panelBgOpacity" min="0" max="1" step="0.1" value="0">
@@ -711,7 +711,7 @@ const CAMERA_BOUNDS = {
 // Lighting control variables
 let sphereOpacityValue = 0.2;
 let sphereIntensityValue = 1;
-let fogOpacityValue = 0.2;
+let fogOpacityValue = 0.1;
 let fogSaturationValue = 1;
 let radarOpacityValue = 1;
 let radarBgAlphaValue = 0.2;
@@ -719,7 +719,7 @@ let radarLineAlphaValue = 1;
 let panelMatrixOpacityValue = 2;
 let panelMatrixIntensityValue = 2;
 let lightsPerLayerValue = 5;
-let spotlightIntensityValue = 5;
+let spotlightIntensityValue = 3;
 
 // Custom image variables
 let useCustomImageValue = false;
@@ -2646,9 +2646,8 @@ function animate() {
     light.position.y = 5 + Math.sin(time * 0.9 + i * 1.3) * 2;              // y = 3-7 (constrained height)
     light.position.z = baseZ + Math.sin(time * 0.5 + i * 1.7) * 1;          // z varies ±1 in layer
     
-    // INTENSE color cycling for dramatic glass effects
-    const hue = (time * 100 + layer * 90 + lightIndex * 30) % 360; // Faster, bolder color changes
-    light.color.setHSL(hue / 360, 1.0, 0.8); // Maximum saturation and high brightness
+    // White lights for clean glass color effects
+    light.color.setHex(0xffffff); // Pure white light
     
     // Dynamic intensity based on user controls
     light.intensity = spotlightIntensityValue + Math.sin(time * 6 + i * 3) * (spotlightIntensityValue * 0.8);
@@ -2665,12 +2664,23 @@ function animate() {
   updatePanelBackgrounds();
   
   // Static glass panels - DRAMATIC material property changes for MAXIMUM intensity
+  // Ultra-smooth continuous transition in blue spectrum
+  const colorPhase = (Math.sin(time * 0.08) + 1) / 2; // Very slow oscillation 0-1, ~39 second cycle
+  const sharedGlassColor = new THREE.Color().setHSL(
+    0.67 + (colorPhase * 0.04), // Hue: 241° (deep blue) to 255° (blue-purple), pure blue-dominant range
+    0.7,                        // Higher saturation for rich blues
+    0.16                        // Darker for deeper blue tones
+  );
+  
   glassPanels.forEach((panel, i) => {
     // DRAMATIC opacity pulsing to enhance light interaction
     panel.material.opacity = 0.35 + Math.sin(time * 3 + i * 1.5) * 0.25; // 0.1 to 0.6 range
     
     // EXTREME IOR shifts for dramatic light refraction
     panel.material.ior = (2.0 + i * 0.3) + Math.sin(time * 2 + i) * 0.8; // 1.2 to 3.5 range
+    
+    // All panels use the same smoothly transitioning color
+    panel.material.color.copy(sharedGlassColor);
   });
   
   // Background color effects handled by glass panels and sphere
