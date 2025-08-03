@@ -2453,6 +2453,80 @@ document.getElementById('fire-button').addEventListener('touchend', (event) => {
   event.stopPropagation();
 });
 
+// =============================================================================
+// PANEL CLICK/TOUCH INTERACTION - Direct panel interaction for fly-in animation
+// =============================================================================
+
+// Panel interaction system
+const panelInteractionRaycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+// Handle panel clicks/touches
+function handlePanelInteraction(event) {
+  // Only allow panel interaction when camera is NOT free (normal viewing mode)
+  if (isCameraFree) return;
+  
+  // Ignore if currently animating
+  if (globalAnimating) return;
+  
+  // Calculate mouse position in normalized device coordinates
+  const rect = renderer.domElement.getBoundingClientRect();
+  
+  let clientX, clientY;
+  if (event.type === 'touchend') {
+    // For touch events, use the last touch position from touchstart
+    const touch = event.changedTouches[0];
+    clientX = touch.clientX;
+    clientY = touch.clientY;
+  } else {
+    // For mouse events
+    clientX = event.clientX;
+    clientY = event.clientY;
+  }
+  
+  mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  
+  // Cast ray from camera through mouse position
+  panelInteractionRaycaster.setFromCamera(mouse, camera);
+  
+  // Check for intersections with screen groups (only direct panel meshes)
+  const panelMeshes = screenGroups.map(group => {
+    // Return both the screen mesh and text mesh from each group
+    return [group.children[0], group.children[1]];
+  }).flat();
+  
+  const intersects = panelInteractionRaycaster.intersectObjects(panelMeshes, false);
+  
+  if (intersects.length > 0) {
+    // Find which panel was clicked by checking the parent group
+    const clickedMesh = intersects[0].object;
+    const parentGroup = clickedMesh.parent;
+    
+    // Find the index of this group in screenGroups
+    const panelIndex = screenGroups.indexOf(parentGroup);
+    
+    if (panelIndex !== -1) {
+      // Trigger the panel focus animation
+      focusScreen(panelIndex);
+      
+      // Prevent event bubbling
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+}
+
+// Add click event listener for mouse
+renderer.domElement.addEventListener('click', (event) => {
+  handlePanelInteraction(event);
+});
+
+// Add touch event listener for mobile
+renderer.domElement.addEventListener('touchend', (event) => {
+  handlePanelInteraction(event);
+});
+
 // Animation loop
 let time = 0;
 
