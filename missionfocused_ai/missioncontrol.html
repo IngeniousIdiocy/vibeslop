@@ -1267,8 +1267,8 @@ function createScreen(content, index) {
     };
     
     // Initial draw - will be updated in animation loop
-    // Draw background
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    // Draw background (subtle darkness for readability while showing matrix)
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     texture = new THREE.CanvasTexture(canvas);
@@ -1673,8 +1673,8 @@ function updatePanelBackgrounds() {
       ctx.globalAlpha = 1;
     }
     
-    // Draw background
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    // Draw background (subtle darkness for readability while showing matrix)
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Draw border
