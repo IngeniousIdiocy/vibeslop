@@ -430,6 +430,136 @@ body {
   92% { transform: translateX(2px); }
   93% { transform: translateX(-1px); }
 }
+
+/* =============================================================================
+   MOBILE RESPONSIVE TERMINAL - Least invasive mobile improvements
+   ============================================================================= */
+
+/* Mobile Portrait */
+@media (max-width: 768px) and (orientation: portrait) {
+  #ai-terminal {
+    width: 95%;
+    height: 60vh;
+    bottom: -100vh;  /* Keep it hidden when inactive */
+    max-width: none;
+  }
+  
+  #ai-terminal.active {
+    bottom: 2vh;  /* Show at proper mobile position when active */
+  }
+  
+  #ai-terminal-header {
+    padding: 15px 20px;
+    font-size: 16px;
+  }
+  
+  #ai-terminal-close {
+    width: 32px;
+    height: 32px;
+    font-size: 24px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 1001;
+  }
+  
+  #ai-chat-container {
+    padding: 20px;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  
+  #ai-model-input-container,
+  #ai-input-container {
+    padding: 20px;
+  }
+  
+  #ai-input, #ai-model-input {
+    font-size: 16px;
+    padding: 12px;
+    min-height: 44px;
+  }
+  
+  #ai-input-prompt, #ai-model-prompt {
+    font-size: 16px;
+  }
+  
+  .chat-message {
+    margin-bottom: 20px;
+  }
+}
+
+/* Mobile Landscape */
+@media (max-width: 768px) and (orientation: landscape) {
+  #ai-terminal {
+    width: 95%;
+    height: 70vh;
+    bottom: -100vh;  /* Keep it hidden when inactive */
+    max-width: none;
+  }
+  
+  #ai-terminal.active {
+    bottom: 2vh;  /* Show at proper mobile position when active */
+  }
+  
+  #ai-terminal-header {
+    padding: 12px 20px;
+    font-size: 15px;
+  }
+  
+  #ai-terminal-close {
+    width: 28px;
+    height: 28px;
+    font-size: 20px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 1001;
+  }
+  
+  #ai-chat-container {
+    padding: 15px 20px;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  
+  #ai-model-input-container,
+  #ai-input-container {
+    padding: 15px 20px;
+  }
+  
+  #ai-input, #ai-model-input {
+    font-size: 15px;
+    padding: 10px;
+    min-height: 40px;
+  }
+  
+  #ai-input-prompt, #ai-model-prompt {
+    font-size: 15px;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  #ai-terminal {
+    width: 98%;
+    height: 65vh;
+    bottom: -100vh;  /* Keep it hidden when inactive */
+  }
+  
+  #ai-terminal.active {
+    bottom: 2vh;  /* Show at proper mobile position when active */
+  }
+  
+  #ai-chat-container {
+    padding: 15px;
+    font-size: 17px;
+  }
+  
+  #ai-model-input-container,
+  #ai-input-container {
+    padding: 15px;
+  }
+}
+
 </style>
 </head>
 <body>
