@@ -1812,9 +1812,19 @@ function updatePanelBackgrounds() {
     ctx.lineWidth = 3;
     ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
     
-    // Draw title
+    // Draw title with tight positional glow
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 24px monospace';
+    
+    // Multiple tight passes for glow
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillText(content.title, 19, 39);
+    ctx.fillText(content.title, 21, 39);
+    ctx.fillText(content.title, 19, 41);
+    ctx.fillText(content.title, 21, 41);
+    
+    // Final crisp pass
+    ctx.fillStyle = '#fff';
     ctx.fillText(content.title, 20, 40);
     
     // Draw content with word wrap
@@ -1838,13 +1848,24 @@ function updatePanelBackgrounds() {
         const testWidth = metrics.width;
         
         if (testWidth > maxWidth && n > 0) {
+          // Tight positional glow for content
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.fillText(currentLine, 19, currentY);
+          ctx.fillText(currentLine, 21, currentY);
+          ctx.fillStyle = '#fff';
           ctx.fillText(currentLine, 20, currentY);
+          
           currentLine = words[n] + ' ';
           currentY += 25;
         } else {
           currentLine = testLine;
         }
       }
+      // Tight positional glow for final line
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.fillText(currentLine, 19, currentY);
+      ctx.fillText(currentLine, 21, currentY);
+      ctx.fillStyle = '#fff';
       ctx.fillText(currentLine, 20, currentY);
       currentY += 25;
     });
