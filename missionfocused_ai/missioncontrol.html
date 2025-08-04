@@ -127,7 +127,7 @@ body {
 #settings-toggle {
   position: fixed;
   bottom: 10px;
-  left: calc(50% - 120px);
+  left: calc(50% - 180px);
   transform: translateX(-50%);
   background: rgba(84, 198, 255, 0.1);
   border: 1px solid rgba(84, 198, 255, 0.3);
@@ -152,6 +152,37 @@ body {
   transform: translateX(-50%) scale(1.05);
 }
 #settings-toggle.active {
+  background: rgba(255, 91, 195, 0.2);
+  border: 1px solid rgba(255, 91, 195, 0.5);
+}
+#chat-toggle {
+  position: fixed;
+  bottom: 10px;
+  left: calc(50% - 120px);
+  transform: translateX(-50%);
+  background: rgba(84, 198, 255, 0.1);
+  border: 1px solid rgba(84, 198, 255, 0.3);
+  padding: 15px;
+  border-radius: 50%;
+  backdrop-filter: blur(10px);
+  font-size: 18px;
+  text-align: center;
+  z-index: 100;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#chat-toggle:hover {
+  background: rgba(84, 198, 255, 0.2);
+  border: 1px solid rgba(84, 198, 255, 0.5);
+  transform: translateX(-50%) scale(1.05);
+}
+#chat-toggle.active {
   background: rgba(255, 91, 195, 0.2);
   border: 1px solid rgba(255, 91, 195, 0.5);
 }
@@ -565,6 +596,7 @@ body {
 <body>
 <div id="logo">MissionFocused.ai</div>
 <div id="settings-toggle">⚙️</div>
+<div id="chat-toggle">💬</div>
 <div id="instructions">panel</div>
 <div id="camera-toggle">📷</div>
 <div id="fire-button">🔴</div>
@@ -934,7 +966,7 @@ camera.lookAt(ORIGINAL_CAMERA_TARGET);
 // Content for screens
 const screenContent = [
   {
-    title: "MISSION FOCUSED v1",
+    title: "MISSION FOCUSED v2",
     content: "Automate to Amplify Your Mission\n\nMissionFocused.ai streamlines your nonprofit's back office so you can focus on impact.",
     color: 0x54c6ff
   },
@@ -2022,26 +2054,9 @@ function focusScreen(index) {
   
   const group = screenGroups[index];
   
-  // Special handling for panel 0 - AI Terminal
-  if (index === 0) {
-    if (currentFocus === 0 && group.userData.focused) {
-      // Hide terminal and return panel
-      hideAITerminal();
-      animatePanel(group, false);
-      currentFocus = -1;
-    } else {
-      // Show terminal and bring panel forward
-      if (currentFocus !== -1 && currentFocus !== index) {
-        animatePanel(screenGroups[currentFocus], false);
-      }
-      animatePanel(group, true);
-      currentFocus = index;
-      showAITerminal();
-    }
-    return;
-  }
+
   
-  // Standard panel handling for non-AI panels
+  // Standard panel handling for all panels
   if (currentFocus === index && group.userData.focused) {
     // Return to original position
     animatePanel(group, false);
@@ -2331,6 +2346,11 @@ document.getElementById('settings-toggle').addEventListener('click', () => {
     controls.style.display = 'none';
     settingsButton.classList.remove('active');
   }
+});
+
+// Chat toggle button
+document.getElementById('chat-toggle').addEventListener('click', () => {
+  showAITerminal();
 });
 
 // Helper function to check if AI terminal input is focused
