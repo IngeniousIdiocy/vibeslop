@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>vLLM Load Tester – Glassmorphism</title>
+<style>
+/*  ────────────────────────────────────────────────────────────────
+    GLOBAL STYLES - Glassmorphism + Grid
+───────────────────────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0a0a0a;
+  --glass-bg:rgba(255,255,255,.03);
+  --glass-border:rgba(255,255,255,.08);
+  --glass-shadow:0 8px 32px 0 rgba(0,0,0,.37);
+  --text-primary:rgba(255,255,255,.95);
+  --text-secondary:rgba(255,255,255,.6);
+  --accent:#00d4ff;
+  --accent-secondary:#ff006e;
+  --accent-tertiary:#8338ec;
+  --user-msg:rgba(0,212,255,.08);
+  --ai-msg:rgba(255,255,255,.03);
+  --think-bg:rgba(131,56,236,.08);
+  --blur-amount:20px;
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;
+  background:var(--bg-primary);color:var(--text-primary);
+  height:100vh;display:flex;overflow:hidden;position:relative;
+}
+/* animated backdrop */
+body::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(circle at 20% 80%, var(--accent) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, var(--accent-secondary) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, var(--accent-tertiary) 0%, transparent 50%),
+    radial-gradient(circle at 90% 90%, #06ffa5 0%, transparent 50%);
+  filter:blur(100px);opacity:.4;animation:float 20s ease-in-out infinite;z-index:-1;
+}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1) rotate(0)}33%{transform:translate(-20px,-20px) scale(1.1) rotate(120deg)}66%{transform:translate(20px,-10px) scale(.9) rotate(240deg)}}
+.glass-panel{background:var(--glass-bg);backdrop-filter:blur(var(--blur-amount));-webkit-backdrop-filter:blur(var(--blur-amount));border:1px solid var(--glass-border);box-shadow:var(--glass-shadow)}
+.container{display:flex;width:100%;height:100%;position:relative}
+
+/* Sidebar */
+.sidebar{position:relative;width:280px;background:rgba(255,255,255,.02);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-right:1px solid rgba(255,255,255,.1);padding:20px;display:flex;flex-direction:column;gap:20px;transition:all .3s cubic-bezier(.4,0,.2,1);overflow:hidden;box-shadow:inset 0 0 20px rgba(255,255,255,.05),0 0 40px rgba(0,212,255,.1)}
+.sidebar.collapsed{width:60px;padding:20px 10px}
+.sidebar-toggle{position:absolute;right:-20px;top:50%;transform:translateY(-50%);width:40px;height:40px;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .3s ease;z-index:10;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.sidebar-toggle:hover{background:rgba(255,255,255,.15);transform:translateY(-50%) scale(1.1);box-shadow:0 6px 30px rgba(0,212,255,.3)}
+.sidebar-toggle svg{width:20px;height:20px;color:var(--text-primary);transition:transform .3s ease}
+.sidebar.collapsed .sidebar-toggle svg{transform:rotate(180deg)}
+.sidebar-content{opacity:1;transition:opacity .3s ease}
+.sidebar.collapsed .sidebar-content{opacity:0;pointer-events:none}
+
+/* Main */
+.main-content{flex:1;display:flex;flex-direction:column;position:relative}
+.header{background:rgba(255,255,255,.02);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-bottom:1px solid rgba(255,255,255,.1);padding:20px 30px;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+h1{font-size:28px;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.5px}
+
+/* Grid of chat cards */
+.chat-container{flex:1;overflow-y:auto;padding:24px;scroll-behavior:smooth}
+.chat-container::-webkit-scrollbar{width:10px}
+.chat-container::-webkit-scrollbar-track{background:rgba(255,255,255,.02);border-radius:5px}
+.chat-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:5px;border:1px solid rgba(255,255,255,.05)}
+.chat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.chat-card{border-radius:16px;padding:14px;position:relative}
+.chat-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.chat-title{font-weight:600;font-size:14px;color:var(--text-primary)}
+.badge{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:var(--text-secondary);background:rgba(255,255,255,.03)}
+.badge.streaming{color:#0af;border-color:rgba(0,212,255,.4);box-shadow:0 0 12px rgba(0,212,255,.15) inset}
+.badge.waiting{color:#ff9500;border-color:rgba(255,149,0,.4);box-shadow:0 0 12px rgba(255,149,0,.15) inset}
+.badge.inactive{opacity:.7}
+.last-line{font-size:13px;color:var(--text-primary);opacity:.9;border:1px dashed rgba(255,255,255,.08);background:rgba(255,255,255,.02);padding:10px 12px;border-radius:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stats-mini{margin-top:12px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.stat-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-secondary)}
+.stat-row .val{color:var(--text-primary);font-feature-settings:"tnum"}
+/* details transcript */
+.chat-details{margin-top:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden}
+.chat-details > summary{cursor:pointer;padding:10px 12px;color:var(--text-secondary);font-size:12px;list-style:none;display:flex;align-items:center;gap:6px}
+.chat-details > summary::-webkit-details-marker{display:none}
+.transcript{max-height:300px;overflow:auto;border-top:1px solid rgba(255,255,255,.08);padding:12px}
+.message{display:flex;gap:10px;margin-bottom:12px}
+.message-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0}
+.user-avatar{background:linear-gradient(135deg,var(--accent),#0099ff)}
+.ai-avatar{background:linear-gradient(135deg,var(--accent-tertiary),var(--accent-secondary))}
+.message-bubble{flex:1;border-radius:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.08);white-space:pre-wrap;line-height:1.5}
+.user-bubble{background:var(--user-msg)}
+.ai-bubble{background:var(--ai-msg)}
+.message-role{font-size:10.5px;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+
+/* Input */
+.input-container{background:rgba(255,255,255,.02);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-top:1px solid rgba(255,255,255,.1);padding:18px 24px;box-shadow:0 -4px 20px rgba(0,0,0,.1)}
+.input-wrapper{display:flex;gap:12px;align-items:flex-end}
+.input-field{flex:1;background:rgba(255,255,255,.05);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px 16px;color:var(--text-primary);font-size:16px;line-height:1.5;resize:none;min-height:56px;max-height:200px;font-family:inherit;transition:all .3s ease}
+.input-field:focus{outline:none;border-color:rgba(0,212,255,.5);background:rgba(255,255,255,.08);box-shadow:inset 0 2px 4px rgba(0,0,0,.1),0 0 0 4px rgba(0,212,255,.1),0 0 20px rgba(0,212,255,.2)}
+.send-button{background:linear-gradient(135deg,var(--accent),var(--accent-secondary));border:none;border-radius:16px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .3s ease;flex-shrink:0;box-shadow:0 4px 15px rgba(0,212,255,.3),inset 0 -2px 4px rgba(0,0,0,.2);position:relative;overflow:hidden}
+.send-button:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,212,255,.4),inset 0 -2px 4px rgba(0,0,0,.2)}
+.send-button svg{width:24px;height:24px;color:#fff}
+
+/* Settings bits reused */
+h2{font-size:18px;font-weight:600;margin-bottom:15px;color:var(--text-primary)}
+label{display:block;margin-bottom:8px;font-size:14px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.model-selector,.clear-button,.load-button{background:rgba(255,255,255,.05);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;color:var(--text-primary);font-size:14px;cursor:pointer;transition:all .3s ease;width:100%}
+.model-selector{box-shadow:0 2px 10px rgba(0,0,0,.1),inset 0 1px 1px rgba(255,255,255,.05)}
+.model-selector:focus{outline:none;border-color:rgba(0,212,255,.5);box-shadow:0 0 0 3px rgba(0,212,255,.1),0 2px 10px rgba(0,0,0,.1),inset 0 1px 1px rgba(255,255,255,.05)}
+.load-button{display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 3px 0}
+.load-button.loaded{background:linear-gradient(135deg,#00ff88,#00cc6a);border-color:rgba(0,255,136,.3);box-shadow:0 2px 10px rgba(0,255,136,.2),inset 0 1px 1px rgba(255,255,255,.05)}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top:2px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-button.loading{cursor:not-allowed}
+.clear-button{margin-top:6px}
+.clear-button:hover{border-color:rgba(255,0,110,.5)}
+.slider-container{display:flex;align-items:center;gap:12px;margin-top:8px}
+.context-slider{flex:1;-webkit-appearance:none;appearance:none;height:6px;background:rgba(255,255,255,.1);border-radius:3px;outline:none;cursor:pointer}
+.context-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));border-radius:50%;box-shadow:0 2px 8px rgba(0,212,255,.3)}
+.context-value{font-size:12px;color:var(--text-primary);font-weight:500;min-width:60px;text-align:right;font-feature-settings:"tnum"}
+.value-narrow{min-width:auto}
+
+/* Sidebar stats (cumulative) */
+.stats{font-size:12px;color:var(--text-secondary);margin-top:20px;padding-top:20px;border-top:1px solid rgba(255,255,255,.1)}
+.stat-item{display:flex;justify-content:space-between;margin-bottom:8px;padding:4px 0}
+.stat-value{color:var(--text-primary);font-weight:500;font-feature-settings:"tnum"}
+
+/* Loading bar */
+.loading-indicator{display:none;align-items:center;gap:8px;color:var(--text-secondary);font-size:14px;padding:10px 24px;background:rgba(255,255,255,.02)}
+.loading-indicator.active{display:flex}
+.typing-dots{display:flex;gap:4px}
+.typing-dot{width:8px;height:8px;background:var(--accent);border-radius:50%;animation:typing 1.4s infinite;box-shadow:0 0 10px var(--accent)}
+.typing-dot:nth-child(2){animation-delay:.2s}.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes typing{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-10px)}
+
+/* Empty state */
+.empty-state{text-align:center;color:var(--text-secondary);padding:60px 20px}
+.empty-state h3{font-size:24px;margin-bottom:10px;color:var(--text-primary);font-weight:300}
+
+</style>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="sidebar-content">
+        <h2>Settings</h2>
+        <div>
+          <label for="model-select">Model</label>
+          <select id="model-select" class="model-selector"><option>Loading models...</option></select>
+          <button id="load-button" class="load-button" onclick="loadModel()"><span id="load-text">Load Model</span></button>
+        </div>
+
+        <div class="context-control">
+          <label for="context-slider">Context Length</label>
+          <div class="slider-container">
+            <input type="range" id="context-slider" class="context-slider" min="0" max="5" value="0" step="1" oninput="updateContextValue()">
+            <span id="context-value" class="context-value">2,048</span>
+          </div>
+        </div>
+
+        <div class="context-control">
+          <label for="concurrency-slider">Concurrent Chats</label>
+          <div class="slider-container">
+            <input type="range" id="concurrency-slider" class="context-slider" min="1" max="100" value="1" step="1" oninput="updateConcurrencyValue()">
+            <span id="concurrency-value" class="context-value value-narrow">1</span>
+          </div>
+        </div>
+
+        <button class="clear-button" onclick="clearAllChats()">Clear All Chats</button>
+
+        <div class="stats" id="stats">
+          <div class="stat-item"><span>Messages</span><span class="stat-value" id="agg-msgs">0</span></div>
+          <div class="stat-item"><span>Currently Streaming</span><span class="stat-value" id="agg-streaming">0</span></div>
+          <div class="stat-item"><span>Currently Waiting</span><span class="stat-value" id="agg-waiting">0</span></div>
+          <div class="stat-item"><span>Tokens Streamed</span><span class="stat-value" id="agg-tokens">0</span></div>
+          <div class="stat-item"><span>Context Tokens</span><span class="stat-value" id="agg-ctx">0</span></div>
+          <div class="stat-item"><span>Last Message TPS</span><span class="stat-value" id="agg-last-tps">—</span></div>
+          <div class="stat-item"><span>Average TPS</span><span class="stat-value" id="agg-avg-tps">—</span></div>
+          <div class="stat-item"><span>Last Response Time</span><span class="stat-value" id="agg-last-rt">—</span></div>
+          <div class="stat-item"><span>Total Time</span><span class="stat-value" id="agg-total-time">0s</span></div>
+        </div>
+        
+        <div class="loading-indicator" id="loading-indicator">
+          <div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+          <span>Streaming across chats…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main-content">
+      <div class="header glass-panel"><h1>vLLM Load Tester</h1></div>
+
+      <div class="chat-container" id="chat-container">
+        <div class="empty-state"><h3>No chats yet</h3><p>Set a model, load it, choose concurrency, then type a prompt below.</p></div>
+      </div>
+
+      <div class="input-container glass-panel">
+        <div class="input-wrapper">
+          <textarea class="input-field" id="message-input" placeholder="Type your message…" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-button" onclick="sendToAll()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   CONFIG & GLOBAL STATE
+───────────────────────────────────────────────────────────── */
+const VLLM_BASE = 'http://localhost:8000/v1';
+const MAX_SESSIONS = 100;
+const contextLengths = [2048, 8192, 16384, 32768, 65536, 131072];
+
+let selectedModel = '';
+let loadedModel = '';
+let isLoading = false;
+
+let contextLength = contextLengths[0];
+let concurrency = 1;
+
+let sessions = [];           // pool of up to 100
+let activeRequests = 0;      // total active requests (streaming + waiting)
+let activeStreaming = 0;     // actively receiving tokens
+let activeWaiting = 0;       // waiting for first token
+
+// For cumulative average TPS calculation
+let lastAggSample = { t: Date.now(), tokens: 0 };
+let totalSecondsStreaming = 0;
+let cumulativeAvgTPS = 0;
+let tpsUpdateTimer = null;
+
+/* ─────────────────────────────────────────────────────────────
+   SESSION MODEL
+───────────────────────────────────────────────────────────── */
+function createSession(id){
+  return {
+    id,
+    messages: [],
+    tokensStreamed: 0,
+    contextTokens: 0,
+    totalTime: 0,
+    lastTPS: 0,
+    avgTPS: 0,
+    lastResponseTime: 0,
+    messageStats: [],  // {tokens, duration, tps}
+    streaming: false,
+    dom: null,         // will be filled by buildChatCard
+    assistantBuffer: '',
+  };
+}
+
+/* Build one chat card */
+function buildChatCard(session){
+  const card = document.createElement('div');
+  card.className = 'chat-card glass-panel';
+  card.id = `chat-card-${session.id}`;
+
+  const header = document.createElement('div');
+  header.className = 'chat-header';
+
+  const title = document.createElement('div');
+  title.className = 'chat-title';
+  title.textContent = `Chat #${session.id}`;
+
+  const badge = document.createElement('span');
+  badge.className = 'badge inactive';
+  badge.textContent = 'Inactive';
+
+  header.appendChild(title);
+  header.appendChild(badge);
+
+  const lastLine = document.createElement('div');
+  lastLine.className = 'last-line';
+  lastLine.textContent = '—';
+
+  const stats = document.createElement('div');
+  stats.className = 'stats-mini';
+  const rows = {};
+  function statRow(label, idSuffix){
+    const row = document.createElement('div');row.className='stat-row';
+    const l = document.createElement('span');l.textContent = label;
+    const v = document.createElement('span');v.className='val';v.id=`chat-${session.id}-${idSuffix}`;
+    v.textContent = ['lastrt','lasttps','avgtps','ttft'].includes(idSuffix) ? '—' : 
+                    idSuffix === 'totaltime' ? '0s' : '0';
+    row.appendChild(l);row.appendChild(v);stats.appendChild(row);
+    rows[idSuffix] = v;
+  }
+  statRow('Msgs','msgs');
+  statRow('Tokens','tokens');
+  statRow('Ctx Tok','ctx');
+  statRow('Last RT','lastrt');
+  statRow('Last TPS','lasttps');
+  statRow('Avg TPS','avgtps');
+  statRow('TTFT','ttft');
+  statRow('Total Time','totaltime');
+
+  const details = document.createElement('details');
+  details.className = 'chat-details';
+  const summary = document.createElement('summary');
+  summary.innerHTML = '▾ Full history';
+  const transcript = document.createElement('div');
+  transcript.className = 'transcript';
+  details.appendChild(summary);
+  details.appendChild(transcript);
+
+  card.appendChild(header);
+  card.appendChild(lastLine);
+  card.appendChild(stats);
+  card.appendChild(details);
+
+  session.dom = {
+    card, badge, lastLine,
+    statMsgs: rows['msgs'], statTokens: rows['tokens'], statCtx: rows['ctx'],
+    statLastTPS: rows['lasttps'], statAvgTPS: rows['avgtps'],
+    statLastRT: rows['lastrt'], statTTFT: rows['ttft'], statTotal: rows['totaltime'],
+    transcript
+  };
+  return card;
+}
+
+/* Transcript helpers */
+function appendUserMessage(session, content){
+  session.messages.push({role:'user', content});
+  const wrapper = document.createElement('div');wrapper.className='message';
+  const avatar = document.createElement('div');avatar.className='message-avatar user-avatar';avatar.textContent='U';
+  const bubble = document.createElement('div');bubble.className='message-bubble user-bubble';
+  const role = document.createElement('div');role.className='message-role';role.textContent='You';
+  const text = document.createElement('div');text.textContent = content;
+  bubble.appendChild(role);bubble.appendChild(text);
+  wrapper.appendChild(avatar);wrapper.appendChild(bubble);
+  session.dom.transcript.appendChild(wrapper);
+  session.dom.transcript.scrollTop = session.dom.transcript.scrollHeight;
+}
+
+function getOrCreateAssistantWrapper(session){
+  // If last message is assistant, append; else create new
+  const last = session.dom.transcript.lastElementChild;
+  if(last && last.dataset && last.dataset.role === 'assistant') return last.querySelector('.message-bubble .content');
+
+  const wrapper = document.createElement('div');wrapper.className='message';wrapper.dataset.role='assistant';
+  const avatar = document.createElement('div');avatar.className='message-avatar ai-avatar';avatar.textContent='AI';
+  const bubble = document.createElement('div');bubble.className='message-bubble ai-bubble';
+  const role = document.createElement('div');role.className='message-role';role.textContent='Assistant';
+  const content = document.createElement('div');content.className='content';content.textContent='';
+  bubble.appendChild(role);bubble.appendChild(content);
+  wrapper.appendChild(avatar);wrapper.appendChild(bubble);
+  session.dom.transcript.appendChild(wrapper);
+  session.dom.transcript.scrollTop = session.dom.transcript.scrollHeight;
+  return content;
+}
+
+/* Utils */
+function estimateTokens(text){return Math.ceil(text.length/4)}  // heuristic
+function formatTime(sec){
+  if(!Number.isFinite(sec) || sec<=0) return '0s';
+  if(sec<60) return `${sec.toFixed(1)}s`;
+  if(sec<3600){const m=Math.floor(sec/60);const s=sec%60;return `${m}m ${s.toFixed(0)}s`;}
+  const h=Math.floor(sec/3600);const m=Math.floor((sec%3600)/60);return `${h}h ${m}m`;
+}
+function lastLineOf(s){const parts = s.split('\n').filter(Boolean);return parts.length?parts[parts.length-1]:'—'}
+function setBadge(session, state){
+  session.dom.badge.classList.remove('inactive','waiting','streaming');
+  if(state==='streaming'){
+    session.dom.badge.classList.add('streaming');
+    session.dom.badge.textContent='Streaming';
+  } else if(state==='waiting'){
+    session.dom.badge.classList.add('waiting');
+    session.dom.badge.textContent='Waiting';
+  } else {
+    session.dom.badge.classList.add('inactive');
+    session.dom.badge.textContent='Inactive';
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   INIT + MODELS
+───────────────────────────────────────────────────────────── */
+window.onload = init;
+async function init(){
+  // init sessions
+  for(let i=1;i<=MAX_SESSIONS;i++) sessions.push(createSession(i));
+  await loadModels();
+  await checkLoadedModel();
+  document.getElementById('message-input').focus();
+  renderActiveCards();
+  updateContextValue();
+  updateConcurrencyValue();
+}
+async function loadModels(){
+  try{
+    const res = await fetch(`${VLLM_BASE}/models`);
+    const data = await res.json();
+    const sel = document.getElementById('model-select');
+    sel.innerHTML = '';
+    if(Array.isArray(data.data) && data.data.length){
+      for(const model of data.data){
+        const o = document.createElement('option');
+        o.value = model.id; o.textContent = model.id; sel.appendChild(o);
+      }
+      selectedModel = data.data[0].id; sel.value = selectedModel;
+    } else sel.innerHTML = '<option>No models found</option>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('model-select').innerHTML='<option>Error loading models</option>';
+    // leave UI usable for later retry
+  }
+}
+document.getElementById('model-select').addEventListener('change', e=>{
+  selectedModel = e.target.value;
+  if(loadedModel !== selectedModel){
+    loadedModel = '';
+    const loadBtn = document.getElementById('load-button');
+    const loadText = document.getElementById('load-text');
+    loadBtn.className = 'load-button'; loadText.textContent = 'Load Model';
+  }
+});
+
+async function checkLoadedModel(){
+  try{
+    const res = await fetch(`${VLLM_BASE}/models`);
+    const data = await res.json();
+    if(Array.isArray(data.data) && data.data.length === 1){
+      const modelName = data.data[0].id;
+      const modelSelect = document.getElementById('model-select');
+      const option = Array.from(modelSelect.options).find(o=>o.value===modelName);
+      if(option){
+        selectedModel = modelName; loadedModel = modelName; modelSelect.value = modelName;
+        const loadBtn = document.getElementById('load-button');const loadText = document.getElementById('load-text');
+        loadBtn.className='load-button loaded'; loadText.textContent='Model Loaded';
+      }
+    }
+  }catch(e){ /* ignore */ }
+}
+
+async function loadModel(){
+  if(!selectedModel || isLoading) return;
+  isLoading = true;
+  const loadBtn = document.getElementById('load-button');
+  const loadText = document.getElementById('load-text');
+  loadBtn.className='load-button loading'; loadText.innerHTML='<div class="spinner"></div>Loading…';
+  try{
+    // warm model
+    const res = await fetch(`${VLLM_BASE}/chat/completions`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:selectedModel,messages:[{role:'user',content:'Hello'}],max_tokens:1,stream:false})
+    });
+    if(res.ok){loadedModel=selectedModel;loadBtn.className='load-button loaded';loadText.textContent='Model Loaded';}
+    else throw new Error('Load failed');
+  }catch(e){
+    console.error(e); loadBtn.className='load-button'; loadText.textContent='Load Failed';
+    setTimeout(()=>loadText.textContent='Load Model',3000);
+  }finally{isLoading=false}
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SIDEBAR CONTROLS
+───────────────────────────────────────────────────────────── */
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('collapsed')}
+function updateContextValue(){
+  const slider = document.getElementById('context-slider');
+  const idx = parseInt(slider.value,10);
+  contextLength = contextLengths[idx];
+  document.getElementById('context-value').textContent = contextLength.toLocaleString();
+}
+function updateConcurrencyValue(){
+  const slider = document.getElementById('concurrency-slider');
+  concurrency = parseInt(slider.value,10);
+  document.getElementById('concurrency-value').textContent = concurrency;
+  renderActiveCards();
+  updateAggregateStats();
+}
+
+/* Render visible cards for [1..concurrency] */
+function renderActiveCards(){
+  const container = document.getElementById('chat-container');
+  container.innerHTML = '';
+  const grid = document.createElement('div'); grid.className='chat-grid';
+  for(let i=0;i<concurrency;i++){
+    const s = sessions[i];
+    if(!s.dom) buildChatCard(s); // create dom on first use
+    grid.appendChild(s.dom.card);
+  }
+  if(concurrency===0){
+    const empty = document.createElement('div'); empty.className='empty-state';
+    empty.innerHTML = '<h3>No chats</h3><p>Increase concurrency to create chat boxes.</p>';
+    container.appendChild(empty);
+  } else {
+    container.appendChild(grid);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   INPUT + SEND
+───────────────────────────────────────────────────────────── */
+function autoResize(el){el.style.height='auto';el.style.height=el.scrollHeight+'px'}
+function handleKeyDown(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendToAll(); } }
+
+function sendToAll(){
+  const input = document.getElementById('message-input');
+  const msg = input.value.trim();
+  if(!msg || !loadedModel) return;
+
+  // Fan-out: push user message into each active session and start streaming
+  for(let i=0;i<concurrency;i++){
+    const s = sessions[i];
+    appendUserMessage(s, msg);
+    // update context tokens estimate
+    s.contextTokens = s.messages.reduce((acc,m)=>acc+estimateTokens(m.content),0);
+    updateSessionStatsDisplay(s);
+    streamOne(s, contextLength);
+  }
+  input.value=''; autoResize(input);
+  updateAggregateStats();
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STREAM ONE SESSION
+───────────────────────────────────────────────────────────── */
+async function streamOne(session, ctxLen){
+  session.streaming = true;
+  setBadge(session,'waiting');
+  activeRequests++;
+  activeWaiting++;
+  updateLoadingIndicator();
+
+  const startTime = Date.now();
+  session.requestStartTime = startTime;
+  session.firstTokenTime = null;  // reset for new request
+  let streamedChars = 0;
+  let estTokensThisMsg = 0;
+  let messageStart = Date.now();
+  let finalUsage = null;
+  session.assistantBuffer = '';
+
+  // Create assistant message slot in transcript
+  const assistantContentEl = getOrCreateAssistantWrapper(session);
+
+  try{
+    const maxOutputTokens = Math.min(ctxLen, 4096);
+    const res = await fetch(`${VLLM_BASE}/chat/completions`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model: loadedModel,
+        messages: session.messages.map(m=>({role:m.role,content:m.content})),
+        stream:true,
+        max_tokens:maxOutputTokens,
+        stream_options:{include_usage:true},
+        logprobs: true,
+        top_logprobs: 0
+      })
+    });
+    if(!res.ok) throw new Error('vLLM response not ok');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let sseDone = false;
+    let lineBuf = ''; // to accumulate partial lines
+
+    while(true){
+      const {value, done} = await reader.read();
+      if(done) break;
+      const chunk = decoder.decode(value);
+      lineBuf += chunk;
+
+      const lines = lineBuf.split('\n');
+      lineBuf = lines.pop(); // keep last partial line
+
+      for(let rawLine of lines){
+        let line = rawLine.trim();
+        if(!line) continue;
+        if(line.startsWith('data:')) line = line.slice(5).trim();
+        if(line === '[DONE]'){ sseDone=true; break; }
+
+        try{
+          const data = JSON.parse(line);
+          const delta = (data.choices?.[0]?.delta?.content) || '';
+          const logp = data.choices?.[0]?.logprobs;
+
+          let tokensFromLogprobs = 0;
+          // Chat-style
+          if (logp && Array.isArray(logp.content)) tokensFromLogprobs = logp.content.length;
+          // Legacy Completions-style
+          else if (logp && Array.isArray(logp.tokens)) tokensFromLogprobs = logp.tokens.length;
+
+          if(delta){
+            if(!session.firstTokenTime){
+              session.firstTokenTime = Date.now();
+              // Transition from waiting to streaming
+              activeWaiting--;
+              activeStreaming++;
+              setBadge(session,'streaming');
+            }
+            session.assistantBuffer += delta;
+            assistantContentEl.textContent = session.assistantBuffer;
+            session.dom.lastLine.textContent = lastLineOf(session.assistantBuffer);
+          }
+
+          // Prefer ground-truth tokens; fall back to heuristic only if needed
+          if (tokensFromLogprobs > 0) {
+            session.tokensStreamed += tokensFromLogprobs;
+            estTokensThisMsg += tokensFromLogprobs;
+          } else if (delta) {
+            streamedChars += delta.length;
+            const addTok = estimateTokens(delta);
+            session.tokensStreamed += addTok;
+            estTokensThisMsg += addTok;
+          }
+
+          // live TPS (exclude TTFT)
+          if (tokensFromLogprobs > 0 || delta) {
+            const elapsed = session.firstTokenTime
+              ? (Date.now() - session.firstTokenTime) / 1000
+              : (Date.now() - messageStart) / 1000;
+            session.lastTPS = estTokensThisMsg / Math.max(elapsed, 0.001);
+            updateSessionStatsDisplay(session);
+            scheduleAggregateUpdate();
+          }
+
+          if(data.usage) finalUsage = data.usage;
+        }catch(e){ /* ignore partial JSON */ }
+      }
+      if(sseDone){ try{await reader.cancel();}catch(_){ } break; }
+    }
+
+    // Finalize assistant message
+    session.messages.push({role:'assistant', content: session.assistantBuffer.trim()});
+    session.contextTokens = session.messages.reduce((acc,m)=>acc+estimateTokens(m.content),0);
+
+    const responseTimeSeconds = (Date.now() - startTime)/1000;
+    let completionTokens = estTokensThisMsg;
+    if(finalUsage && typeof finalUsage.completion_tokens === 'number'){
+      // Correct tokens to actual completion_tokens if present
+      session.tokensStreamed = session.tokensStreamed - estTokensThisMsg + finalUsage.completion_tokens;
+      completionTokens = finalUsage.completion_tokens;
+    }
+
+    // Calculate streaming time (excluding TTFT)
+    const streamingTimeSeconds = session.firstTokenTime ? 
+      Math.max((Date.now() - session.firstTokenTime)/1000, 0.001) : 
+      Math.max(responseTimeSeconds, 0.001);
+
+    session.messageStats.push({
+      tokens: completionTokens,
+      duration: streamingTimeSeconds,
+      tps: (completionTokens/Math.max(streamingTimeSeconds, 0.001))
+    });
+    // Weighted average TPS over all responses  
+    const totals = session.messageStats.reduce((acc,m)=>{acc.t+=m.tokens;acc.s+=m.duration;return acc;},{t:0,s:0});
+    session.avgTPS = totals.s>0 ? (totals.t/totals.s) : 0;
+    session.lastTPS = (completionTokens/Math.max(streamingTimeSeconds, 0.001));
+    session.lastResponseTime = responseTimeSeconds;
+    session.totalTime += responseTimeSeconds;
+
+    updateSessionStatsDisplay(session);
+    updateAggregateStats();
+  }catch(err){
+    console.error(err);
+    session.dom.lastLine.textContent = '⚠️ Error streaming from vLLM';
+  }finally{
+    session.streaming = false;
+    setBadge(session,'inactive');
+    activeRequests--;
+    // Adjust counters based on what state we were in
+    if(session.firstTokenTime){
+      activeStreaming--;
+    } else {
+      activeWaiting--;
+    }
+    updateLoadingIndicator();
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   STATS (PER-CHAT + AGGREGATE)
+───────────────────────────────────────────────────────────── */
+function updateSessionStatsDisplay(session){
+  const userMsgs = session.messages.filter(m=>m.role==='user').length;
+  session.dom.statMsgs.textContent = userMsgs;
+  session.dom.statTokens.textContent = session.tokensStreamed.toLocaleString();
+  session.dom.statCtx.textContent = session.contextTokens.toLocaleString();
+  session.dom.statLastTPS.textContent = session.lastTPS ? `${session.lastTPS.toFixed(1)} tok/s` : '—';
+  session.dom.statAvgTPS.textContent = session.avgTPS ? `${session.avgTPS.toFixed(1)} tok/s` : '—';
+  
+  // Calculate and display TTFT
+  if(session.firstTokenTime && session.requestStartTime) {
+    const ttftSeconds = (session.firstTokenTime - session.requestStartTime) / 1000;
+    session.dom.statTTFT.textContent = `${ttftSeconds.toFixed(1)}s`;
+  } else if(session.streaming && session.requestStartTime) {
+    // Show real-time TTFT calculation during wait
+    const waitTime = (Date.now() - session.requestStartTime) / 1000;
+    session.dom.statTTFT.textContent = `${waitTime.toFixed(1)}s`;
+  } else {
+    session.dom.statTTFT.textContent = '—';
+  }
+  
+  session.dom.statLastRT.textContent = session.lastResponseTime ? `${session.lastResponseTime.toFixed(1)}s` : '—';
+  session.dom.statTotal.textContent = formatTime(session.totalTime);
+}
+
+let aggUpdateScheduled = false;
+function scheduleAggregateUpdate(){
+  if(aggUpdateScheduled) return;
+  aggUpdateScheduled = true;
+  setTimeout(()=>{aggUpdateScheduled=false;updateAggregateStats();}, 120); // throttle a bit
+}
+
+function updateCumulativeTPS(){
+  // Calculate current TPS based on tokens generated in the last second
+  const now = Date.now();
+  const dt = (now - lastAggSample.t) / 1000;
+  const act = sessions.slice(0, concurrency);
+  const currentTotalTokens = act.reduce((sum, s) => sum + s.tokensStreamed, 0);
+  const dTokens = Math.max(currentTotalTokens - lastAggSample.tokens, 0);
+  const currentTPS = dt > 0 ? (dTokens / dt) : 0;
+  
+  // Apply running average formula: newAvg = (currentTPS + (existingAvg × totalSeconds)) / (totalSeconds + 1)
+  cumulativeAvgTPS = (currentTPS + (cumulativeAvgTPS * totalSecondsStreaming)) / (totalSecondsStreaming + 1);
+  totalSecondsStreaming++;
+  
+  // Update the display
+  document.getElementById('agg-last-tps').textContent = 
+    cumulativeAvgTPS > 0 ? `${cumulativeAvgTPS.toFixed(1)} tok/s` : '—';
+  
+  lastAggSample = { t: now, tokens: currentTotalTokens };
+}
+
+function startTPSTimer(){
+  if(tpsUpdateTimer) return; // already running
+  // Reset for new streaming session
+  totalSecondsStreaming = 0;
+  cumulativeAvgTPS = 0;
+  const act = sessions.slice(0, concurrency);
+  lastAggSample = { t: Date.now(), tokens: act.reduce((sum, s) => sum + s.tokensStreamed, 0) };
+  
+  tpsUpdateTimer = setInterval(updateCumulativeTPS, 1000);
+}
+
+function stopTPSTimer(){
+  if(tpsUpdateTimer){
+    clearInterval(tpsUpdateTimer);
+    tpsUpdateTimer = null;
+  }
+}
+
+function updateAggregateStats(){
+  // Sum across active sessions [0..concurrency-1]
+  const act = sessions.slice(0, concurrency);
+  if(act.length===0){
+    document.getElementById('agg-msgs').textContent='0';
+    document.getElementById('agg-streaming').textContent='0';
+    document.getElementById('agg-waiting').textContent='0';
+    document.getElementById('agg-tokens').textContent='0';
+    document.getElementById('agg-ctx').textContent='0';
+    document.getElementById('agg-last-tps').textContent='—';
+    document.getElementById('agg-avg-tps').textContent='—';
+    document.getElementById('agg-last-rt').textContent='—';
+    document.getElementById('agg-total-time').textContent='0s';
+    return;
+  }
+  let msgs=0,tokens=0,ctx=0,lastTPSsum=0,totalTime=0;
+  let totalCompTokens=0,totalDuration=0, lastRTcount=0, lastRTsum=0;
+
+  for(const s of act){
+    msgs += s.messages.filter(m=>m.role==='user').length;
+    tokens += s.tokensStreamed;
+    ctx += s.contextTokens;
+    if(s.lastTPS) lastTPSsum += s.lastTPS;
+    if(s.lastResponseTime){ lastRTsum += s.lastResponseTime; lastRTcount++; }
+    totalTime += s.totalTime;
+    // Weighted avg TPS inputs
+    for(const m of s.messageStats){ totalCompTokens += m.tokens; totalDuration += m.duration; }
+  }
+
+  const avgTPSWeighted = totalDuration>0 ? (totalCompTokens/totalDuration) : 0;
+  const lastRTavg = lastRTcount>0 ? (lastRTsum/lastRTcount) : 0;
+
+  document.getElementById('agg-msgs').textContent = msgs;
+  document.getElementById('agg-streaming').textContent = activeStreaming;
+  document.getElementById('agg-waiting').textContent = activeWaiting;
+  document.getElementById('agg-tokens').textContent = tokens.toLocaleString();
+  document.getElementById('agg-ctx').textContent = ctx.toLocaleString();
+  // agg-last-tps is now updated by the timer-based cumulative calculation
+  document.getElementById('agg-avg-tps').textContent = avgTPSWeighted ? `${avgTPSWeighted.toFixed(1)} tok/s` : '—';
+  document.getElementById('agg-last-rt').textContent = lastRTavg ? `${lastRTavg.toFixed(1)}s` : '—';
+  document.getElementById('agg-total-time').textContent = formatTime(totalTime);
+}
+
+
+/* Loading indicator */
+function updateLoadingIndicator(){
+  const el = document.getElementById('loading-indicator');
+  const wasStreaming = el.classList.contains('active');
+  const isStreaming = activeRequests > 0;
+  
+  if(isStreaming) el.classList.add('active'); else el.classList.remove('active');
+  
+  // Start timer when streaming begins, stop when streaming ends
+  if(!wasStreaming && isStreaming){
+    startTPSTimer();
+  } else if(wasStreaming && !isStreaming){
+    stopTPSTimer();
+  }
+  
+  updateAggregateStats(); // Update streaming count in real-time
+}
+
+/* Clear all */
+function clearAllChats(){
+  for(const s of sessions){
+    s.messages = [];
+    s.tokensStreamed = 0;
+    s.contextTokens = 0;
+    s.totalTime = 0;
+    s.lastTPS = 0;
+    s.avgTPS = 0;
+    s.lastResponseTime = 0;
+    s.messageStats = [];
+    s.streaming = false;
+    s.assistantBuffer = '';
+    s.firstTokenTime = null;
+    s.requestStartTime = null;
+    if(s.dom){
+      // reset UI parts
+      s.dom.lastLine.textContent = '—';
+      s.dom.transcript.innerHTML = '';
+      setBadge(s,'inactive');
+      updateSessionStatsDisplay(s);
+    }
+  }
+  activeRequests = 0; // Reset active requests count
+  activeStreaming = 0; // Reset streaming count
+  activeWaiting = 0; // Reset waiting count
+  stopTPSTimer(); // Stop and reset TPS timer
+  document.getElementById('agg-last-tps').textContent = '—'; // Reset TPS display
+  updateAggregateStats();
+  updateLoadingIndicator(); // Update loading indicator to reflect cleared state
+}
+
+/* End */
+</script>
+</body>
+</html>
