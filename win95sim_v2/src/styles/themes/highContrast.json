@@ -1,0 +1,19 @@
+{
+  "id": "high-contrast",
+  "label": "High Contrast",
+  "metadata": {
+    "highContrast": true
+  },
+  "tokens": {
+    "--win95-color-window": "#000000",
+    "--win95-color-windowframe": "#ffffff",
+    "--win95-color-highlight": "#ffff00",
+    "--win95-color-highlight-text": "#000000",
+    "--win95-color-desktop": "#000000",
+    "--win95-font-ui": "'MS Sans Serif', 'Segoe UI', sans-serif",
+    "--win95-border-size": "2px",
+    "--win95-radius": "0",
+    "--motion-duration-fast": "70ms",
+    "--motion-duration-standard": "150ms"
+  }
+}
