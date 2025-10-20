@@ -3,3 +3,5 @@ dist/
 tests/.cache/
 .DS_Store
 npm-debug.log*
+!src/services/downloads/
+!src/services/downloads/**
