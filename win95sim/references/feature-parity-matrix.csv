@@ -1,0 +1,22 @@
+Feature,Description,Phase,Status,Notes
+4:3 monitor & scaling,CRT container with pixel/fit/integer modes,1,Done,Phase 1 implementation online.
+Window manager,Move/resize/min/max/system menu/task switch,1,Done,Phase 1 task switcher + system menu delivered.
+Virtual File System,In-memory drives/shortcuts/recycle/search,2,In progress,Drives/special folders/search/watchers shipped; recycle bin pending.
+Explorer app,Tree/List/Details views, drag-drop, properties,2,In progress,Sidebar/list/new/delete implemented; context menus/properties upcoming.
+Desktop shell,Icons, context menus, recent docs,3,Planned,
+Taskbar & Start menu,Task buttons, Start hierarchy, tray clock,3,Planned,
+Dialogs & Notepad,File dialogs, Notepad editor, printing,4,Planned,
+Navigator,Iframe/reader/proxy modes, downloads, bookmarks,5,Planned,
+Paint,Full toolset, BMP/PNG import/export,6,Planned,
+Media Player,Audio/video playback, playlists,6,Planned,
+Calculator,Standard mode + memory keys,7,Planned,
+Minesweeper,Beginner/Expert/custom, timer, highscores,7,Planned,
+Command Prompt,DOS subset commands, batch files,7,Planned,
+Utilities (Run/Find/Shut Down/Close Program),Shell utilities suite,7,Planned,
+Control Panel applets,Display/Date-Time/Sounds/Keyboard/Mouse,8,Planned,
+Printers,Generic Text + Virtual PDF with queue,8,Planned,
+Themes & CRT effects,Theme toggles, CRT overlay, reduced motion,9,Planned,
+Screensavers,3D Pipes, Starfield, idle detection,9,Planned,
+System sounds & boot/shutdown,Schemes, startup/shutdown sequences,9,Planned,
+Packaging & Release,Minified build, license banner, hash,10,Planned,
+Testing infrastructure,Unit/integration/visual/perf/axe,All,In progress,Node unit suites for phases 1–2 in place; browser/visual pending.
