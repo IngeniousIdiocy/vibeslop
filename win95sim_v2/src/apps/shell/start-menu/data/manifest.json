@@ -14,41 +14,91 @@
               "label": "Notepad",
               "type": "command",
               "command": "shell:start:notepad",
-              "icon": "icons/notepad.ico"
+              "icon": "icons/w98_notepad.ico"
             },
             {
               "id": "programs/accessories/paint",
               "label": "Paint",
               "type": "command",
               "command": "shell:start:paint",
-              "icon": "icons/tools.ico"
+              "icon": "icons/w98_paint_window.ico"
+            },
+            {
+              "id": "programs/accessories/games",
+              "label": "Games",
+              "type": "folder",
+              "items": [
+                {
+                  "id": "programs/accessories/games/minesweeper",
+                  "label": "Minesweeper",
+                  "type": "command",
+                  "command": "shell:start:minesweeper",
+                  "icon": "icons/w98_game_mine_1.ico"
+                }
+              ],
+              "icon": "icons/w98_directory_program_group_small.ico"
             }
           ],
-          "icon": "icons/folder_open.ico"
+          "icon": "icons/w98_directory_program_group_small.ico"
         },
         {
-          "id": "programs/games",
-          "label": "Games",
+          "id": "programs/startup",
+          "label": "StartUp",
           "type": "folder",
           "items": [
             {
-              "id": "programs/games/minesweeper",
-              "label": "Minesweeper",
+              "id": "programs/startup/open",
+              "label": "Open Startup Folder",
               "type": "command",
-              "command": "shell:start:minesweeper",
-              "icon": "icons/program.ico"
+              "command": "shell:start:startup-folder",
+              "icon": "icons/w98_directory_explorer.ico"
             }
           ],
-          "icon": "icons/folder_open.ico"
+          "icon": "icons/w98_directory_program_group_small.ico"
+        },
+        {
+          "id": "programs/internet-explorer",
+          "label": "Internet Explorer",
+          "type": "command",
+          "command": "shell:start:internet-explorer",
+          "icon": "icons/w2k_internet_explorer.ico"
+        },
+        {
+          "id": "programs/internet-mail",
+          "label": "Internet Mail",
+          "type": "command",
+          "command": "shell:start:internet-mail",
+          "icon": "icons/w98_mailbox_world.ico"
+        },
+        {
+          "id": "programs/internet-news",
+          "label": "Internet News",
+          "type": "command",
+          "command": "shell:start:internet-news",
+          "icon": "icons/w98_newspaper.ico"
+        },
+        {
+          "id": "programs/ms-dos",
+          "label": "MS-DOS Prompt",
+          "type": "command",
+          "command": "shell:start:msdos",
+          "icon": "icons/w98_ms-dos.ico"
+        },
+        {
+          "id": "programs/windows-explorer",
+          "label": "Windows Explorer",
+          "type": "command",
+          "command": "shell:start:explorer",
+          "icon": "icons/w98_directory_explorer.ico"
         }
       ],
-      "icon": "icons/folder_open.ico"
+      "icon": "icons/w98_directory_program_group_small.ico"
     },
     {
       "id": "documents",
       "label": "Documents",
       "items": [],
-      "icon": "icons/text_file.ico"
+      "icon": "icons/w98_document.ico"
     },
     {
       "id": "settings",
@@ -59,17 +109,17 @@
           "label": "Control Panel",
           "type": "command",
           "command": "shell:start:control-panel",
-          "icon": "icons/tools.ico"
+          "icon": "icons/w2k_control_panel.ico"
         },
         {
           "id": "settings/taskbar",
           "label": "Taskbar & Start Menu...",
           "type": "command",
           "command": "shell:start:taskbar-settings",
-          "icon": "icons/tools.ico"
+          "icon": "icons/w98_settings_gear.ico"
         }
       ],
-      "icon": "icons/tools.ico"
+      "icon": "icons/w98_settings_gear.ico"
     },
     {
       "id": "find",
@@ -80,38 +130,24 @@
           "label": "Files or Folders...",
           "type": "command",
           "command": "shell:start:find-files",
-          "icon": "icons/search.ico"
+          "icon": "icons/w2k_find.ico"
         }
       ],
-      "icon": "icons/search.ico"
+      "icon": "icons/w2k_find.ico"
     },
     {
       "id": "help",
       "label": "Help",
-      "items": [
-        {
-          "id": "help/windows-help",
-          "label": "Windows Help",
-          "type": "command",
-          "command": "shell:start:help",
-          "icon": "icons/world.ico"
-        }
-      ],
-      "icon": "icons/world.ico"
+      "items": [],
+      "command": "shell:start:help",
+      "icon": "icons/w2k_help.ico"
     },
     {
       "id": "run",
       "label": "Run...",
-      "items": [
-        {
-          "id": "run/command",
-          "label": "Run",
-          "type": "command",
-          "command": "shell:start:run",
-          "icon": "icons/program.ico"
-        }
-      ],
-      "icon": "icons/program.ico"
+      "items": [],
+      "command": "shell:start:run",
+      "icon": "icons/w2k_run.ico"
     },
     {
       "id": "shutdown",
@@ -122,10 +158,10 @@
           "label": "Shut Down",
           "type": "command",
           "command": "shell:start:shutdown",
-          "icon": "icons/program.ico"
+          "icon": "icons/w98_shut_down_normal.ico"
         }
       ],
-      "icon": "icons/program.ico"
+      "icon": "icons/w98_shut_down_normal.ico"
     }
   ]
 }

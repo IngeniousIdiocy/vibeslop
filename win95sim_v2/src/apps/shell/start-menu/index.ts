@@ -18,6 +18,7 @@ export interface StartMenuManifestSection {
   label: string;
   items: StartMenuManifestItem[];
   icon?: string;
+  command?: string;
 }
 
 export interface StartMenuManifest {
@@ -54,6 +55,7 @@ function cloneManifest(manifest: StartMenuManifest): StartMenuManifest {
     sections: manifest.sections.map((section) => ({
       ...section,
       icon: section.icon,
+      command: section.command,
       items: section.items.map(cloneItem),
     })),
   };
@@ -85,6 +87,15 @@ function toMenuItem(item: StartMenuManifestItem): MenuSchemaItem {
 }
 
 function walkItems(section: StartMenuManifestSection, path: string[], results: StartMenuSearchResult[]) {
+  if (section.command) {
+    results.push({
+      id: section.id,
+      label: section.label,
+      path,
+      command: section.command,
+    });
+  }
+
   for (const item of section.items) {
     const nextPath = [...path, item.label];
     const type = item.type ?? (item.items?.length ? 'folder' : 'command');
@@ -120,7 +131,11 @@ export function createStartMenuModel(options: StartMenuOptions): StartMenuModel 
       return open;
     },
     getSections() {
-      return manifest.sections.map((section) => ({ ...section, items: section.items.map(cloneItem) }));
+      return manifest.sections.map((section) => ({
+        ...section,
+        command: section.command,
+        items: section.items.map(cloneItem),
+      }));
     },
     getRecentDocuments() {
       return options.recentDocuments.list();

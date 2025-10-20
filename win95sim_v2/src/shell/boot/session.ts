@@ -2,16 +2,21 @@ import { createModuleRegistry } from '@core/kernel/moduleRegistry';
 import { createEventBus } from '@core/kernel/eventBus';
 import { createSettingsService } from '@services/settings';
 import { createDisplayService } from '@services/display';
+import { createLayoutService } from '@services/layout';
 import { createWindowService, type WindowDescriptor, type WindowEvent } from '@services/window';
 import { createDiagnosticsService } from '@services/diagnostics';
 import { createWindowManager } from '@apps/shell/window-manager';
 import { createTaskbarController, type TaskButton } from '@apps/shell/taskbar';
 import { createStartMenuModel, type StartMenuManifestSection } from '@apps/shell/start-menu';
+import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
+import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
 import { createRecentDocumentsService } from '@services/recent-documents';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
 import { createTaskbarView } from '@ui/components/taskbar';
 import { createStartMenuView } from '@ui/components/startMenu';
+import { createDesktopView } from '@ui/components/desktopIcons';
+import { createVfsService } from '@services/vfs';
 
 export interface ShellSession {
   mount(root: HTMLElement): void;
@@ -37,6 +42,34 @@ interface ShellWindowOptions {
 const DEFAULT_WINDOW_WIDTH = 360;
 const DEFAULT_WINDOW_HEIGHT = 260;
 const WINDOW_CASCADE_STEP = 24;
+const DESKTOP_SURFACE_ID = '::desktop';
+const DEFAULT_EXPLORER_HOME = 'C:/';
+const STARTUP_FOLDER_PATH = 'C:/Start Menu/Programs/StartUp';
+const DEFAULT_VFS_SEED: Array<{ path: string; kind: 'directory' | 'file' | 'shortcut'; content?: string; target?: string }> = [
+  { path: 'C:/Documents', kind: 'directory' },
+  {
+    path: 'C:/Documents/Welcome to Win95Sim.txt',
+    kind: 'file',
+    content: 'Thanks for trying the Windows 95 simulator!\nExplore the Start menu to launch classic experiences.',
+  },
+  { path: 'C:/Projects', kind: 'directory' },
+  {
+    path: 'C:/Projects/Win95Sim Roadmap.txt',
+    kind: 'file',
+    content: '- Polish the Start menu icons\n- Hook up Explorer integration\n- Emulate taskbar tray icons',
+  },
+  { path: 'C:/Downloads', kind: 'directory' },
+  { path: 'C:/Start Menu', kind: 'directory' },
+  { path: 'C:/Start Menu/Programs', kind: 'directory' },
+  { path: 'C:/Start Menu/Programs/Accessories', kind: 'directory' },
+  { path: 'C:/Start Menu/Programs/Accessories/Games', kind: 'directory' },
+  { path: STARTUP_FOLDER_PATH, kind: 'directory' },
+  {
+    path: `${STARTUP_FOLDER_PATH}/Readme.txt`,
+    kind: 'file',
+    content: 'Place shortcuts in this folder to launch applications automatically when Win95Sim boots.',
+  },
+];
 
 export function createShellSession(): ShellSession {
   const registry = createModuleRegistry();
@@ -47,23 +80,59 @@ export function createShellSession(): ShellSession {
   const windows = createWindowService();
   const windowManager = createWindowManager({ display, windows, bus });
   const diagnostics = createDiagnosticsService({ settings });
+  const vfs = createVfsService({ seed: DEFAULT_VFS_SEED });
   const recentDocuments = createRecentDocumentsService();
   const startMenuModel = createStartMenuModel({ recentDocuments });
   const taskbar = createTaskbarController({ windows, bus });
+  const layout = createLayoutService({ defaultGridSize: 48 });
+  const desktopEntries: DesktopEntry[] = [
+    {
+      id: 'desktop/computer',
+      title: 'My Computer',
+      resource: '::desktop/computer',
+      type: 'folder',
+      icon: 'icons/w98_computer.ico',
+    },
+    {
+      id: 'desktop/recycle-bin',
+      title: 'Recycle Bin',
+      resource: '::desktop/recycle-bin',
+      type: 'folder',
+      icon: 'icons/w98_recycle_bin_empty.ico',
+    },
+  ];
+  const desktopModule = createDesktopModule({
+    layout,
+    resolveEntries: () => desktopEntries,
+    gridSize: 48,
+  });
+
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/computer', { x: 15, y: 10 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/recycle-bin', { x: 15, y: 78 }, { snapToGrid: false });
+
+  layout.bus.on('layout:updated', ({ surfaceId }) => {
+    if (surfaceId === DESKTOP_SURFACE_ID) {
+      renderDesktop();
+    }
+  });
 
   registry.register({ id: 'services/settings', version: '2.0.0', factory: () => settings });
   registry.register({ id: 'services/display', version: '2.0.0', factory: () => display });
   registry.register({ id: 'services/windows', version: '2.0.0', factory: () => windows });
+  registry.register({ id: 'services/layout', version: '2.0.0', factory: () => layout });
+  registry.register({ id: 'services/vfs', version: '2.0.0', factory: () => vfs });
   registry.register({ id: 'apps/window-manager', version: '2.0.0', factory: () => windowManager });
   registry.register({ id: 'services/diagnostics', version: '2.0.0', factory: () => diagnostics });
   registry.register({ id: 'shell/session', version: '2.0.0', factory: () => ({ bus, registry }) });
 
   const frames = new Map<string, ReturnType<typeof createWindowFrame>>();
   const pendingContent = new Map<string, HTMLElement>();
+  const appTeardowns = new Map<string, () => void>();
 
   let viewport: ReturnType<typeof createCrtViewport> | undefined;
   let workspace: HTMLElement | undefined;
   let windowsLayer: HTMLElement | undefined;
+  let desktopView: ReturnType<typeof createDesktopView> | undefined;
   let taskbarView: ReturnType<typeof createTaskbarView> | undefined;
   let startMenuView: ReturnType<typeof createStartMenuView> | undefined;
   let currentTaskButtons: TaskButton[] = taskbar.listButtons();
@@ -85,10 +154,22 @@ export function createShellSession(): ShellSession {
     workspace = document.createElement('div');
     workspace.className = 'desktop-root__workspace';
 
+    desktopView = createDesktopView({
+      onOpen: (id) => handleDesktopOpen(id),
+      onSelect: (id, additive) => handleDesktopSelection(id, additive),
+      onClearSelection: () => {
+        desktopModule.clearSelection();
+        renderDesktop();
+      },
+    });
+    workspace.appendChild(desktopView.element);
+
     windowsLayer = document.createElement('div');
     windowsLayer.className = 'desktop-root__windows';
     workspace.appendChild(windowsLayer);
     desktop.appendChild(workspace);
+
+    renderDesktop();
 
     startMenuView = createStartMenuView({
       onCommand: (command) => handleStartCommand(command),
@@ -120,7 +201,7 @@ export function createShellSession(): ShellSession {
 
     workspace.addEventListener('dblclick', (event) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('.window-frame')) {
+      if (target?.closest('.window-frame') || target?.closest('.desktop-icon')) {
         return;
       }
       handleStartCommand('shell:start:blank');
@@ -208,12 +289,72 @@ export function createShellSession(): ShellSession {
         frames.delete(id);
       }
       pendingContent.delete(id);
+      const teardown = appTeardowns.get(id);
+      if (teardown) {
+        teardown();
+        appTeardowns.delete(id);
+      }
     });
 
     viewport.setStatus('ready');
     bus.emit('session:ready', { registry });
 
     return viewport;
+  }
+
+  const desktopActions: Record<string, () => void> = {
+    'desktop/computer': () =>
+      launchExplorerWindow({
+        id: 'app:explorer:my-computer',
+        title: 'My Computer',
+        startPath: DEFAULT_EXPLORER_HOME,
+      }),
+    'desktop/recycle-bin': () =>
+      openWindow({
+        id: 'shell:window:recycle-bin',
+        title: 'Recycle Bin',
+        width: 340,
+        height: 280,
+        content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
+      }),
+  };
+
+  function renderDesktop() {
+    if (!desktopView) {
+      return;
+    }
+    desktopView.render(desktopModule.list());
+  }
+
+  function handleDesktopSelection(id: string, additive: boolean) {
+    const current = new Set(desktopModule.getSelection());
+    if (additive) {
+      if (current.has(id)) {
+        current.delete(id);
+      } else {
+        current.add(id);
+      }
+    } else {
+      current.clear();
+      current.add(id);
+    }
+    desktopModule.setSelection(Array.from(current));
+    renderDesktop();
+  }
+
+  function handleDesktopOpen(id: string) {
+    const action = desktopActions[id];
+    if (action) {
+      action();
+    } else {
+      openWindow({
+        title: 'Win95Sim',
+        width: 320,
+        height: 240,
+        content: () =>
+          createPlaceholderContent('Desktop Item', 'This shortcut is not active in this build.'),
+      });
+    }
   }
 
   function renderWindow(id: string, descriptor: WindowDescriptor) {
@@ -485,6 +626,36 @@ export function createShellSession(): ShellSession {
     return form;
   }
 
+  function launchExplorerWindow(options: { id?: string; title?: string; startPath?: string } = {}) {
+    let explorerInstance: ExplorerInstance | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'Windows Explorer',
+      width: 640,
+      height: 480,
+      content: () => {
+        const host = document.createElement('div');
+        explorerInstance = createExplorerApp({
+          vfs,
+          startPath: options.startPath ?? DEFAULT_EXPLORER_HOME,
+        });
+        explorerInstance.mount(host);
+        return host;
+      },
+    });
+    if (explorerInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        explorerInstance?.destroy();
+      });
+    }
+    return descriptor;
+  }
+
   function openWelcomeWindow() {
     const existing = windows.get('shell:welcome');
     if (existing) {
@@ -532,6 +703,44 @@ export function createShellSession(): ShellSession {
         content: () =>
           createPlaceholderContent('Minesweeper', 'Careful! The mines are still being planted in this preview build.'),
       }),
+    'shell:start:internet-explorer': () =>
+      openWindow({
+        title: 'Internet Explorer',
+        width: 640,
+        height: 480,
+        content: () =>
+          createPlaceholderContent(
+            'Internet Explorer',
+            'Surfing the web is coming soon. For now, enjoy the local desktop experience.',
+          ),
+      }),
+    'shell:start:internet-mail': () =>
+      openWindow({
+        title: 'Internet Mail',
+        width: 460,
+        height: 320,
+        content: () =>
+          createPlaceholderContent('Internet Mail', 'Mail and news clients are still being wired up for this demo.'),
+      }),
+    'shell:start:internet-news': () =>
+      openWindow({
+        title: 'Internet News',
+        width: 460,
+        height: 320,
+        content: () =>
+          createPlaceholderContent('Internet News', 'Newsreader integration will arrive alongside the mail client.'),
+      }),
+    'shell:start:msdos': () =>
+      openWindow({
+        title: 'MS-DOS Prompt',
+        width: 520,
+        height: 340,
+        content: () =>
+          createPlaceholderContent(
+            'MS-DOS Prompt',
+            'A fully functional command shell is planned for a future update.',
+          ),
+      }),
     'shell:start:control-panel': () =>
       openWindow({
         title: 'Control Panel',
@@ -553,7 +762,7 @@ export function createShellSession(): ShellSession {
         width: 420,
         height: 280,
         content: () =>
-          createPlaceholderContent('Find Files', 'File search is not wired up yet. Try again in another build.'),
+          createPlaceholderContent('Find Files', 'Search is nearly ready—use Windows Explorer to browse for now.'),
       }),
     'shell:start:help': () =>
       openWindow({
@@ -569,6 +778,18 @@ export function createShellSession(): ShellSession {
         width: 360,
         height: 210,
         content: () => createRunDialogContent(),
+      }),
+    'shell:start:startup-folder': () =>
+      launchExplorerWindow({
+        id: 'app:explorer:startup',
+        title: 'StartUp',
+        startPath: STARTUP_FOLDER_PATH,
+      }),
+    'shell:start:explorer': () =>
+      launchExplorerWindow({
+        id: 'app:explorer:root',
+        title: 'Windows Explorer',
+        startPath: DEFAULT_EXPLORER_HOME,
       }),
     'shell:start:shutdown': () =>
       openWindow({

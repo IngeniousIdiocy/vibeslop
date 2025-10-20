@@ -10,8 +10,8 @@ export interface StartMenuView {
   setOpen(open: boolean): void;
 }
 
-const BRANDING_ICON = 'assets/icons/program.ico';
-const DEFAULT_ICON = 'assets/icons/program.ico';
+const BRANDING_ICON = 'assets/icons/w98_windows.ico';
+const DEFAULT_ICON = 'assets/icons/w2k_programs.ico';
 
 function resolveIcon(icon?: string): string {
   if (!icon) {
@@ -57,16 +57,26 @@ export function createStartMenuView(options: StartMenuViewOptions): StartMenuVie
     content.innerHTML = '';
     const list = document.createElement('div');
     list.className = 'start-menu__list';
-    sections.forEach((section) => {
+    const visibleSections = sections.filter((section) => (section.items?.length ?? 0) > 0 || section.command);
+    visibleSections.forEach((section, index) => {
+      const childItems = section.items ?? [];
       const asItem: StartMenuManifestItem = {
         id: section.id,
         label: section.label,
         icon: section.icon,
-        items: section.items,
+        command: section.command,
       };
+      if (childItems.length) {
+        asItem.items = childItems;
+      }
       list.appendChild(createMenuItem(asItem, 0));
+      if (index < visibleSections.length - 1) {
+        list.appendChild(createSeparator());
+      }
     });
-    content.appendChild(list);
+    if (visibleSections.length) {
+      content.appendChild(list);
+    }
   }
 
   function createMenuItem(item: StartMenuManifestItem, depth: number): HTMLElement {
@@ -122,6 +132,14 @@ export function createStartMenuView(options: StartMenuViewOptions): StartMenuVie
   function setOpen(open: boolean) {
     element.hidden = !open;
     element.style.display = open ? 'flex' : 'none';
+  }
+
+  function createSeparator(): HTMLElement {
+    const separator = document.createElement('div');
+    separator.className = 'start-menu__separator';
+    separator.setAttribute('role', 'separator');
+    separator.tabIndex = -1;
+    return separator;
   }
 
   return {

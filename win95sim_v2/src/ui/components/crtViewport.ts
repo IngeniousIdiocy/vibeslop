@@ -16,7 +16,7 @@ export function createCrtViewport(): CrtViewport {
 
   const bootMessage = document.createElement('div');
   bootMessage.className = 'crt-viewport__boot-message';
-  bootMessage.textContent = 'Starting Windows 95…';
+  bootMessage.textContent = 'Starting Windows 95...';
   screen.appendChild(bootMessage);
 
   return {

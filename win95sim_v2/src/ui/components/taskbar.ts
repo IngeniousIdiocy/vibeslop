@@ -20,7 +20,7 @@ export function createTaskbarView(options: TaskbarViewOptions): TaskbarView {
   startButton.type = 'button';
   startButton.className = 'taskbar__start';
   startButton.innerHTML = `
-    <img class="taskbar__start-icon" src="assets/icons/program.ico" alt="Start" />
+    <img class="taskbar__start-icon" src="assets/icons/w98_windows.ico" alt="" aria-hidden="true" />
     <span class="taskbar__start-label">Start</span>
   `;
   startButton.addEventListener('click', () => options.onStartToggle());
@@ -31,18 +31,20 @@ export function createTaskbarView(options: TaskbarViewOptions): TaskbarView {
   const tray = document.createElement('div');
   tray.className = 'taskbar__tray';
 
+  const clock = document.createElement('div');
+  clock.className = 'taskbar__clock';
+  clock.setAttribute('role', 'timer');
+  clock.setAttribute('aria-live', 'polite');
+
   const volumeIcon = document.createElement('img');
   volumeIcon.className = 'taskbar__tray-icon';
-  volumeIcon.src = 'assets/icons/sounds.ico';
+  volumeIcon.src = 'assets/icons/w98_loudspeaker_wave.ico';
   volumeIcon.alt = 'Volume';
 
   const networkIcon = document.createElement('img');
   networkIcon.className = 'taskbar__tray-icon';
-  networkIcon.src = 'assets/icons/world.ico';
-  networkIcon.alt = 'Network';
-
-  const clock = document.createElement('div');
-  clock.className = 'taskbar__clock';
+  networkIcon.src = 'assets/icons/w98_network_normal_two_pcs.ico';
+  networkIcon.alt = 'Network status';
 
   tray.appendChild(volumeIcon);
   tray.appendChild(networkIcon);
@@ -81,13 +83,14 @@ export function createTaskbarView(options: TaskbarViewOptions): TaskbarView {
     return target instanceof Node ? startButton.contains(target) : false;
   }
 
-  const formatter = typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat === 'function'
-    ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
-    : null;
-
   const updateClock = () => {
     const now = new Date();
-    clock.textContent = formatter ? formatter.format(now) : now.toLocaleTimeString().slice(0, 5);
+    let hours = now.getHours() % 12;
+    if (hours === 0) {
+      hours = 12;
+    }
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    clock.textContent = `${hours}:${minutes}`;
   };
 
   updateClock();
