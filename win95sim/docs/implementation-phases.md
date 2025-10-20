@@ -5,7 +5,7 @@ The simulator ships in ten phases. Each phase includes engineering tasks, automa
 ## Phase 1 – Kernel, Display, Window Manager
 - Implement `core/kernel`, `svc/settings`, `svc/display`, `svc/window`, shell boot splash, base CRT container.
 - Deliver basic window chrome (move, resize, minimize, maximize, focus, z-order) and Start button placeholder.
-- **Automation**: Node/JSDOM unit tests for kernel pub/sub, ID generation, display scaling math; Playwright smoke test ensuring windows can be spawned, moved, resized, minimized/restored; visual snapshot of empty desktop with two sample windows.
+- **Automation**: Node-based unit tests for kernel pub/sub, settings watchers, display scaling math, and window lifecycle (implemented with lightweight DOM stubs); planned Playwright smoke test ensuring windows can be spawned, moved, resized, minimized/restored; visual snapshot of empty desktop with two sample windows.
 - **Manual QA**: Keyboard navigation (Alt+Space menu, Alt+` task switch), bounds clamping, scrollbars in pixel-perfect mode, integer scaling behavior.
 
 ## Phase 2 – Virtual File System & Explorer

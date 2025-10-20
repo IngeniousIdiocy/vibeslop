@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Win95Sim Phase 1 Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      margin: 0;
+      font-family: "W95Sans", Tahoma, "MS Sans Serif", Arial, sans-serif;
+      background: #1d1d1d;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #app-shell {
+      position: relative;
+      width: min(100vw, 960px);
+      height: min(100vh, 720px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #monitor {
+      flex: 1 1 auto;
+      background: #222;
+      border: 20px solid #3c3c3c;
+      border-radius: 18px;
+      padding: 12px;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+    }
+
+    #crt {
+      position: relative;
+      flex: 1 1 auto;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    #crt[data-scale="pixel"] {
+      overflow: auto;
+    }
+
+    #desktop-root {
+      position: relative;
+      background: #008080;
+      width: 1024px;
+      height: 768px;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.35);
+      transform-origin: top left;
+    }
+
+    #taskbar {
+      flex: 0 0 40px;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      background: #c0c0c0;
+      border-top: 2px solid #ffffff;
+      box-shadow: inset 0 1px 0 #dfdfdf, inset 0 -1px 0 #808080;
+      gap: 4px;
+    }
+
+    #start-button {
+      width: 70px;
+      height: 100%;
+      font-family: inherit;
+      border: none;
+      background: #c0c0c0;
+      box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+      cursor: pointer;
+    }
+
+    #taskband {
+      flex: 1 1 auto;
+      background: #c0c0c0;
+      border: 1px solid #808080;
+      box-shadow: inset 1px 1px 0 #ffffff;
+    }
+
+    #taskbar-right {
+      width: 80px;
+      text-align: center;
+      font-size: 12px;
+      color: #000;
+    }
+
+    .w95-window {
+      position: absolute;
+      box-sizing: border-box;
+      border: 2px solid #000000;
+      background: #c0c0c0;
+      box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      min-width: 120px;
+      min-height: 80px;
+      outline: none;
+    }
+
+    .w95-window[aria-active="true"] .w95-window__titlebar {
+      background: linear-gradient(90deg, #000080, #1084d0);
+      color: #ffffff;
+    }
+
+    .w95-window[aria-active="false"] .w95-window__titlebar {
+      background: linear-gradient(90deg, #808080, #c0c0c0);
+      color: #dcdcdc;
+    }
+
+    .w95-window__titlebar {
+      height: 18px;
+      display: flex;
+      align-items: center;
+      padding: 0 2px;
+      gap: 2px;
+      user-select: none;
+      cursor: move;
+    }
+
+    .w95-window__sys-btn,
+    .w95-window__caption-btn {
+      width: 16px;
+      height: 14px;
+      border: none;
+      background: #c0c0c0;
+      box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .w95-window__title {
+      flex: 1 1 auto;
+      font-size: 12px;
+      line-height: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .w95-window__content {
+      flex: 1 1 auto;
+      background: #ffffff;
+      border: 2px solid #ffffff;
+      box-shadow: inset 0 0 0 1px #808080;
+      position: relative;
+    }
+
+    .w95-window__resize-handle {
+      position: absolute;
+      z-index: 5;
+    }
+
+    .w95-window__resize-handle[data-edge="n"],
+    .w95-window__resize-handle[data-edge="s"] {
+      left: 0;
+      width: 100%;
+      height: 5px;
+      cursor: ns-resize;
+    }
+
+    .w95-window__resize-handle[data-edge="e"],
+    .w95-window__resize-handle[data-edge="w"] {
+      top: 0;
+      width: 5px;
+      height: 100%;
+      cursor: ew-resize;
+    }
+
+    .w95-window__resize-handle[data-edge="ne"],
+    .w95-window__resize-handle[data-edge="nw"],
+    .w95-window__resize-handle[data-edge="se"],
+    .w95-window__resize-handle[data-edge="sw"] {
+      width: 10px;
+      height: 10px;
+    }
+
+    .w95-window__resize-handle[data-edge="n"] { top: -3px; }
+    .w95-window__resize-handle[data-edge="s"] { bottom: -3px; }
+    .w95-window__resize-handle[data-edge="e"] { right: -3px; }
+    .w95-window__resize-handle[data-edge="w"] { left: -3px; }
+    .w95-window__resize-handle[data-edge="ne"] { top: -3px; right: -3px; cursor: nesw-resize; }
+    .w95-window__resize-handle[data-edge="nw"] { top: -3px; left: -3px; cursor: nwse-resize; }
+    .w95-window__resize-handle[data-edge="se"] { bottom: -3px; right: -3px; cursor: nwse-resize; }
+    .w95-window__resize-handle[data-edge="sw"] { bottom: -3px; left: -3px; cursor: nesw-resize; }
+
+    #task-switcher {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.35);
+      z-index: 6000;
+    }
+
+    #task-switcher[data-visible="true"] {
+      display: flex;
+    }
+
+    #task-switcher ul {
+      list-style: none;
+      padding: 8px;
+      margin: 0;
+      min-width: 200px;
+      background: #c0c0c0;
+      border: 2px solid #000;
+      box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+    }
+
+    #task-switcher li {
+      padding: 4px 8px;
+      font-size: 13px;
+      background: #c0c0c0;
+      color: #000;
+    }
+
+    #task-switcher li[data-active="true"] {
+      background: #000080;
+      color: #fff;
+    }
+
+    #boot-splash {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+      color: #ffffff;
+      z-index: 9999;
+      font-family: "W95Sans", Tahoma, sans-serif;
+      font-size: 20px;
+      letter-spacing: 2px;
+    }
+
+    #system-menu {
+      position: absolute;
+      display: none;
+      background: #c0c0c0;
+      border: 2px solid #000000;
+      box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
+      font-size: 12px;
+      z-index: 8000;
+    }
+
+    #system-menu[aria-hidden="false"] {
+      display: block;
+    }
+
+    #system-menu button {
+      display: block;
+      width: 140px;
+      padding: 4px 10px;
+      border: none;
+      background: #c0c0c0;
+      text-align: left;
+      font-family: inherit;
+      cursor: default;
+    }
+
+    #system-menu button:hover {
+      background: #000080;
+      color: #fff;
+    }
+  </style>
+  <template id="tpl-window">
+    <div class="w95-window" role="dialog" aria-active="false">
+      <div class="w95-window__frame">
+        <div class="w95-window__titlebar" data-role="titlebar">
+          <button class="w95-window__sys-btn" data-action="system" aria-label="System Menu">■</button>
+          <div class="w95-window__title" data-role="title">Window</div>
+          <div class="w95-window__caption-buttons">
+            <button class="w95-window__caption-btn" data-action="minimize" aria-label="Minimize">_</button>
+            <button class="w95-window__caption-btn" data-action="maximize" aria-label="Maximize">▢</button>
+            <button class="w95-window__caption-btn" data-action="close" aria-label="Close">✕</button>
+          </div>
+        </div>
+        <div class="w95-window__content" data-role="content">
+          <div class="w95-window__resize-handle" data-edge="n"></div>
+          <div class="w95-window__resize-handle" data-edge="s"></div>
+          <div class="w95-window__resize-handle" data-edge="e"></div>
+          <div class="w95-window__resize-handle" data-edge="w"></div>
+          <div class="w95-window__resize-handle" data-edge="ne"></div>
+          <div class="w95-window__resize-handle" data-edge="nw"></div>
+          <div class="w95-window__resize-handle" data-edge="se"></div>
+          <div class="w95-window__resize-handle" data-edge="sw"></div>
+          <div class="w95-window__body" data-role="body"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+</head>
+<body>
+  <div id="app-shell">
+    <div id="boot-splash" role="alert" aria-live="assertive">Starting Windows 95...</div>
+    <div id="monitor">
+      <div id="crt" data-scale="pixel">
+        <div id="desktop-root" role="application" aria-label="Windows 95 Desktop"></div>
+      </div>
+    </div>
+    <div id="taskbar" role="menubar">
+      <button id="start-button" type="button">Start</button>
+      <div id="taskband" aria-live="polite"></div>
+      <div id="taskbar-right"></div>
+    </div>
+    <div id="task-switcher" aria-hidden="true">
+      <ul id="task-switcher-list"></ul>
+    </div>
+    <div id="system-menu" aria-hidden="true" role="menu"></div>
+  </div>
+  <script id="sfm">
+    (function(){
+      const modules = new Map();
+      const factories = new Map();
+      const resolving = new Set();
+
+      function resolve(id) {
+        if (modules.has(id)) {
+          return modules.get(id);
+        }
+        if (!factories.has(id)) {
+          throw new Error("Module not found: " + id);
+        }
+        if (resolving.has(id)) {
+          throw new Error("Circular dependency detected while resolving " + id);
+        }
+        resolving.add(id);
+        const { deps, factory } = factories.get(id);
+        const resolvedDeps = deps.map((dep) => {
+          if (dep === 'require') return require;
+          if (dep === 'exports') return {};
+          if (dep === 'module') return { id };
+          return resolve(dep);
+        });
+        const moduleExports = {};
+        const finalDeps = resolvedDeps.map((dep, index) => {
+          if (deps[index] === 'exports') {
+            return moduleExports;
+          }
+          if (deps[index] === 'module') {
+            return { id, exports: moduleExports };
+          }
+          return dep;
+        });
+        const returned = factory.apply(null, finalDeps);
+        const exportsObj = returned !== undefined ? returned : moduleExports;
+        modules.set(id, exportsObj);
+        resolving.delete(id);
+        return exportsObj;
+      }
+
+      function define(id, deps, factory) {
+        if (factories.has(id)) {
+          throw new Error("Module already defined: " + id);
+        }
+        factories.set(id, { deps, factory });
+      }
+
+      function require(ids, cb) {
+        if (typeof ids === 'string') {
+          return resolve(ids);
+        }
+        const resolved = ids.map(resolve);
+        if (cb) {
+          cb.apply(null, resolved);
+        }
+      }
+
+      Object.assign(globalThis, { define, require });
+    })();
+  </script>
+  <script id="modules">
+    define('core/kernel', [], function () {
+      const listeners = new Map();
+
+      function on(evt, fn) {
+        if (!listeners.has(evt)) {
+          listeners.set(evt, new Set());
+        }
+        listeners.get(evt).add(fn);
+        return () => off(evt, fn);
+      }
+
+      function once(evt, fn) {
+        const wrapped = (payload) => {
+          off(evt, wrapped);
+          fn(payload);
+        };
+        return on(evt, wrapped);
+      }
+
+      function off(evt, fn) {
+        if (!listeners.has(evt)) return;
+        listeners.get(evt).delete(fn);
+      }
+
+      function emit(evt, payload) {
+        if (!listeners.has(evt)) return;
+        [...listeners.get(evt)].forEach((fn) => {
+          try {
+            fn(payload);
+          } catch (err) {
+            console.error('kernel listener error', err);
+          }
+        });
+      }
+
+      let counter = 0;
+      function uid(prefix = 'id') {
+        counter += 1;
+        return `${prefix}_${Date.now().toString(36)}_${counter.toString(36)}`;
+      }
+
+      function now() {
+        return Date.now();
+      }
+
+      return Object.freeze({ on, once, off, emit, uid, now });
+    });
+
+    define('svc/settings', ['core/kernel'], function (kernel) {
+      const store = new Map();
+      const watchers = new Map();
+
+      const defaults = {
+        'theme': 'standard',
+        'sound.enabled': false,
+        'display.mode': 'pixel',
+        'display.integerScale': 1,
+        'display.resolution': { w: 1024, h: 768 },
+        'display.crt.enabled': false,
+        'display.crt.intensity': 0.15,
+        'keyboard.repeatRate': 500,
+        'mouse.pointerSpeed': 1
+      };
+
+      Object.entries(defaults).forEach(([key, value]) => {
+        store.set(key, value);
+      });
+
+      function notify(key, value) {
+        kernel.emit('settings:change', { key, value });
+        if (!watchers.has(key)) return;
+        [...watchers.get(key)].forEach((fn) => {
+          try { fn(value); } catch (err) { console.error('settings watcher error', err); }
+        });
+      }
+
+      function get(key) {
+        return store.get(key);
+      }
+
+      function set(key, value) {
+        store.set(key, value);
+        notify(key, value);
+      }
+
+      function watch(key, fn) {
+        if (!watchers.has(key)) {
+          watchers.set(key, new Set());
+        }
+        watchers.get(key).add(fn);
+        return () => {
+          watchers.get(key).delete(fn);
+        };
+      }
+
+      return Object.freeze({ get, set, watch });
+    });
+
+    define('svc/display', ['svc/settings', 'core/kernel'], function (settings, kernel) {
+      let crtEl = null;
+      let desktopEl = null;
+      let monitorEl = null;
+      let currentResolution = { ...settings.get('display.resolution') };
+      let scaleMode = settings.get('display.mode');
+
+      function applyResolution() {
+        if (!desktopEl) return;
+        desktopEl.style.width = `${currentResolution.w}px`;
+        desktopEl.style.height = `${currentResolution.h}px`;
+      }
+
+      function computeFitScale() {
+        if (!crtEl || !desktopEl) return 1;
+        const viewport = crtEl.getBoundingClientRect();
+        const scaleX = viewport.width / currentResolution.w;
+        const scaleY = viewport.height / currentResolution.h;
+        return Math.min(scaleX, scaleY);
+      }
+
+      function computeIntegerScale() {
+        if (!crtEl || !desktopEl) return 1;
+        const viewport = crtEl.getBoundingClientRect();
+        const maxScale = Math.floor(Math.min(
+          viewport.width / currentResolution.w,
+          viewport.height / currentResolution.h
+        ));
+        return Math.max(1, maxScale);
+      }
+
+      function applyScaleMode() {
+        if (!crtEl || !desktopEl) return;
+        crtEl.dataset.scale = scaleMode;
+        if (scaleMode === 'pixel') {
+          desktopEl.style.transform = 'scale(1)';
+          crtEl.style.justifyContent = 'flex-start';
+          crtEl.style.alignItems = 'flex-start';
+          return;
+        }
+        const scale = scaleMode === 'fit' ? computeFitScale() : settings.get('display.integerScale');
+        desktopEl.style.transform = `scale(${scale})`;
+        crtEl.style.justifyContent = 'center';
+        crtEl.style.alignItems = 'center';
+      }
+
+      function init(ctx = {}) {
+        if (ctx.crt) {
+          crtEl = ctx.crt;
+        } else if (typeof document !== 'undefined') {
+          crtEl = document.getElementById('crt');
+        }
+        if (ctx.desktop) {
+          desktopEl = ctx.desktop;
+        } else if (typeof document !== 'undefined') {
+          desktopEl = document.getElementById('desktop-root');
+        }
+        if (ctx.monitor) {
+          monitorEl = ctx.monitor;
+        } else if (typeof document !== 'undefined') {
+          monitorEl = document.getElementById('monitor');
+        }
+        applyResolution();
+        applyScaleMode();
+      }
+
+      function setResolution(res) {
+        currentResolution = { ...res };
+        settings.set('display.resolution', currentResolution);
+        applyResolution();
+        applyScaleMode();
+        kernel.emit('display:change', { type: 'resolution', value: currentResolution });
+      }
+
+      function setScaleMode(mode) {
+        scaleMode = mode;
+        settings.set('display.mode', mode);
+        if (mode === 'integer') {
+          const scale = computeIntegerScale();
+          settings.set('display.integerScale', scale);
+        }
+        applyScaleMode();
+        kernel.emit('display:change', { type: 'scaleMode', value: mode });
+      }
+
+      function getResolution() {
+        return { ...currentResolution };
+      }
+
+      function getScaleMode() {
+        return scaleMode;
+      }
+
+      function getViewport() {
+        if (!crtEl) return { width: 0, height: 0 };
+        const rect = crtEl.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      }
+
+      function setWallpaper() {
+        // stub for phase 1
+      }
+
+      function setDesktopColor(color) {
+        if (!desktopEl) return;
+        desktopEl.style.background = color;
+        kernel.emit('display:change', { type: 'desktopColor', value: color });
+      }
+
+      function setColorDepthSim() {
+        // stub for phase 1
+      }
+
+      settings.watch('display.mode', (mode) => {
+        scaleMode = mode;
+        applyScaleMode();
+      });
+
+      return Object.freeze({
+        init,
+        getResolution,
+        setResolution,
+        getScaleMode,
+        setScaleMode,
+        getViewport,
+        setWallpaper,
+        setDesktopColor,
+        setColorDepthSim
+      });
+    });
+
+    define('svc/window', ['core/kernel', 'svc/display'], function (kernel, display) {
+      const windows = [];
+      let zCounter = 100;
+      let desktopEl = null;
+      let taskbandEl = null;
+      let template = null;
+      let systemMenu = null;
+      let taskSwitcher = null;
+      let taskSwitcherList = null;
+      let startButton = null;
+      let createWindowElement = null;
+      let activeWindow = null;
+
+      const pointerState = {
+        type: null,
+        win: null,
+        startX: 0,
+        startY: 0,
+        rect: null,
+        edge: null
+      };
+
+      function init(options = {}) {
+        if (options.desktop) {
+          desktopEl = options.desktop;
+        } else if (typeof document !== 'undefined') {
+          desktopEl = document.getElementById('desktop-root');
+        }
+        if (options.taskband) {
+          taskbandEl = options.taskband;
+        } else if (typeof document !== 'undefined') {
+          taskbandEl = document.getElementById('taskband');
+        }
+        if (options.template) {
+          template = options.template;
+        } else if (typeof document !== 'undefined') {
+          template = document.getElementById('tpl-window');
+        }
+        if (options.systemMenu) {
+          systemMenu = options.systemMenu;
+        } else if (typeof document !== 'undefined') {
+          systemMenu = document.getElementById('system-menu');
+        }
+        if (options.taskSwitcher) {
+          taskSwitcher = options.taskSwitcher;
+          taskSwitcherList = options.taskSwitcherList || taskSwitcher?.querySelector('#task-switcher-list') || null;
+        } else if (typeof document !== 'undefined') {
+          taskSwitcher = document.getElementById('task-switcher');
+          taskSwitcherList = document.getElementById('task-switcher-list');
+        }
+        if (options.startButton) {
+          startButton = options.startButton;
+        } else if (typeof document !== 'undefined') {
+          startButton = document.getElementById('start-button');
+        }
+        createWindowElement = options.createWindowElement || (() => {
+          if (!template) throw new Error('Window template missing');
+          const fragment = template.content ? template.content.cloneNode(true) : template.cloneNode(true);
+          return fragment.firstElementChild || fragment;
+        });
+
+        if (typeof document !== 'undefined') {
+          document.addEventListener('pointermove', onPointerMove);
+          document.addEventListener('pointerup', onPointerUp);
+          document.addEventListener('keydown', onKeyDown);
+        }
+        if (startButton) {
+          startButton.addEventListener('click', () => {
+            focusWindow(activeWindow);
+          });
+        }
+      }
+
+      function layoutSystemMenu(win, anchor) {
+        if (!systemMenu) return;
+        systemMenu.innerHTML = '';
+        const commands = [
+          { id: 'restore', label: 'Restore', disabled: !win.state.maximized && !win.state.minimized },
+          { id: 'move', label: 'Move', disabled: win.state.maximized },
+          { id: 'size', label: 'Size', disabled: win.state.maximized },
+          { id: 'minimize', label: 'Minimize', disabled: win.state.minimized },
+          { id: 'maximize', label: 'Maximize', disabled: win.state.maximized },
+          { id: 'close', label: 'Close', disabled: false }
+        ];
+        commands.forEach((cmd) => {
+          const btn = document.createElement('button');
+          btn.textContent = cmd.label;
+          btn.dataset.command = cmd.id;
+          if (cmd.disabled) {
+            btn.disabled = true;
+          }
+          btn.addEventListener('click', () => {
+            handleSystemCommand(win, cmd.id);
+            hideSystemMenu();
+          });
+          systemMenu.appendChild(btn);
+        });
+        systemMenu.style.left = `${anchor.left}px`;
+        systemMenu.style.top = `${anchor.bottom}px`;
+        systemMenu.setAttribute('aria-hidden', 'false');
+      }
+
+      function hideSystemMenu() {
+        if (!systemMenu) return;
+        systemMenu.setAttribute('aria-hidden', 'true');
+      }
+
+      function handleSystemCommand(win, command) {
+        if (command === 'restore') {
+          if (win.state.maximized) {
+            restore(win);
+          } else if (win.state.minimized) {
+            restore(win);
+          }
+        } else if (command === 'move') {
+          startMove(win);
+        } else if (command === 'size') {
+          startResize(win, 'se');
+        } else if (command === 'minimize') {
+          minimize(win);
+        } else if (command === 'maximize') {
+          maximize(win);
+        } else if (command === 'close') {
+          close(win);
+        }
+      }
+
+      function create(options) {
+        if (!desktopEl) throw new Error('Window service not initialised');
+        const element = createWindowElement();
+        const id = options?.id || kernel.uid('win');
+        element.dataset.winId = id;
+        element.style.width = `${options?.width || 320}px`;
+        element.style.height = `${options?.height || 240}px`;
+        element.style.left = `${options?.x ?? 40}px`;
+        element.style.top = `${options?.y ?? 40}px`;
+        element.tabIndex = -1;
+        const frame = element.querySelector('.w95-window__frame');
+        const titlebar = element.querySelector('[data-role="titlebar"]');
+        const titleEl = element.querySelector('[data-role="title"]');
+        const body = element.querySelector('[data-role="body"]');
+        const buttons = element.querySelectorAll('[data-action]');
+        const handles = element.querySelectorAll('.w95-window__resize-handle');
+        titleEl.textContent = options?.title || 'Window';
+        body.innerHTML = '';
+        if (options?.content) {
+          const contentNode = options.content;
+          if (typeof contentNode === 'string') {
+            body.innerHTML = contentNode;
+          } else if (typeof HTMLElement !== 'undefined' && contentNode instanceof HTMLElement) {
+            body.appendChild(contentNode);
+          } else if (contentNode && typeof contentNode === 'object' && contentNode.nodeType === 1 && typeof body.appendChild === 'function') {
+            body.appendChild(contentNode);
+          }
+        }
+
+        const win = {
+          id,
+          element,
+          titleEl,
+          body,
+          state: {
+            minimized: false,
+            maximized: false,
+            bounds: {
+              left: options?.x ?? 40,
+              top: options?.y ?? 40,
+              width: options?.width || 320,
+              height: options?.height || 240
+            }
+          }
+        };
+
+        element.addEventListener('pointerdown', () => focusWindow(win));
+        if (titlebar) {
+          titlebar.addEventListener('pointerdown', (ev) => {
+            if (win.state.maximized) return;
+            pointerState.type = 'move';
+            pointerState.win = win;
+            pointerState.startX = ev.clientX;
+            pointerState.startY = ev.clientY;
+            pointerState.rect = getWindowRect(win);
+            element.setPointerCapture?.(ev.pointerId);
+            ev.preventDefault();
+          });
+          titlebar.addEventListener('dblclick', () => {
+            if (win.state.maximized) {
+              restore(win);
+            } else {
+              maximize(win);
+            }
+          });
+        }
+
+        buttons.forEach((btn) => {
+          const action = btn.dataset.action;
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (action === 'minimize') {
+              minimize(win);
+            } else if (action === 'maximize') {
+              if (win.state.maximized) {
+                restore(win);
+              } else {
+                maximize(win);
+              }
+            } else if (action === 'close') {
+              close(win);
+            } else if (action === 'system') {
+              const rect = btn.getBoundingClientRect();
+              layoutSystemMenu(win, rect);
+            }
+          });
+        });
+
+        handles.forEach((handle) => {
+          const edge = handle.dataset.edge;
+          handle.addEventListener('pointerdown', (ev) => {
+            pointerState.type = 'resize';
+            pointerState.edge = edge;
+            pointerState.win = win;
+            pointerState.startX = ev.clientX;
+            pointerState.startY = ev.clientY;
+            pointerState.rect = getWindowRect(win);
+            element.setPointerCapture?.(ev.pointerId);
+            ev.preventDefault();
+            ev.stopPropagation();
+          });
+        });
+
+        desktopEl.appendChild(element);
+        windows.push(win);
+        focusWindow(win);
+        kernel.emit('win:create', { id: win.id });
+        return createWindowRef(win);
+      }
+
+      function createWindowRef(win) {
+        return {
+          id: win.id,
+          element: win.element,
+          content: win.body,
+          show: () => show(win),
+          hide: () => hide(win),
+          focus: () => focusWindow(win),
+          close: () => close(win),
+          moveTo: (x, y) => move(win, x, y),
+          resizeTo: (w, h) => resize(win, w, h),
+          minimize: () => minimize(win),
+          maximize: () => maximize(win),
+          restore: () => restore(win),
+          setTitle: (title) => { win.titleEl.textContent = title; }
+        };
+      }
+
+      function getWindowRect(win) {
+        const left = parseFloat(win.element.style.left) || 0;
+        const top = parseFloat(win.element.style.top) || 0;
+        const width = parseFloat(win.element.style.width) || win.element.offsetWidth;
+        const height = parseFloat(win.element.style.height) || win.element.offsetHeight;
+        return { left, top, width, height };
+      }
+
+      function move(win, x, y) {
+        win.element.style.left = `${x}px`;
+        win.element.style.top = `${y}px`;
+        kernel.emit('win:move', { id: win.id, left: x, top: y });
+      }
+
+      function resize(win, width, height) {
+        win.element.style.width = `${Math.max(width, 120)}px`;
+        win.element.style.height = `${Math.max(height, 80)}px`;
+        kernel.emit('win:resize', { id: win.id, width, height });
+      }
+
+      function show(win) {
+        win.element.style.display = '';
+        win.state.minimized = false;
+        kernel.emit('win:show', { id: win.id });
+      }
+
+      function hide(win) {
+        win.element.style.display = 'none';
+        kernel.emit('win:hide', { id: win.id });
+      }
+
+      function minimize(win) {
+        win.state.minimized = true;
+        hide(win);
+        kernel.emit('win:minimize', { id: win.id });
+      }
+
+      function maximize(win) {
+        if (win.state.maximized) return;
+        const rect = getWindowRect(win);
+        win.state.prevBounds = rect;
+        const resolution = display.getResolution();
+        move(win, 0, 0);
+        resize(win, resolution.w, resolution.h - 32);
+        win.state.maximized = true;
+        win.element.dataset.maximized = 'true';
+        kernel.emit('win:maximize', { id: win.id });
+      }
+
+      function restore(win) {
+        win.state.minimized = false;
+        if (win.state.maximized && win.state.prevBounds) {
+          move(win, win.state.prevBounds.left, win.state.prevBounds.top);
+          resize(win, win.state.prevBounds.width, win.state.prevBounds.height);
+        }
+        win.state.maximized = false;
+        win.element.dataset.maximized = 'false';
+        show(win);
+        kernel.emit('win:restore', { id: win.id });
+      }
+
+      function close(win) {
+        const index = windows.indexOf(win);
+        if (index >= 0) {
+          windows.splice(index, 1);
+        }
+        win.element.remove?.();
+        kernel.emit('win:close', { id: win.id });
+        if (activeWindow === win) {
+          activeWindow = windows[windows.length - 1] || null;
+          if (activeWindow) {
+            focusWindow(activeWindow);
+          }
+        }
+      }
+
+      function focusWindow(win) {
+        if (!win) return;
+        if (activeWindow === win) return;
+        if (activeWindow) {
+          activeWindow.element.setAttribute('aria-active', 'false');
+        }
+        activeWindow = win;
+        zCounter += 1;
+        win.element.style.zIndex = zCounter;
+        win.element.setAttribute('aria-active', 'true');
+        kernel.emit('win:focus', { id: win.id });
+      }
+
+      function onPointerMove(ev) {
+        if (!pointerState.win) return;
+        if (pointerState.type === 'move') {
+          const dx = ev.clientX - pointerState.startX;
+          const dy = ev.clientY - pointerState.startY;
+          move(pointerState.win, pointerState.rect.left + dx, pointerState.rect.top + dy);
+        } else if (pointerState.type === 'resize') {
+          const dx = ev.clientX - pointerState.startX;
+          const dy = ev.clientY - pointerState.startY;
+          const rect = { ...pointerState.rect };
+          if (pointerState.edge.includes('e')) {
+            rect.width += dx;
+          }
+          if (pointerState.edge.includes('s')) {
+            rect.height += dy;
+          }
+          if (pointerState.edge.includes('w')) {
+            rect.left += dx;
+            rect.width -= dx;
+          }
+          if (pointerState.edge.includes('n')) {
+            rect.top += dy;
+            rect.height -= dy;
+          }
+          move(pointerState.win, rect.left, rect.top);
+          resize(pointerState.win, rect.width, rect.height);
+        }
+      }
+
+      function onPointerUp() {
+        pointerState.type = null;
+        pointerState.win = null;
+      }
+
+      function startMove(win) {
+        pointerState.type = 'move';
+        pointerState.win = win;
+        pointerState.startX = 0;
+        pointerState.startY = 0;
+        pointerState.rect = getWindowRect(win);
+      }
+
+      function startResize(win, edge) {
+        pointerState.type = 'resize';
+        pointerState.win = win;
+        pointerState.edge = edge;
+        pointerState.startX = 0;
+        pointerState.startY = 0;
+        pointerState.rect = getWindowRect(win);
+      }
+
+      function onKeyDown(ev) {
+        if (ev.code === 'Space' && ev.altKey) {
+          if (activeWindow) {
+            const btn = activeWindow.element.querySelector('[data-action="system"]');
+            if (btn) {
+              const rect = btn.getBoundingClientRect();
+              layoutSystemMenu(activeWindow, rect);
+              ev.preventDefault();
+            }
+          }
+        } else if (ev.code === 'Backquote' && ev.altKey) {
+          toggleTaskSwitcher(true);
+          ev.preventDefault();
+        } else if (taskSwitcher?.dataset.visible === 'true') {
+          if (ev.code === 'ArrowDown') {
+            cycleTaskSwitcher(1);
+            ev.preventDefault();
+          } else if (ev.code === 'ArrowUp') {
+            cycleTaskSwitcher(-1);
+            ev.preventDefault();
+          } else if (ev.code === 'Enter') {
+            activateTaskSwitcherSelection();
+            ev.preventDefault();
+          } else if (ev.code === 'Escape') {
+            toggleTaskSwitcher(false);
+            ev.preventDefault();
+          }
+        }
+      }
+
+      function toggleTaskSwitcher(visible) {
+        if (!taskSwitcher) return;
+        if (visible) {
+          renderTaskSwitcher();
+          taskSwitcher.dataset.visible = 'true';
+          taskSwitcher.setAttribute('aria-hidden', 'false');
+        } else {
+          taskSwitcher.dataset.visible = 'false';
+          taskSwitcher.setAttribute('aria-hidden', 'true');
+        }
+      }
+
+      function renderTaskSwitcher() {
+        if (!taskSwitcherList) return;
+        taskSwitcherList.innerHTML = '';
+        windows.forEach((win, index) => {
+          const li = document.createElement('li');
+          li.textContent = win.titleEl.textContent || 'Window';
+          li.dataset.winId = win.id;
+          if (win === activeWindow) {
+            li.dataset.active = 'true';
+            taskSwitcherList.dataset.selectedIndex = index;
+          }
+          taskSwitcherList.appendChild(li);
+        });
+      }
+
+      function cycleTaskSwitcher(delta) {
+        if (!taskSwitcherList) return;
+        const items = [...taskSwitcherList.children];
+        if (!items.length) return;
+        let index = parseInt(taskSwitcherList.dataset.selectedIndex || '0', 10);
+        index = (index + delta + items.length) % items.length;
+        taskSwitcherList.dataset.selectedIndex = index;
+        items.forEach((li, idx) => {
+          li.dataset.active = idx === index ? 'true' : 'false';
+        });
+      }
+
+      function activateTaskSwitcherSelection() {
+        if (!taskSwitcherList) return;
+        const index = parseInt(taskSwitcherList.dataset.selectedIndex || '0', 10);
+        const items = [...taskSwitcherList.children];
+        const li = items[index];
+        if (!li) return;
+        const win = windows.find((w) => w.id === li.dataset.winId);
+        if (win) {
+          focusWindow(win);
+        }
+        toggleTaskSwitcher(false);
+      }
+
+      function all() {
+        return windows.map(createWindowRef);
+      }
+
+      function top() {
+        if (!activeWindow) return null;
+        return createWindowRef(activeWindow);
+      }
+
+      return Object.freeze({ init, create, all, top, toggleTaskSwitcher });
+    });
+  </script>
+  <script id="boot">
+    (function () {
+      function ready(fn) {
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          fn();
+        } else {
+          document.addEventListener('DOMContentLoaded', fn);
+        }
+      }
+
+      ready(function () {
+        const kernel = require('core/kernel');
+        const settings = require('svc/settings');
+        const display = require('svc/display');
+        const windowSvc = require('svc/window');
+
+        display.init({
+          crt: document.getElementById('crt'),
+          desktop: document.getElementById('desktop-root'),
+          monitor: document.getElementById('monitor')
+        });
+
+        windowSvc.init({
+          desktop: document.getElementById('desktop-root'),
+          taskband: document.getElementById('taskband'),
+          template: document.getElementById('tpl-window'),
+          systemMenu: document.getElementById('system-menu'),
+          taskSwitcher: document.getElementById('task-switcher'),
+          taskSwitcherList: document.getElementById('task-switcher-list'),
+          startButton: document.getElementById('start-button'),
+          createWindowElement: () => {
+            const template = document.getElementById('tpl-window');
+            const frag = template.content.cloneNode(true);
+            return frag.firstElementChild;
+          }
+        });
+
+        // Demo windows for phase 1 visual verification
+        const win1 = windowSvc.create({
+          title: 'Welcome',
+          x: 120,
+          y: 120,
+          width: 360,
+          height: 240,
+          content: '<div style="padding:12px;font-family:inherit;font-size:13px;">Phase 1 window manager online.<br>Use Alt+` to switch windows.</div>'
+        });
+        const win2 = windowSvc.create({
+          title: 'Settings Placeholder',
+          x: 320,
+          y: 220,
+          width: 320,
+          height: 200,
+          content: '<div style="padding:12px;font-family:inherit;font-size:13px;">Scaling mode: <strong>'+settings.get('display.mode')+'</strong></div>'
+        });
+        win2.focus();
+
+        document.getElementById('boot-splash').style.display = 'none';
+
+        window.__win95TestApi = {
+          services: { kernel, settings, display, window: windowSvc },
+          reset() {
+            document.getElementById('desktop-root').innerHTML = '';
+            windowSvc.init({
+              desktop: document.getElementById('desktop-root'),
+              taskband: document.getElementById('taskband'),
+              template: document.getElementById('tpl-window'),
+              systemMenu: document.getElementById('system-menu'),
+              taskSwitcher: document.getElementById('task-switcher'),
+              taskSwitcherList: document.getElementById('task-switcher-list'),
+              startButton: document.getElementById('start-button'),
+              createWindowElement: () => {
+                const template = document.getElementById('tpl-window');
+                const frag = template.content.cloneNode(true);
+                return frag.firstElementChild;
+              }
+            });
+          }
+        };
+      });
+    })();
+  </script>
+</body>
+</html>

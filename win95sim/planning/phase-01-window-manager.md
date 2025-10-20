@@ -1,5 +1,7 @@
 # Phase 1 – Kernel, Display, Window Manager
 
+**Status:** ✅ Complete. `index.html` now ships the kernel/settings/display/window services, boot splash, CRT viewport, baseline window chrome (move/resize/min/max), system menu, task switcher overlay, and Start button placeholder with empty taskband. Automated unit tests cover the core service contracts (`node --test win95sim/tests/phase1.test.js`).
+
 ## Objectives
 - Implement foundational services (`core/kernel`, `svc/settings`, `svc/display`, `svc/window`).
 - Establish CRT container with resolution/scaling controls and boot splash.
