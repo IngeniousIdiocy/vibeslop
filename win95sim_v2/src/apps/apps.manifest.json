@@ -1,0 +1,48 @@
+{
+  "utilities": [
+    {
+      "id": "calculator",
+      "title": "Calculator",
+      "entry": "@apps/utilities/calculator",
+      "featureFlag": "utilities.calculator"
+    },
+    {
+      "id": "command-prompt",
+      "title": "Command Prompt",
+      "entry": "@apps/utilities/command-prompt",
+      "featureFlag": "utilities.commandPrompt"
+    },
+    {
+      "id": "run-dialog",
+      "title": "Run",
+      "entry": "@apps/shell/utilities/run",
+      "featureFlag": "utilities.run"
+    },
+    {
+      "id": "find-dialog",
+      "title": "Find",
+      "entry": "@apps/shell/utilities/find",
+      "featureFlag": "utilities.find"
+    },
+    {
+      "id": "shutdown-dialog",
+      "title": "Shut Down",
+      "entry": "@apps/shell/utilities/shutdown",
+      "featureFlag": "utilities.shutdown"
+    },
+    {
+      "id": "close-program",
+      "title": "Close Program",
+      "entry": "@apps/shell/utilities/close-program",
+      "featureFlag": "utilities.closeProgram"
+    }
+  ],
+  "games": [
+    {
+      "id": "minesweeper",
+      "title": "Minesweeper",
+      "entry": "@apps/games/minesweeper",
+      "featureFlag": "games.minesweeper"
+    }
+  ]
+}
