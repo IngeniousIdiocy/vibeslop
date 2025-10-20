@@ -63,6 +63,33 @@
       transform-origin: top left;
     }
 
+    .desktop-icon {
+      position: absolute;
+      width: 90px;
+      color: #ffffff;
+      font-size: 12px;
+      text-align: center;
+      cursor: default;
+      user-select: none;
+    }
+
+    .desktop-icon__glyph {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto;
+      background: rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.4);
+      box-sizing: border-box;
+    }
+
+    .desktop-icon__label {
+      margin-top: 4px;
+      padding: 2px 4px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      background: rgba(0,0,0,0.35);
+    }
+
     #taskbar {
       flex: 0 0 40px;
       display: flex;
@@ -84,11 +111,19 @@
       cursor: pointer;
     }
 
+    #start-button[data-pressed="true"] {
+      box-shadow: inset -1px -1px 0 #ffffff, inset 1px 1px 0 #808080;
+    }
+
     #taskband {
       flex: 1 1 auto;
       background: #c0c0c0;
       border: 1px solid #808080;
       box-shadow: inset 1px 1px 0 #ffffff;
+      display: flex;
+      align-items: stretch;
+      gap: 4px;
+      padding: 0 2px;
     }
 
     #taskbar-right {
@@ -96,6 +131,25 @@
       text-align: center;
       font-size: 12px;
       color: #000;
+    }
+
+    .taskbar-button {
+      flex: 0 1 160px;
+      min-width: 120px;
+      padding: 2px 8px;
+      background: #c0c0c0;
+      border: 1px solid #808080;
+      box-shadow: inset 1px 1px 0 #ffffff;
+      font-size: 12px;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .taskbar-button[data-active="true"] {
+      background: #000080;
+      color: #ffffff;
     }
 
     .w95-window {
@@ -945,7 +999,8 @@
         desktopEl.appendChild(element);
         windows.push(win);
         focusWindow(win);
-        kernel.emit('win:create', { id: win.id });
+        kernel.emit('win:create', { id: win.id, title: win.titleEl.textContent || 'Window' });
+        kernel.emit('win:title', { id: win.id, title: win.titleEl.textContent || 'Window' });
         return createWindowRef(win);
       }
 
@@ -963,7 +1018,10 @@
           minimize: () => minimize(win),
           maximize: () => maximize(win),
           restore: () => restore(win),
-          setTitle: (title) => { win.titleEl.textContent = title; }
+          setTitle: (title) => {
+            win.titleEl.textContent = title;
+            kernel.emit('win:title', { id: win.id, title });
+          }
         };
       }
 
@@ -1882,6 +1940,728 @@
       });
     });
 
+    define('svc/process', ['core/kernel', 'svc/window', 'svc/vfs', 'util/path'], function (kernel, windowSvc, vfs, pathUtil) {
+      const registry = new Map();
+      const associations = new Map();
+      const pidToInstance = new Map();
+      const appIdToPids = new Map();
+      const windowToPid = new Map();
+      const closedPids = new Set();
+      let recentDocuments = [];
+
+      function normaliseKey(key) {
+        if (!key) return '';
+        return String(key).trim().toLowerCase();
+      }
+
+      function cloneDescriptor(desc) {
+        return {
+          id: desc.id,
+          name: desc.name,
+          version: desc.version,
+          author: desc.author,
+          icon: desc.icon,
+          fileTypes: desc.fileTypes ? [...desc.fileTypes] : undefined,
+          mimes: desc.mimes ? [...desc.mimes] : undefined,
+          protocols: desc.protocols ? [...desc.protocols] : undefined,
+          singleton: !!desc.singleton,
+          startMenuPath: desc.startMenuPath ? [...desc.startMenuPath] : undefined,
+          desktopShortcut: !!desc.desktopShortcut,
+          defaultWindow: desc.defaultWindow ? { ...desc.defaultWindow } : undefined,
+          capabilities: desc.capabilities ? [...desc.capabilities] : undefined
+        };
+      }
+
+      function register(desc) {
+        if (!desc || !desc.id) {
+          throw new Error('process.register requires an id');
+        }
+        if (registry.has(desc.id)) {
+          throw new Error(`Application already registered: ${desc.id}`);
+        }
+        const normalized = cloneDescriptor({
+          ...desc,
+          startMenuPath: Array.isArray(desc.startMenuPath)
+            ? desc.startMenuPath.filter(Boolean)
+            : (desc.startMenuPath ? [desc.startMenuPath] : [])
+        });
+        normalized.entry = desc.entry;
+        registry.set(desc.id, normalized);
+        if (Array.isArray(desc.fileTypes)) {
+          desc.fileTypes.forEach((ext) => {
+            associations.set(normaliseKey(ext), desc.id);
+          });
+        }
+      }
+
+      function registryList() {
+        return [...registry.values()]
+          .map(cloneDescriptor)
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      function createPid(appId) {
+        return kernel.uid(appId || 'proc');
+      }
+
+      function cleanupInstance(pid, reason) {
+        if (!pidToInstance.has(pid) || closedPids.has(pid)) return;
+        closedPids.add(pid);
+        const instance = pidToInstance.get(pid);
+        pidToInstance.delete(pid);
+        if (instance && instance.mainWindow && instance.mainWindow.id) {
+          windowToPid.delete(instance.mainWindow.id);
+        }
+        const list = appIdToPids.get(instance?.appId);
+        if (list) {
+          const idx = list.indexOf(pid);
+          if (idx >= 0) list.splice(idx, 1);
+          if (!list.length) appIdToPids.delete(instance.appId);
+        }
+        if (instance) {
+          kernel.emit('proc:exit', { pid, appId: instance.appId, reason: reason || 'exit' });
+        }
+      }
+
+      async function invokeEntry(desc, args, pid) {
+        const ctx = {
+          services: {
+            kernel,
+            window: windowSvc,
+            vfs,
+            process: api
+          }
+        };
+        const result = await desc.entry(ctx, args);
+        return result;
+      }
+
+      function wrapInstance(pid, appId, result) {
+        let instance = result;
+        if (!instance || typeof instance !== 'object') {
+          instance = {};
+        }
+        const ref = { pid, appId };
+        Object.assign(ref, instance);
+        if (!ref.pid) {
+          ref.pid = pid;
+        }
+        if (typeof ref.focus !== 'function') {
+          ref.focus = () => {
+            if (ref.mainWindow && typeof ref.mainWindow.focus === 'function') {
+              ref.mainWindow.focus();
+            }
+          };
+        }
+        if (typeof ref.close !== 'function') {
+          ref.close = () => {
+            if (ref.mainWindow && typeof ref.mainWindow.close === 'function') {
+              return ref.mainWindow.close();
+            }
+            return Promise.resolve();
+          };
+        }
+        const originalClose = ref.close.bind(ref);
+        ref.close = async () => {
+          try {
+            await originalClose();
+          } finally {
+            cleanupInstance(pid, 'close');
+          }
+        };
+        if (ref.mainWindow && ref.mainWindow.id) {
+          windowToPid.set(ref.mainWindow.id, pid);
+        }
+        return ref;
+      }
+
+      async function launch(appId, args = {}) {
+        const desc = registry.get(appId);
+        if (!desc) {
+          throw new Error(`Application not registered: ${appId}`);
+        }
+        if (desc.singleton) {
+          const existing = instances(appId)[0];
+          if (existing) {
+            existing.focus();
+            return existing;
+          }
+        }
+        const pid = createPid(appId);
+        const result = await invokeEntry(desc, { ...args }, pid);
+        const instance = wrapInstance(pid, appId, result);
+        pidToInstance.set(pid, instance);
+        if (!appIdToPids.has(appId)) {
+          appIdToPids.set(appId, []);
+        }
+        appIdToPids.get(appId).push(pid);
+        kernel.emit('proc:launch', { pid, appId, args: { ...args } });
+        return instance;
+      }
+
+      function instances(appId) {
+        const values = [...pidToInstance.values()].filter((inst) => !appId || inst.appId === appId);
+        return values.map((inst) => ({
+          pid: inst.pid,
+          appId: inst.appId,
+          mainWindow: inst.mainWindow,
+          focus: inst.focus,
+          close: inst.close
+        }));
+      }
+
+      function kill(pid) {
+        const inst = pidToInstance.get(pid);
+        if (!inst) return Promise.resolve();
+        return inst.close();
+      }
+
+      function focus(pid) {
+        const inst = pidToInstance.get(pid);
+        if (!inst) return;
+        inst.focus();
+        kernel.emit('proc:focus', { pid, appId: inst.appId });
+      }
+
+      function associate(extOrMime, appId) {
+        associations.set(normaliseKey(extOrMime), appId);
+      }
+
+      function descriptorForExt(ext) {
+        const assocId = associations.get(normaliseKey(ext));
+        if (assocId && registry.has(assocId)) return registry.get(assocId);
+        return [...registry.values()].find((desc) => Array.isArray(desc.fileTypes) && desc.fileTypes.map(normaliseKey).includes(normaliseKey(ext)));
+      }
+
+      function addRecentDocument(path) {
+        const resolved = vfs.resolve(path);
+        recentDocuments = recentDocuments.filter((entry) => entry.path !== resolved);
+        const entry = { path: resolved, openedAt: kernel.now() };
+        recentDocuments.unshift(entry);
+        if (recentDocuments.length > 15) {
+          recentDocuments.length = 15;
+        }
+        kernel.emit('proc:recent:add', { ...entry });
+        return entry;
+      }
+
+      async function open(pathOrUrl) {
+        if (typeof pathOrUrl !== 'string' || !pathOrUrl.trim()) {
+          throw new Error('open requires a target path');
+        }
+        if (/^[a-z]+:\/\//i.test(pathOrUrl)) {
+          throw new Error('Protocol handlers not implemented');
+        }
+        const resolved = vfs.resolve(pathOrUrl);
+        const ext = pathUtil.extname(resolved) || '';
+        const desc = descriptorForExt(ext);
+        if (!desc) {
+          throw new Error(`No handler for ${ext || 'file'}`);
+        }
+        const instance = await launch(desc.id, { file: resolved });
+        addRecentDocument(resolved);
+        return instance;
+      }
+
+      function recent() {
+        return recentDocuments.map((entry) => ({ ...entry }));
+      }
+
+      function reset() {
+        registry.clear();
+        associations.clear();
+        pidToInstance.clear();
+        appIdToPids.clear();
+        windowToPid.clear();
+        closedPids.clear();
+        recentDocuments = [];
+      }
+
+      kernel.on('win:close', ({ id }) => {
+        if (!id) return;
+        const pid = windowToPid.get(id);
+        if (!pid) return;
+        cleanupInstance(pid, 'window-close');
+      });
+
+      kernel.on('win:focus', ({ id }) => {
+        const pid = windowToPid.get(id);
+        if (!pid) return;
+        const inst = pidToInstance.get(pid);
+        if (!inst) return;
+        kernel.emit('proc:focus', { pid, appId: inst.appId });
+      });
+
+      const api = Object.freeze({
+        register,
+        launch,
+        instances,
+        kill,
+        focus,
+        associate,
+        open,
+        recentDocuments: recent,
+        recordRecentDocument: addRecentDocument,
+        registry: registryList,
+        reset
+      });
+
+      return api;
+    });
+
+    define('svc/desktop', ['core/kernel', 'svc/vfs', 'util/path'], function (kernel, vfs, pathUtil) {
+      let container = null;
+      let layout = new Map();
+      let icons = [];
+      let unwatch = null;
+
+      function ensureContainer(options = {}) {
+        if (options.container) return options.container;
+        if (typeof document !== 'undefined') {
+          return document.getElementById('desktop-root');
+        }
+        return null;
+      }
+
+      function toPoint(pos) {
+        if (!pos) return null;
+        const x = Number(pos.x);
+        const y = Number(pos.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          return { x, y };
+        }
+        return null;
+      }
+
+      function setLayout(path, pos) {
+        const resolved = vfs.resolve(path);
+        const point = toPoint(pos);
+        if (!point) {
+          layout.delete(resolved);
+        } else {
+          layout.set(resolved, point);
+        }
+      }
+
+      function gridPosition(index) {
+        const colWidth = 100;
+        const rowHeight = 90;
+        const itemsPerColumn = Math.floor((container?.clientHeight || 600) / rowHeight) || 8;
+        const column = Math.floor(index / itemsPerColumn);
+        const row = index % itemsPerColumn;
+        return { x: 16 + column * colWidth, y: 16 + row * rowHeight };
+      }
+
+      function render() {
+        if (!container || typeof document === 'undefined') return;
+        container.innerHTML = '';
+        icons.forEach((icon, idx) => {
+          const el = document.createElement('div');
+          el.className = 'desktop-icon';
+          const position = layout.get(icon.path) || gridPosition(idx);
+          el.style.left = `${position.x}px`;
+          el.style.top = `${position.y}px`;
+          el.dataset.path = icon.path;
+          const glyph = document.createElement('div');
+          glyph.className = 'desktop-icon__glyph';
+          const label = document.createElement('div');
+          label.className = 'desktop-icon__label';
+          label.textContent = icon.name;
+          el.appendChild(glyph);
+          el.appendChild(label);
+          container.appendChild(el);
+        });
+      }
+
+      function refresh() {
+        const entries = vfs.list(vfs.special.desktop, { showHidden: false }) || [];
+        icons = entries.map((meta) => ({
+          path: meta.path,
+          name: meta.name,
+          kind: meta.kind,
+          ext: meta.ext,
+          position: layout.get(meta.path) || null
+        }));
+        icons.sort((a, b) => a.name.localeCompare(b.name));
+        kernel.emit('desktop:update', { icons: icons.map((icon) => ({ ...icon })) });
+        render();
+      }
+
+      function handleWatch(payload) {
+        if (!payload) return;
+        const desktopRoot = vfs.resolve(vfs.special.desktop);
+        const paths = [];
+        if (payload.path) paths.push(vfs.resolve(payload.path));
+        if (payload.from) paths.push(vfs.resolve(payload.from));
+        const affectsDesktop = paths.some((p) => p.startsWith(desktopRoot));
+        if (!affectsDesktop) return;
+        if (payload.from && payload.path) {
+          const prev = vfs.resolve(payload.from);
+          const next = vfs.resolve(payload.path);
+          if (layout.has(prev)) {
+            const value = layout.get(prev);
+            layout.delete(prev);
+            layout.set(next, value);
+          }
+        }
+        refresh();
+      }
+
+      function init(options = {}) {
+        container = ensureContainer(options);
+        layout = new Map();
+        if (options.layout) {
+          Object.keys(options.layout).forEach((key) => {
+            setLayout(key, options.layout[key]);
+          });
+        }
+        refresh();
+        if (unwatch) unwatch();
+        unwatch = vfs.watch('::all', handleWatch);
+      }
+
+      function rename(path, newName) {
+        const resolved = vfs.resolve(path);
+        const parent = pathUtil.dirname(resolved);
+        const dest = pathUtil.join(parent, newName);
+        const result = vfs.move(resolved, dest);
+        const existing = layout.get(resolved);
+        if (existing) {
+          const next = vfs.resolve(dest);
+          layout.delete(resolved);
+          layout.set(next, { ...existing });
+        }
+        return result;
+      }
+
+      function iconsList() {
+        return icons.map((icon) => ({ ...icon, position: layout.get(icon.path) || null }));
+      }
+
+      function layoutSnapshot() {
+        const out = {};
+        layout.forEach((value, key) => {
+          out[key] = { ...value };
+        });
+        return out;
+      }
+
+      function destroy() {
+        if (unwatch) unwatch();
+        unwatch = null;
+        container = null;
+        icons = [];
+        layout.clear();
+      }
+
+      const api = Object.freeze({
+        init,
+        refresh,
+        renameIcon: rename,
+        setIconPosition: setLayout,
+        getIcons: iconsList,
+        getLayout: layoutSnapshot,
+        destroy
+      });
+
+      return api;
+    });
+
+    define('svc/taskbar', ['core/kernel'], function (kernel) {
+      let taskband = null;
+      let startButton = null;
+      let clockEl = null;
+      let nowFn = () => kernel.now();
+      let formatter = (date) => {
+        const hours = date.getHours();
+        const minutes = date.getMinutes();
+        const hour12 = hours % 12 || 12;
+        const suffix = hours >= 12 ? 'PM' : 'AM';
+        return `${hour12}:${minutes.toString().padStart(2, '0')} ${suffix}`;
+      };
+      let scheduler = null;
+      let scheduleId = null;
+      const tasks = new Map();
+      const order = [];
+      const unsubs = [];
+      let startOpen = false;
+      let clockText = '';
+
+      function applyOptions(opts = {}) {
+        taskband = opts.taskband || (typeof document !== 'undefined' ? document.getElementById('taskband') : null);
+        startButton = opts.startButton || (typeof document !== 'undefined' ? document.getElementById('start-button') : null);
+        clockEl = opts.clockEl || (typeof document !== 'undefined' ? document.getElementById('taskbar-right') : null);
+        nowFn = typeof opts.now === 'function' ? opts.now : () => kernel.now();
+        formatter = typeof opts.clockFormatter === 'function' ? opts.clockFormatter : formatter;
+        scheduler = opts.scheduler === null ? null : (opts.scheduler || ((fn) => {
+          if (typeof setInterval === 'function') {
+            return setInterval(fn, 60000);
+          }
+          return null;
+        }));
+      }
+
+      function clearSubscriptions() {
+        while (unsubs.length) {
+          const off = unsubs.pop();
+          off();
+        }
+        if (scheduleId != null && scheduler && typeof clearInterval === 'function') {
+          clearInterval(scheduleId);
+        }
+        scheduleId = null;
+      }
+
+      function formatClock() {
+        const date = new Date(nowFn());
+        clockText = formatter(date);
+        if (clockEl) {
+          clockEl.textContent = clockText;
+        }
+      }
+
+      function renderTasks() {
+        if (!taskband || typeof document === 'undefined') return;
+        taskband.innerHTML = '';
+        order.forEach((id) => {
+          const task = tasks.get(id);
+          if (!task) return;
+          const btn = document.createElement('button');
+          btn.className = 'taskbar-button';
+          btn.dataset.winId = id;
+          btn.textContent = task.title;
+          if (task.active) btn.dataset.active = 'true';
+          if (task.minimized) btn.dataset.minimized = 'true';
+          taskband.appendChild(btn);
+        });
+      }
+
+      function setStartState(open) {
+        startOpen = !!open;
+        if (startButton) {
+          startButton.dataset.pressed = open ? 'true' : 'false';
+        }
+        kernel.emit('taskbar:start', { open: startOpen });
+      }
+
+      function addTask(payload) {
+        const id = payload.id;
+        if (!id) return;
+        if (!tasks.has(id)) {
+          order.push(id);
+        }
+        tasks.set(id, {
+          id,
+          title: payload.title || tasks.get(id)?.title || 'Window',
+          minimized: false,
+          active: false
+        });
+        renderTasks();
+      }
+
+      function removeTask(id) {
+        tasks.delete(id);
+        const idx = order.indexOf(id);
+        if (idx >= 0) order.splice(idx, 1);
+        renderTasks();
+      }
+
+      function setActive(id) {
+        tasks.forEach((task, key) => {
+          task.active = key === id;
+          if (key === id) {
+            task.minimized = false;
+          }
+        });
+        renderTasks();
+      }
+
+      function setMinimized(id, minimized) {
+        const task = tasks.get(id);
+        if (!task) return;
+        task.minimized = minimized;
+        if (minimized) {
+          task.active = false;
+        }
+        renderTasks();
+      }
+
+      function updateTitle(id, title) {
+        const task = tasks.get(id);
+        if (!task) return;
+        task.title = title;
+        renderTasks();
+      }
+
+      function init(opts = {}) {
+        applyOptions(opts);
+        clearSubscriptions();
+        tasks.clear();
+        order.length = 0;
+        formatClock();
+        if (scheduler) {
+          scheduleId = scheduler(() => formatClock());
+        }
+        unsubs.push(kernel.on('win:create', addTask));
+        unsubs.push(kernel.on('win:close', ({ id }) => removeTask(id)));
+        unsubs.push(kernel.on('win:focus', ({ id }) => setActive(id)));
+        unsubs.push(kernel.on('win:minimize', ({ id }) => setMinimized(id, true)));
+        unsubs.push(kernel.on('win:restore', ({ id }) => setMinimized(id, false)));
+        unsubs.push(kernel.on('win:maximize', ({ id }) => setMinimized(id, false)));
+        unsubs.push(kernel.on('win:title', ({ id, title }) => updateTitle(id, title || 'Window')));
+        if (startButton && typeof startButton.addEventListener === 'function') {
+          startButton.addEventListener('click', () => setStartState(!startOpen));
+        }
+        renderTasks();
+      }
+
+      function tasksList() {
+        return order.map((id) => {
+          const task = tasks.get(id);
+          return task ? { ...task } : null;
+        }).filter(Boolean);
+      }
+
+      function destroy() {
+        clearSubscriptions();
+        tasks.clear();
+        order.length = 0;
+      }
+
+      const api = Object.freeze({
+        init,
+        tasks: tasksList,
+        isStartOpen: () => startOpen,
+        setStartOpen: setStartState,
+        getClockText: () => clockText,
+        updateClock: formatClock,
+        destroy
+      });
+
+      return api;
+    });
+
+    define('svc/startmenu', ['core/kernel', 'svc/process', 'util/path'], function (kernel, processSvc, pathUtil) {
+      let maxRecent = 10;
+      let model = { items: [] };
+      const listeners = [];
+
+      function clearListeners() {
+        while (listeners.length) {
+          const off = listeners.pop();
+          off();
+        }
+      }
+
+      function buildProgramTree() {
+        const root = { folders: new Map(), apps: [] };
+        const descriptors = processSvc.registry();
+        descriptors.forEach((desc) => {
+          const segments = Array.isArray(desc.startMenuPath) ? desc.startMenuPath.filter(Boolean) : [];
+          let node = root;
+          segments.forEach((segment) => {
+            if (!node.folders.has(segment)) {
+              node.folders.set(segment, { label: segment, folders: new Map(), apps: [] });
+            }
+            node = node.folders.get(segment);
+          });
+          node.apps.push({
+            type: 'app',
+            id: desc.id,
+            label: desc.name,
+            appId: desc.id
+          });
+        });
+
+        function toArray(node) {
+          const folders = [...node.folders.values()]
+            .sort((a, b) => a.label.localeCompare(b.label))
+            .map((folder) => ({
+              type: 'folder',
+              label: folder.label,
+              items: toArray(folder)
+            }));
+          const apps = node.apps.sort((a, b) => a.label.localeCompare(b.label));
+          return [...folders, ...apps];
+        }
+
+        return {
+          id: 'programs',
+          label: 'Programs',
+          type: 'group',
+          items: toArray(root)
+        };
+      }
+
+      function buildDocumentsSection() {
+        const recent = processSvc.recentDocuments().slice(0, maxRecent);
+        return {
+          id: 'documents',
+          label: 'Documents',
+          type: 'recent',
+          items: recent.map((entry) => ({
+            label: pathUtil.basename(entry.path),
+            path: entry.path,
+            openedAt: entry.openedAt
+          }))
+        };
+      }
+
+      function staticSection(id, label, items = []) {
+        return { id, label, type: 'group', items };
+      }
+
+      function rebuild() {
+        const programs = buildProgramTree();
+        const documents = buildDocumentsSection();
+        const settings = staticSection('settings', 'Settings', [
+          { type: 'command', id: 'control-panel', label: 'Control Panel' },
+          { type: 'command', id: 'printers', label: 'Printers' }
+        ]);
+        const find = staticSection('find', 'Find', [
+          { type: 'command', id: 'find-files', label: 'Files or Folders' }
+        ]);
+        const help = staticSection('help', 'Help', [
+          { type: 'command', id: 'help-center', label: 'Windows Help' }
+        ]);
+        const run = staticSection('run', 'Run', []);
+        const shutdown = staticSection('shutdown', 'Shut Down...', []);
+        model = {
+          items: [programs, documents, settings, find, help, run, shutdown]
+        };
+        kernel.emit('startmenu:update', { model });
+      }
+
+      function init(opts = {}) {
+        maxRecent = typeof opts.maxRecent === 'number' ? opts.maxRecent : 10;
+        clearListeners();
+        listeners.push(kernel.on('proc:recent:add', () => rebuild()));
+        listeners.push(kernel.on('proc:launch', () => rebuild()));
+        rebuild();
+      }
+
+      function getModel() {
+        return {
+          items: model.items.map((item) => ({
+            ...item,
+            items: Array.isArray(item.items)
+              ? item.items.map((child) => ({
+                  ...child,
+                  items: Array.isArray(child.items) ? child.items.map((grand) => ({ ...grand })) : child.items
+                }))
+              : item.items
+          }))
+        };
+      }
+
+      function destroy() {
+        clearListeners();
+        model = { items: [] };
+      }
+
+      return Object.freeze({ init, model: getModel, rebuild, destroy });
+    });
+
     define('app/explorer', ['svc/window', 'svc/vfs', 'util/path'], function (windowSvc, vfs, pathUtil) {
       function createTreeItem(label, path, currentPath, onSelect) {
         const item = document.createElement('div');
@@ -2127,6 +2907,11 @@
         const display = require('svc/display');
         const windowSvc = require('svc/window');
         const vfs = require('svc/vfs');
+        const processSvc = require('svc/process');
+        const desktop = require('svc/desktop');
+        const taskbar = require('svc/taskbar');
+        const startMenu = require('svc/startmenu');
+        const pathUtil = require('util/path');
         const explorer = require('app/explorer');
 
         display.init({
@@ -2150,8 +2935,37 @@
           }
         });
 
+        taskbar.init({
+          taskband: document.getElementById('taskband'),
+          startButton: document.getElementById('start-button'),
+          clockEl: document.getElementById('taskbar-right')
+        });
+
         vfs.reset();
         vfs.init();
+
+        desktop.init({
+          container: document.getElementById('desktop-root')
+        });
+
+        processSvc.reset();
+        processSvc.register({
+          id: 'explorer',
+          name: 'Windows Explorer',
+          version: '1.0.0',
+          icon: 'explorer',
+          startMenuPath: ['Accessories'],
+          entry: async (_ctx, args = {}) => {
+            const win = explorer.launch({
+              path: args.file ? pathUtil.dirname(args.file) : (args.path || vfs.special.desktop),
+              width: args.width || 520,
+              height: args.height || 360
+            });
+            return { mainWindow: win };
+          }
+        });
+
+        startMenu.init({ maxRecent: 10 });
         await Promise.all([
           vfs.write('C:\\Documents\\Welcome.txt', 'Welcome to Win95Sim. This document lives entirely in memory.'),
           vfs.mkdir('C:\\Desktop\\Projects').catch(() => null),
@@ -2159,11 +2973,12 @@
         ]);
 
         explorer.launch({ path: vfs.special.desktop, width: 600, height: 400 });
+        processSvc.recordRecentDocument('C:\\Documents\\Welcome.txt');
 
         document.getElementById('boot-splash').style.display = 'none';
 
         window.__win95TestApi = {
-          services: { kernel, settings, display, window: windowSvc, vfs },
+          services: { kernel, settings, display, window: windowSvc, vfs, process: processSvc, desktop, taskbar, startMenu },
           explorer,
           async reset() {
             document.getElementById('desktop-root').innerHTML = '';
@@ -2181,8 +2996,32 @@
                 return frag.firstElementChild;
               }
             });
+            taskbar.init({
+              taskband: document.getElementById('taskband'),
+              startButton: document.getElementById('start-button'),
+              clockEl: document.getElementById('taskbar-right'),
+              scheduler: null
+            });
             vfs.reset();
             vfs.init();
+            desktop.init({ container: document.getElementById('desktop-root') });
+            processSvc.reset();
+            processSvc.register({
+              id: 'explorer',
+              name: 'Windows Explorer',
+              version: '1.0.0',
+              icon: 'explorer',
+              startMenuPath: ['Accessories'],
+              entry: async (_ctx, args = {}) => {
+                const win = explorer.launch({
+                  path: args.file ? pathUtil.dirname(args.file) : (args.path || vfs.special.desktop),
+                  width: args.width || 520,
+                  height: args.height || 360
+                });
+                return { mainWindow: win };
+              }
+            });
+            startMenu.init({ maxRecent: 10 });
           }
         };
       });
