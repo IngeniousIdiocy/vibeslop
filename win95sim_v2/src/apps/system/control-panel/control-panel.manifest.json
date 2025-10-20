@@ -1,0 +1,52 @@
+{
+  "applets": [
+    {
+      "id": "display",
+      "title": "Display",
+      "description": "Adjust screen resolution and scaling options.",
+      "category": "Appearance",
+      "keywords": ["display", "resolution", "wallpaper", "color"],
+      "module": "@apps/system/control-panel/applets/display"
+    },
+    {
+      "id": "date-time",
+      "title": "Date/Time",
+      "description": "Set the system clock and time zone offset.",
+      "category": "System",
+      "keywords": ["clock", "timezone", "calendar"],
+      "module": "@apps/system/control-panel/applets/dateTime"
+    },
+    {
+      "id": "keyboard",
+      "title": "Keyboard",
+      "description": "Configure repeat rate and delay for keys.",
+      "category": "Hardware",
+      "keywords": ["keyboard", "repeat", "delay"],
+      "module": "@apps/system/control-panel/applets/input"
+    },
+    {
+      "id": "mouse",
+      "title": "Mouse",
+      "description": "Change pointer speed and double-click detection.",
+      "category": "Hardware",
+      "keywords": ["mouse", "pointer", "doubleclick"],
+      "module": "@apps/system/control-panel/applets/mouse"
+    },
+    {
+      "id": "sounds",
+      "title": "Sounds",
+      "description": "Toggle sound schemes and audio playback.",
+      "category": "Multimedia",
+      "keywords": ["audio", "scheme", "sound"],
+      "module": "@apps/system/control-panel/applets/sounds"
+    },
+    {
+      "id": "printers",
+      "title": "Printers",
+      "description": "Manage installed printers and queued jobs.",
+      "category": "Hardware",
+      "keywords": ["printer", "queue", "spool"],
+      "module": "@apps/system/control-panel/applets/printers"
+    }
+  ]
+}

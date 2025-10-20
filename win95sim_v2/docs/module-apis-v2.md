@@ -137,6 +137,59 @@ interface LocalizationService {
 }
 ```
 
+### `services/print`
+Queues jobs for installed printers and writes output to the virtual spooler.
+```ts
+type PrinterDriver = 'generic-text' | 'virtual-pdf';
+
+interface PrinterDefinition {
+  id: string;
+  name: string;
+  driver: PrinterDriver;
+  description?: string;
+  isDefault?: boolean;
+  capabilities?: string[];
+}
+
+type PrintJobStatus = 'queued' | 'printing' | 'paused' | 'completed' | 'cancelled' | 'error';
+
+interface PrintJobRequest {
+  printerId: string;
+  documentName: string;
+  content: string;
+  copies?: number;
+  contentType?: string;
+}
+
+interface PrintJob extends PrintJobRequest {
+  id: string;
+  status: PrintJobStatus;
+  outputPath?: string;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+interface PrintService {
+  listPrinters(): PrinterDefinition[];
+  getPrinter(id: string): PrinterDefinition | undefined;
+  installPrinter(printer: PrinterDefinition): PrinterDefinition;
+  removePrinter(id: string): PrinterDefinition | undefined;
+  submitJob(request: PrintJobRequest): PrintJob;
+  getJob(id: string): PrintJob | undefined;
+  listJobs(printerId?: string): PrintJob[];
+  pauseJob(id: string): PrintJob | undefined;
+  resumeJob(id: string): PrintJob | undefined;
+  cancelJob(id: string): PrintJob | undefined;
+  processNextJob(): PrintJob | undefined;
+  processAllJobs(): PrintJob[];
+  bus: EventBus;
+}
+```
+`processNextJob()` and `processAllJobs()` are primarily used by automated tests
+to step through the queue deterministically. Runtime callers typically rely on
+the auto-processing behaviour provided by the default service implementation.
 ### `services/layout`
 Persists icon and surface geometry for desktop-aligned experiences.
 ```ts
@@ -230,6 +283,33 @@ Apps are declared via manifests under `apps/<name>/module.json`:
 }
 ```
 The build pipeline validates manifests for conflicting IDs and missing permissions during Phase 01.
+
+### `apps/control-panel`
+Loads applets from `src/apps/system/control-panel/control-panel.manifest.json`
+and registers each module as `apps/control-panel/<id>`.
+```ts
+interface ControlPanelContext {
+  display: DisplayService;
+  settings: SettingsService;
+  print: PrintService;
+}
+
+interface ControlPanelApplet {
+  id: string;
+  title: string;
+  category: string;
+  keywords: string[];
+  manifest: ControlPanelManifestEntry;
+  open(): ControlPanelAppletSession;
+}
+
+interface ControlPanelAppletSession {
+  tabs: string[];
+  dispose(): void;
+}
+```
+Applets implement `createApplet(context, manifest)` and expose pure controller
+APIs so downstream features can unit test behaviour without rendering UI.
 
 ## Telemetry & diagnostics
 Phase 10 introduces optional telemetry via `services/diagnostics`. Until then, the interface is stubbed:
