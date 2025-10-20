@@ -1,0 +1,14 @@
+{
+  "id": "apps/explorer",
+  "name": "Explorer",
+  "entry": "./index.ts",
+  "icon": "./icons/explorer.png",
+  "permissions": ["filesystem.read", "filesystem.write"],
+  "windows": [
+    {
+      "id": "explorer-main",
+      "title": "Windows Explorer",
+      "size": { "width": 640, "height": 480 }
+    }
+  ]
+}

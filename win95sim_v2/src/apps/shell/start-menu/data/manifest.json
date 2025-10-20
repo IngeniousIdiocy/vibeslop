@@ -1,0 +1,113 @@
+{
+  "sections": [
+    {
+      "id": "programs",
+      "label": "Programs",
+      "items": [
+        {
+          "id": "programs/accessories",
+          "label": "Accessories",
+          "type": "folder",
+          "items": [
+            {
+              "id": "programs/accessories/notepad",
+              "label": "Notepad",
+              "type": "command",
+              "command": "shell:start:notepad"
+            },
+            {
+              "id": "programs/accessories/paint",
+              "label": "Paint",
+              "type": "command",
+              "command": "shell:start:paint"
+            }
+          ]
+        },
+        {
+          "id": "programs/games",
+          "label": "Games",
+          "type": "folder",
+          "items": [
+            {
+              "id": "programs/games/minesweeper",
+              "label": "Minesweeper",
+              "type": "command",
+              "command": "shell:start:minesweeper"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "documents",
+      "label": "Documents",
+      "items": []
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "items": [
+        {
+          "id": "settings/control-panel",
+          "label": "Control Panel",
+          "type": "command",
+          "command": "shell:start:control-panel"
+        },
+        {
+          "id": "settings/taskbar",
+          "label": "Taskbar & Start Menu...",
+          "type": "command",
+          "command": "shell:start:taskbar-settings"
+        }
+      ]
+    },
+    {
+      "id": "find",
+      "label": "Find",
+      "items": [
+        {
+          "id": "find/files",
+          "label": "Files or Folders...",
+          "type": "command",
+          "command": "shell:start:find-files"
+        }
+      ]
+    },
+    {
+      "id": "help",
+      "label": "Help",
+      "items": [
+        {
+          "id": "help/windows-help",
+          "label": "Windows Help",
+          "type": "command",
+          "command": "shell:start:help"
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "label": "Run...",
+      "items": [
+        {
+          "id": "run/command",
+          "label": "Run",
+          "type": "command",
+          "command": "shell:start:run"
+        }
+      ]
+    },
+    {
+      "id": "shutdown",
+      "label": "Shut Down...",
+      "items": [
+        {
+          "id": "shutdown/system",
+          "label": "Shut Down",
+          "type": "command",
+          "command": "shell:start:shutdown"
+        }
+      ]
+    }
+  ]
+}

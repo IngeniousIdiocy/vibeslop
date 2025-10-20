@@ -190,6 +190,50 @@ interface PrintService {
 `processNextJob()` and `processAllJobs()` are primarily used by automated tests
 to step through the queue deterministically. Runtime callers typically rely on
 the auto-processing behaviour provided by the default service implementation.
+### `services/layout`
+Persists icon and surface geometry for desktop-aligned experiences.
+```ts
+interface LayoutPosition {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+}
+
+interface LayoutSnapshot {
+  surfaceId: string;
+  items: Record<string, LayoutPosition>;
+  gridSize?: number;
+}
+
+interface LayoutService {
+  getSnapshot(surfaceId: string): LayoutSnapshot;
+  setItem(surfaceId: string, itemId: string, position: LayoutPosition, options?: { snapToGrid?: boolean }): LayoutSnapshot;
+  removeItem(surfaceId: string, itemId: string): LayoutSnapshot;
+  clear(surfaceId: string): LayoutSnapshot;
+  setGridSize(surfaceId: string, size: number): void;
+  bus: EventBus;
+}
+```
+
+### `services/recent-documents`
+Tracks recently opened documents for surfacing in the Start menu and Explorer.
+```ts
+interface RecentDocumentEntry {
+  id: string;
+  title: string;
+  path: string;
+  openedAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+interface RecentDocumentsService {
+  add(entry: Omit<RecentDocumentEntry, 'openedAt'> & { openedAt?: number }): RecentDocumentEntry;
+  list(): RecentDocumentEntry[];
+  clear(): void;
+  bus: EventBus;
+}
+```
 
 ## UI primitives
 ### CSS tokens (`ui/tokens.css`)

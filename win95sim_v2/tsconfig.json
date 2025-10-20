@@ -16,7 +16,7 @@
       "@shell/*": ["shell/*"],
       "@features/*": ["features/*"]
     },
-    "types": ["./src/types/css"],
+    "types": ["./src/types/css", "./types/shell"],
     "resolveJsonModule": true
   },
   "include": ["src/**/*", "tests/helpers/**/*.ts"],
