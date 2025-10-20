@@ -1,0 +1,6 @@
+{
+  "id": "apps/tools/view-source",
+  "name": "View Source",
+  "version": "2.0.0",
+  "entry": "./index.ts"
+}

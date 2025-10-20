@@ -1,0 +1,6 @@
+{
+  "id": "apps/internet/navigator",
+  "name": "Navigator",
+  "version": "2.0.0",
+  "entry": "./index.ts"
+}
