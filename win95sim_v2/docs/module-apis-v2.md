@@ -187,13 +187,33 @@ Apps are declared via manifests under `apps/<name>/module.json`:
 The build pipeline validates manifests for conflicting IDs and missing permissions during Phase 01.
 
 ## Telemetry & diagnostics
-Phase 10 introduces optional telemetry via `services/diagnostics`. Until then, the interface is stubbed:
+Phase 10 introduces optional telemetry via `services/diagnostics`. The concrete implementation
+integrates with the shared settings service and exposes an opt-in workflow:
 ```ts
+interface DiagnosticsEvent {
+  event: string;
+  payload?: Record<string, unknown>;
+  timestamp: string;
+}
+
+interface DiagnosticsFlushResult {
+  events: DiagnosticsEvent[];
+  dropped: number;
+  optedIn: boolean;
+}
+
+type DiagnosticsTransport = (events: DiagnosticsEvent[]) => Promise<void> | void;
+
 interface DiagnosticsService {
   log(event: string, payload?: Record<string, unknown>): void;
-  flush(): Promise<void>;
+  flush(): Promise<DiagnosticsFlushResult>;
+  isOptedIn(): boolean;
+  configureTransport(transport: DiagnosticsTransport | undefined): void;
+  bus: EventBus;
 }
 ```
+The service monitors the `telemetry.optIn` flag in `services/settings`. Events are queued only when
+the user has opted in; otherwise they are counted as dropped for observability.
 
 ## Compatibility layer
 `core/compat/v1-adapter` exposes shims that mimic the original global functions:
