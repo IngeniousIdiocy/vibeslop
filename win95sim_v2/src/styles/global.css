@@ -1,0 +1,114 @@
+@import '../ui/tokens.css';
+
+body {
+  margin: 0;
+  background: var(--win95-color-desktop);
+  font-family: var(--win95-font-ui);
+  color: #000;
+  display: flex;
+  min-height: 100vh;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.crt-viewport {
+  position: relative;
+  width: 800px;
+  height: 600px;
+  margin: 24px;
+  background: radial-gradient(circle at center, #2c3e50 0%, #000 100%);
+  border: var(--win95-border-size) solid #0d0d0d;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+}
+
+.crt-viewport__screen {
+  flex: 1;
+  margin: 24px;
+  background: var(--win95-color-window);
+  border: var(--win95-border-size) solid #4a4a4a;
+  box-shadow: inset 0 0 0 1px #ffffff;
+  position: relative;
+  overflow: hidden;
+}
+
+.crt-viewport__boot-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+.desktop-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.desktop-root__windows {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.window-frame {
+  position: absolute;
+  border: var(--win95-border-size) solid var(--win95-color-windowframe);
+  background: var(--win95-color-window);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.2);
+  min-width: 160px;
+  min-height: 120px;
+}
+
+.window-frame[data-state='maximized'] {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.window-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #0a64ad, #2a90d9);
+  color: var(--win95-color-highlight-text);
+  padding: 2px 4px;
+  font-weight: bold;
+}
+
+.window-frame[data-active='true'] .window-caption {
+  background: linear-gradient(90deg, #0f83d8, #38a2ff);
+}
+
+.window-caption__title {
+  flex: 1;
+  padding-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.window-caption__buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.window-caption__button {
+  border: 1px solid #000;
+  background: #c3c7cb;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 12px;
+  cursor: pointer;
+}
+
+.window-body {
+  padding: 8px;
+  font-size: 14px;
+}

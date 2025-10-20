@@ -1,0 +1,6 @@
+{
+  "id": "apps/shell/window-manager",
+  "name": "Window Manager",
+  "version": "2.0.0",
+  "entry": "./index.ts"
+}
