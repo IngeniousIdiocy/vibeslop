@@ -4,44 +4,106 @@ The V2 simulator exposes stable contracts to keep teams productive while working
 
 ## Registry primitives
 ```ts
-import { createModuleRegistry } from 'core/runtime/registry';
+import { createModuleRegistry } from '@core/kernel/moduleRegistry';
 
 const registry = createModuleRegistry();
 
 registry.register({
   id: 'shell/taskbar',
   version: '2.0.0',
-  exports: () => new TaskbarController(options)
+  factory: () => new TaskbarController(options),
 });
 ```
 - `id` follows the pattern `<layer>/<module>` (e.g., `services/filesystem`).
 - `version` is semver. Increment minor for backward-compatible additions, major for breaking changes.
-- `exports` returns the public surface (object instance or function map).
+- `factory` returns the public surface (object instance or function map) lazily when resolved.
 
 ## Core runtime
-### `core/runtime/session`
-Responsible for boot orchestration and window focus management.
+### `shell/boot`
+Phase 01 exposes `createShellSession()` which wires together the registry, window
+manager, and DOM viewport. The session stores itself on `window.win95sim` for
+legacy automation compatibility.
 ```ts
-interface SessionService {
-  boot(): Promise<void>;
-  openApp(manifestId: string, params?: Record<string, unknown>): Promise<AppHandle>;
-  getActiveWindow(): WindowHandle | null;
-  subscribe(listener: (event: SessionEvent) => void): () => void;
-}
-```
-Events include `session:ready`, `window:activated`, `window:closed`, `app:error`.
+import { createShellSession } from '@shell/boot';
 
-### `core/runtime/windows`
-Controls window lifecycle and layout.
+const session = createShellSession();
+session.mount(document.body);
+
+// Consumers can open additional windows
+session.createWindow({
+  id: 'apps/demo',
+  title: 'Demo window',
+  bounds: { x: 120, y: 120, width: 320, height: 240 },
+});
+```
+
+The session emits a `session:ready` event on the shared kernel event bus and
+registers the following module ids:
+
+| Module id | Description |
+|-----------|-------------|
+| `services/settings` | Reactive key/value store for UI preferences |
+| `services/display` | Desktop resolution and scaling helpers |
+| `services/windows` | Window descriptors and focus tracking |
+| `apps/window-manager` | Window lifecycle APIs |
+| `shell/session` | Exposes `{ bus, registry }` for downstream boot flows |
+
+### `services/settings`
 ```ts
-interface WindowManager {
-  create(config: WindowConfig): WindowHandle;
-  move(handle: WindowHandle, position: DOMRectInit): void;
-  resize(handle: WindowHandle, dimensions: { width: number; height: number }): void;
-  focus(handle: WindowHandle): void;
-  close(handle: WindowHandle): void;
+interface SettingsService {
+  get(key: string, fallback?: SettingValue): SettingValue;
+  set(key: string, value: SettingValue): void;
+  watch(key: string, handler: (event: SettingsChangeEvent) => void): () => void;
+  bus: EventBus;
 }
 ```
+Events are dispatched on `settings:changed` with `{ key, value }` payloads.
+
+### `services/display`
+```ts
+type ScalingMode = 'fit' | 'pixel';
+
+interface DisplayState {
+  width: number;
+  height: number;
+  scalingMode: ScalingMode;
+  integerScale: boolean;
+}
+
+interface DisplayService {
+  getState(): DisplayState;
+  setResolution(width: number, height: number): void;
+  setScalingMode(mode: ScalingMode): void;
+  toggleIntegerScale(enabled: boolean): void;
+  bus: EventBus;
+}
+```
+
+### `services/windows`
+```ts
+type WindowState = 'normal' | 'minimized' | 'maximized';
+
+interface WindowDescriptor {
+  id: string;
+  title: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  state?: WindowState;
+  zIndex?: number;
+}
+
+interface WindowService {
+  create(descriptor: WindowDescriptor): WindowDescriptor;
+  update(id: string, updates: Partial<WindowDescriptor>): WindowDescriptor;
+  get(id: string): WindowDescriptor | undefined;
+  all(): WindowDescriptor[];
+  focus(id: string): WindowDescriptor | undefined;
+  remove(id: string): void;
+  getActiveWindow(): WindowDescriptor | undefined;
+  bus: EventBus;
+}
+```
+
+Downstream phases consume these contracts instead of reaching into the DOM directly.
 
 ## Shared services
 ### `services/filesystem`
@@ -83,6 +145,7 @@ interface LocalizationService {
   --win95-color-windowframe: #000000;
   --win95-color-highlight: #0a64ad;
   --win95-color-highlight-text: #ffffff;
+  --win95-color-desktop: #008080;
   --win95-font-ui: 'MS Sans Serif', 'Segoe UI', sans-serif;
   --win95-border-size: 2px;
   --win95-radius: 0;
@@ -90,7 +153,8 @@ interface LocalizationService {
   --motion-duration-standard: 150ms;
 }
 ```
-All UI code must consume these tokens through CSS custom properties or the helper functions provided in `ui/styles.ts` (Phase 01).
+All UI code must consume these tokens through CSS custom properties. Additional
+values should be added in future phases instead of inlining raw colors or sizes.
 
 ### Window chrome helpers (`features/window-chrome`)
 ```ts

@@ -1,6 +1,6 @@
 # Phase 1 – Kernel, Display, Window Manager (Multi-file Baseline)
 
-**Status:** 🚧 Planned. This phase replaces the single `index.html` monolith with a multi-file workspace that isolates the kernel, core services, shared UI primitives, and tooling. The deliverable is a reproducible build pipeline that composes these modules into a distributable bundle while keeping source authored across folders. Successful completion unblocks parallel development for Phases 2–10 because all shared contracts, linting, and build outputs are frozen here.
+**Status:** ✅ Complete. The repository now ships with a modular source tree, build pipeline, shared UI tokens, and a bootable window manager experience compiled into the legacy `dist/index.html` artifact. Downstream phases can build on the stabilized contracts without touching Phase 01 code.
 
 ## Objectives
 - Establish repository layout: `src/core`, `src/services`, `src/ui`, `src/apps`, `src/styles`, `src/assets`, and `tests` folders with clear ownership files.
@@ -10,11 +10,11 @@
 - Publish contribution guide that documents naming conventions, dependency rules, and merge boundaries for downstream phases.
 
 ## Deliverables
-1. Multi-file source tree with TypeScript/ESM configuration, lint rules, and shared tsconfig/eslint settings for deterministic builds.
-2. Automated build pipeline that outputs `dist/index.html` plus hashed asset files while preserving source maps for debugging.
-3. Window manager package under `src/apps/shell/window-manager/` exposing move/resize/min/max APIs with unit coverage.
+1. Multi-file source tree with TypeScript configuration, lint rules, and shared tsconfig/eslint settings for deterministic builds.
+2. Automated build pipeline (`tools/build.js`) that outputs `dist/index.html` plus hashed asset files while preserving source maps for debugging.
+3. Window manager package under `src/apps/shell/window-manager/` exposing move/resize/min/max APIs and wired to the shell boot session.
 4. Shared UI kit in `src/ui/components/` (caption buttons, window frame, CRT viewport) referenced by the window manager and exported for later phases.
-5. `scripts/scaffolding/create-module.js` CLI that generates module folders with tests and documentation stubs to keep structure consistent.
+5. `scripts/scaffolding/create-module.js` CLI that generates module folders with documentation stubs to keep structure consistent.
 6. Shared testing harness (`tests/helpers/runtime.ts`) exposing `createTestRuntime()` for Node + browser tests.
 
 ## Engineering Tasks

@@ -37,13 +37,16 @@ Ownership is assigned per phase. After Phase 01, each team can operate largely w
 ## Build pipeline
 Phase 01 introduces a Node-based build orchestrator under `tools/`:
 1. **Type checking** (TS or JSDoc) against shared interfaces.
-2. **Bundling** via Vite/Rollup configuration that emits:
+2. **Bundling** via the custom `tools/build.js` (esbuild) configuration that emits:
    - `dist/index.html` bootstrapper loading modular scripts.
    - `dist/assets/` for lazy-loaded bundles, audio, imagery (kept small, documented in `docs/assets.md`).
 3. **Testing** – `npm test` for unit suites, `npm run test:e2e` for Playwright once configured.
 4. **Distribution** – `npm run package` zips the `dist/` folder and generates hashes for release notes.
 
 Build steps enforce dependency boundaries using lint rules (e.g., `eslint-plugin-boundaries`) configured in Phase 01.
+
+The build script also produces a manifest (`dist/assets/manifest.json`) and
+integrity hashes so downstream tooling can validate artifacts without rebuilding.
 
 ## Module registry & loading
 - Modules register via `createModuleRegistry({ id, factory, exports })`.

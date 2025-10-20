@@ -1,0 +1,12 @@
+:root {
+  --win95-color-window: #c3c7cb;
+  --win95-color-windowframe: #000000;
+  --win95-color-highlight: #0a64ad;
+  --win95-color-highlight-text: #ffffff;
+  --win95-color-desktop: #008080;
+  --win95-font-ui: 'MS Sans Serif', 'Segoe UI', sans-serif;
+  --win95-border-size: 2px;
+  --win95-radius: 0;
+  --motion-duration-fast: 70ms;
+  --motion-duration-standard: 150ms;
+}

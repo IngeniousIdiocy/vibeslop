@@ -15,14 +15,14 @@ win95sim_v2/
 ├── docs/                  # Architecture, API, and asset references
 ├── planning/              # Phase playbooks, QA checklists, risk log
 ├── references/            # Feature parity matrix, UI guidelines, shared research
-├── src/                   # (Phase 01) Source code organized by layer
+├── src/                   # Source code organized by layer
 ├── tests/                 # Node test suites aligned to each phase
-└── tools/                 # (Phase 01) Build and packaging scripts
+└── tools/                 # Build and packaging scripts
 ```
 `src/` and `tools/` will be created during Phase 01. Their ownership and responsibilities are already defined in `docs/architecture.md` so downstream teams can plan their work.
 
 ## Getting started
-1. Install dependencies (Phase 01 will introduce the root `package.json`):
+1. Install dependencies:
    ```bash
    npm install
    ```
@@ -34,8 +34,8 @@ win95sim_v2/
    ```bash
    npm run build
    ```
-
-> ⚠️ Scripts will be wired up once Phase 01 lands. The commands above describe the expected developer experience.
+   The build writes `dist/index.html`, a hashed JS bundle under `dist/assets/`, and
+   a manifest for downstream tooling.
 
 ## Development principles
 - Stabilize shared contracts (module APIs, CSS tokens, event buses) before parallelizing work.
