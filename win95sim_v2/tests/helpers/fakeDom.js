@@ -106,14 +106,25 @@ function withFakeDom(callback) {
   const previousDocument = global.document;
   const document = new FakeDocument();
   global.document = document;
-  try {
-    return callback({ document, FakeElement });
-  } finally {
+
+  const restore = () => {
     if (previousDocument === undefined) {
       delete global.document;
     } else {
       global.document = previousDocument;
     }
+  };
+
+  try {
+    const result = callback({ document, FakeElement });
+    if (result && typeof result.then === 'function') {
+      return Promise.resolve(result).finally(restore);
+    }
+    restore();
+    return result;
+  } catch (error) {
+    restore();
+    throw error;
   }
 }
 
