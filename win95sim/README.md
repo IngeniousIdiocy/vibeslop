@@ -15,7 +15,7 @@ Phase 2 layers on an in-memory virtual file system with drive roots, special fol
 Unit tests covering the core services can be executed with:
 
 ```bash
-node --test win95sim/tests/phase1.test.js win95sim/tests/phase2.test.js
+node --test win95sim/tests/phase1.test.js win95sim/tests/phase2.test.js win95sim/tests/phase3.test.js
 ```
 
 These tests run entirely in Node using a lightweight DOM stub to validate kernel events, settings watchers, display scaling math, window lifecycle, VFS path semantics, watcher notifications, and Explorer-facing file operations.
