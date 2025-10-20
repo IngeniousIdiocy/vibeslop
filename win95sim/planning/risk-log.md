@@ -12,3 +12,4 @@
 | R8 | Minesweeper/randomized features create non-deterministic tests | Phase 7 | Medium | Medium | Inject deterministic seeds during automated tests; expose seed override in `__win95TestApi`. | QA | Open |
 | R9 | Proxy mode misuse introduces privacy concerns | Phase 5 | Low | Medium | Display explicit warnings; disable by default; allow user-supplied endpoint only via settings. | Product | Open |
 | R10 | Build pipeline fails to inline third-party licenses | Phase 10 | Low | Medium | Add CI check verifying license text presence; unit test for About dialog content. | Engineering | Open |
+| R11 | Interim Explorer lacks recycle bin/context menu parity causing user confusion | Phase 2 | Medium | Low | Document interim limitations, gate destructive actions behind follow-up work, prioritize recycle bin/context menu backlog items in next iteration. | Product | Open |

@@ -111,6 +111,101 @@
       outline: none;
     }
 
+    .explorer {
+      display: flex;
+      height: 100%;
+      font-family: inherit;
+      font-size: 13px;
+      background: #ffffff;
+    }
+
+    .explorer__sidebar {
+      width: 180px;
+      border-right: 1px solid #808080;
+      background: #d6d6d6;
+      padding: 4px;
+      overflow: auto;
+    }
+
+    .explorer__tree-item {
+      padding: 2px 6px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .explorer__tree-item[data-active="true"] {
+      background: #000080;
+      color: #ffffff;
+    }
+
+    .explorer__content {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+    }
+
+    .explorer__toolbar {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: #c0c0c0;
+      border-bottom: 1px solid #808080;
+    }
+
+    .explorer__toolbar button {
+      font-family: inherit;
+      font-size: 12px;
+      padding: 2px 8px;
+      border: 1px solid #808080;
+      background: #dfdfdf;
+      cursor: pointer;
+    }
+
+    .explorer__toolbar button:active {
+      box-shadow: inset 1px 1px 0 #808080;
+    }
+
+    .explorer__list {
+      flex: 1 1 auto;
+      overflow: auto;
+      background: #ffffff;
+    }
+
+    .explorer__list table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .explorer__list thead {
+      background: #d6d6d6;
+      position: sticky;
+      top: 0;
+    }
+
+    .explorer__list th,
+    .explorer__list td {
+      padding: 2px 6px;
+      border-bottom: 1px solid #dfdfdf;
+      text-align: left;
+    }
+
+    .explorer__list tr[data-selected="true"] {
+      background: #000080;
+      color: #ffffff;
+    }
+
+    .explorer__status {
+      padding: 2px 6px;
+      background: #c0c0c0;
+      border-top: 1px solid #808080;
+      font-size: 12px;
+    }
+
     .w95-window[aria-active="true"] .w95-window__titlebar {
       background: linear-gradient(90deg, #000080, #1084d0);
       color: #ffffff;
@@ -1105,6 +1200,916 @@
 
       return Object.freeze({ init, create, all, top, toggleTaskSwitcher });
     });
+
+    define('util/path', [], function () {
+      const drivePattern = /^[a-zA-Z]:/;
+
+      function normalize(input) {
+        if (typeof input !== 'string' || !input.trim()) {
+          throw Object.assign(new Error('Invalid path'), { code: 'E_BADNAME' });
+        }
+        if (input.startsWith('::')) {
+          return input;
+        }
+        const trimmed = input.trim().replace(/\//g, '\\');
+        if (!drivePattern.test(trimmed)) {
+          throw Object.assign(new Error('Path must start with drive letter'), { code: 'E_BADNAME' });
+        }
+        const drive = trimmed[0].toUpperCase();
+        const rest = trimmed.slice(2);
+        const parts = rest.split(/\\+/).filter(Boolean);
+        const stack = [];
+        parts.forEach((part) => {
+          if (part === '.') return;
+          if (part === '..') {
+            if (stack.length) stack.pop();
+            return;
+          }
+          stack.push(part);
+        });
+        const base = `${drive}:`;
+        return stack.length ? `${base}\\${stack.join('\\')}` : `${base}\\`;
+      }
+
+      function join(...parts) {
+        if (!parts.length) return '';
+        let result = String(parts[0]);
+        for (let i = 1; i < parts.length; i += 1) {
+          const part = String(parts[i]);
+          if (!part) continue;
+          if (part.startsWith('::')) {
+            result = part;
+          } else if (result.endsWith('\\') || result.endsWith(':')) {
+            result += part.replace(/^\\+/, '');
+          } else {
+            result += `\\${part.replace(/^\\+/, '')}`;
+          }
+        }
+        return normalize(result);
+      }
+
+      function dirname(p) {
+        if (!p) return '';
+        if (p.startsWith('::')) return p;
+        if (!drivePattern.test(p)) {
+          const parts = p.replace(/\\+/g, '\\').split('\\').filter(Boolean);
+          parts.pop();
+          return parts.join('\\');
+        }
+        const path = normalize(p);
+        const drive = path.slice(0, 2);
+        const rest = path.slice(2).replace(/^\\/, '');
+        if (!rest) return `${drive}\\`;
+        const parts = rest.split('\\');
+        parts.pop();
+        if (!parts.length) return `${drive}\\`;
+        return `${drive}\\${parts.join('\\')}`;
+      }
+
+      function basename(p) {
+        if (!p) return '';
+        if (p.startsWith('::')) return p;
+        if (!drivePattern.test(p)) {
+          const cleaned = p.replace(/\\+$/, '');
+          const parts = cleaned.split('\\');
+          return parts[parts.length - 1] || cleaned;
+        }
+        const path = normalize(p);
+        const rest = path.slice(2).replace(/^\\/, '');
+        if (!rest) return path;
+        const parts = rest.split('\\');
+        return parts[parts.length - 1];
+      }
+
+      function extname(p) {
+        const base = basename(p);
+        const idx = base.lastIndexOf('.');
+        if (idx <= 0) return '';
+        return base.slice(idx).toLowerCase();
+      }
+
+      function isAbsolute(p) {
+        return /^[a-zA-Z]:/.test(p) || p.startsWith('::');
+      }
+
+      function drive(p) {
+        if (p.startsWith('::')) return null;
+        return normalize(p).charAt(0);
+      }
+
+      function compare(a, b) {
+        const na = normalize(a);
+        const nb = normalize(b);
+        const upperA = na.toUpperCase();
+        const upperB = nb.toUpperCase();
+        if (upperA === upperB) return 0;
+        return upperA < upperB ? -1 : 1;
+      }
+
+      return Object.freeze({ join, dirname, basename, extname, normalize, isAbsolute, drive, compare });
+    });
+
+    define('svc/vfs', ['core/kernel', 'util/path'], function (kernel, pathUtil) {
+      const nodes = new Map();
+      const pathIndex = new Map();
+      const watchers = new Map();
+      const specialPaths = new Map();
+      let initialised = false;
+
+      function now() {
+        return kernel.now ? kernel.now() : Date.now();
+      }
+
+      function pathKey(path) {
+        return path.toUpperCase();
+      }
+
+      function ensureChildren(node) {
+        if (!node.children) {
+          node.children = new Map();
+        }
+        return node.children;
+      }
+
+      function computePath(node) {
+        if (!node.parentId) {
+          return `${node.drive}:\\`;
+        }
+        const parent = nodes.get(node.parentId);
+        const base = parent.path.endsWith('\\') ? parent.path.slice(0, -1) : parent.path;
+        return `${base}\\${node.name}`;
+      }
+
+      function registerPath(node) {
+        node.path = computePath(node);
+        pathIndex.set(pathKey(node.path), node.id);
+        if (node.children) {
+          node.children.forEach((childId) => {
+            const child = nodes.get(childId);
+            registerPath(child);
+          });
+        }
+      }
+
+      function attachToParent(node, parent) {
+        if (!parent) return;
+        const children = ensureChildren(parent);
+        children.set(node.name.toLowerCase(), node.id);
+      }
+
+      function detachFromParent(node) {
+        if (!node.parentId) return;
+        const parent = nodes.get(node.parentId);
+        if (!parent || !parent.children) return;
+        parent.children.delete(node.name.toLowerCase());
+      }
+
+      function createNode({ name, kind, parentId, drive, attrib, mime, target, readonly }) {
+        const id = kernel.uid('fs');
+        const timestamp = now();
+        const node = {
+          id,
+          kind,
+          name,
+          parentId: parentId || null,
+          drive: drive || (parentId ? nodes.get(parentId).drive : null),
+          children: kind === 'dir' ? new Map() : null,
+          size: 0,
+          created: timestamp,
+          modified: timestamp,
+          attrib: attrib ? { ...attrib } : undefined,
+          mime: mime || undefined,
+          target: target || undefined,
+          readonly: readonly || false,
+          data: kind === 'file' ? new Uint8Array() : null,
+          path: ''
+        };
+        nodes.set(id, node);
+        if (parentId) {
+          attachToParent(node, nodes.get(parentId));
+        }
+        registerPath(node);
+        return node;
+      }
+
+      function findNode(path) {
+        if (!path) return null;
+        if (path.startsWith('::')) {
+          const mapped = specialPaths.get(path);
+          if (!mapped) return null;
+          return findNode(mapped);
+        }
+        const normalized = pathUtil.normalize(path);
+        const id = pathIndex.get(pathKey(normalized));
+        if (!id) return null;
+        return nodes.get(id) || null;
+      }
+
+      function ensureDir(path) {
+        const node = findNode(path);
+        if (node) return node;
+        const normalized = pathUtil.normalize(path);
+        const parentPath = pathUtil.dirname(normalized);
+        const parent = findNode(parentPath);
+        if (!parent || parent.kind !== 'dir') {
+          throw Object.assign(new Error('Parent directory missing'), { code: 'E_NOENT', path });
+        }
+        const name = pathUtil.basename(normalized);
+        if (parent.children && parent.children.has(name.toLowerCase())) {
+          return nodes.get(parent.children.get(name.toLowerCase()));
+        }
+        return createNode({ name, kind: 'dir', parentId: parent.id });
+      }
+
+      function toMeta(node) {
+        return {
+          id: node.id,
+          kind: node.kind,
+          name: node.name,
+          ext: node.kind === 'file' ? pathUtil.extname(node.name) : '',
+          size: node.kind === 'file' ? node.size : 0,
+          created: node.created,
+          modified: node.modified,
+          attrib: node.attrib ? { ...node.attrib } : undefined,
+          mime: node.mime,
+          target: node.target,
+          readonly: !!node.readonly,
+          path: node.path
+        };
+      }
+
+      function emitWatch(type, node, fromPath) {
+        const payload = {
+          type,
+          path: node ? node.path : null,
+          from: fromPath || undefined,
+          meta: node ? toMeta(node) : undefined
+        };
+        const paths = [];
+        if (node) {
+          paths.push(node.path);
+          if (node.parentId) {
+            const parent = nodes.get(node.parentId);
+            if (parent) paths.push(parent.path);
+          }
+        }
+        const seen = new Set();
+        const fire = (key) => {
+          if (!watchers.has(key)) return;
+          if (seen.has(key)) return;
+          seen.add(key);
+          watchers.get(key).forEach((fn) => {
+            try { fn(payload); } catch (err) { console.error('vfs watcher error', err); }
+          });
+        };
+        fire('::all');
+        paths.forEach((p) => fire(pathKey(p)));
+      }
+
+      async function dataToBytes(data, opts) {
+        if (data == null) return new Uint8Array();
+        if (data instanceof Uint8Array) return data.slice();
+        if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer) {
+          return new Uint8Array(data.slice(0));
+        }
+        if (typeof Blob !== 'undefined' && data instanceof Blob) {
+          const buf = await data.arrayBuffer();
+          return new Uint8Array(buf);
+        }
+        if (typeof data === 'object' && !(data instanceof String)) {
+          const text = JSON.stringify(data);
+          return new TextEncoder().encode(text);
+        }
+        return new TextEncoder().encode(String(data));
+      }
+
+      function ensureInitialised() {
+        if (!initialised) {
+          init();
+        }
+      }
+
+      function stat(path) {
+        ensureInitialised();
+        const node = findNode(path);
+        if (!node) return null;
+        return toMeta(node);
+      }
+
+      function exists(path) {
+        return !!stat(path);
+      }
+
+      function list(path, opts = {}) {
+        ensureInitialised();
+        const node = findNode(path);
+        if (!node) throw Object.assign(new Error('Path not found'), { code: 'E_NOENT', path });
+        if (node.kind !== 'dir') throw Object.assign(new Error('Not a directory'), { code: 'E_NOTDIR', path });
+        const children = node.children ? [...node.children.values()] : [];
+        return children
+          .map((id) => nodes.get(id))
+          .filter(Boolean)
+          .filter((child) => {
+            if (opts.showHidden) return true;
+            return !(child.attrib && child.attrib.H);
+          })
+          .sort((a, b) => {
+            if (a.kind !== b.kind) {
+              return a.kind === 'dir' ? -1 : 1;
+            }
+            return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+          })
+          .map(toMeta);
+      }
+
+      async function read(path, as = 'text') {
+        ensureInitialised();
+        const node = findNode(path);
+        if (!node) throw Object.assign(new Error('Path not found'), { code: 'E_NOENT', path });
+        if (node.kind !== 'file' && node.kind !== 'link') {
+          throw Object.assign(new Error('Not a file'), { code: 'E_ISDIR', path });
+        }
+        if (node.kind === 'link') {
+          return node.target;
+        }
+        if (as === 'bytes') return node.data.slice();
+        if (as === 'dataURL') {
+          const blob = new Blob([node.data], { type: node.mime || 'application/octet-stream' });
+          return await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+        if (as === 'json') {
+          const text = new TextDecoder().decode(node.data);
+          return JSON.parse(text || 'null');
+        }
+        return new TextDecoder().decode(node.data);
+      }
+
+      async function write(path, data, opts = {}) {
+        ensureInitialised();
+        const normalizedInput = path.startsWith('::') ? specialPaths.get(path) || path : path;
+        const normalized = pathUtil.normalize(normalizedInput);
+        const parentPath = pathUtil.dirname(normalized);
+        const parent = findNode(parentPath);
+        if (!parent || parent.kind !== 'dir') {
+          throw Object.assign(new Error('Parent directory missing'), { code: 'E_NOENT', path: parentPath });
+        }
+        if (parent.readonly) {
+          throw Object.assign(new Error('Directory is read-only'), { code: 'E_DENIED', path: parentPath });
+        }
+        const name = pathUtil.basename(normalized);
+        const existingId = parent.children ? parent.children.get(name.toLowerCase()) : null;
+        let node = existingId ? nodes.get(existingId) : null;
+        const bytes = await dataToBytes(data, opts);
+        if (!node) {
+          node = createNode({ name, kind: 'file', parentId: parent.id });
+        } else if (node.kind !== 'file') {
+          throw Object.assign(new Error('Cannot overwrite directory'), { code: 'E_ISDIR', path: normalized });
+        }
+        node.data = bytes;
+        node.size = bytes.length;
+        node.modified = now();
+        if (opts.mime) node.mime = opts.mime;
+        if (opts.attrib) node.attrib = { ...(node.attrib || {}), ...opts.attrib };
+        emitWatch(existingId ? 'update' : 'create', node);
+        kernel.emit(existingId ? 'fs:update' : 'fs:create', { path: node.path });
+        return toMeta(node);
+      }
+
+      function mkdir(path) {
+        ensureInitialised();
+        const normalizedInput = path.startsWith('::') ? specialPaths.get(path) || path : path;
+        const normalized = pathUtil.normalize(normalizedInput);
+        if (findNode(normalized)) {
+          throw Object.assign(new Error('Path exists'), { code: 'E_EXISTS', path: normalized });
+        }
+        const parentPath = pathUtil.dirname(normalized);
+        const parent = findNode(parentPath);
+        if (!parent || parent.kind !== 'dir') {
+          throw Object.assign(new Error('Parent directory missing'), { code: 'E_NOENT', path: parentPath });
+        }
+        if (parent.readonly) {
+          throw Object.assign(new Error('Directory is read-only'), { code: 'E_DENIED', path: parentPath });
+        }
+        const name = pathUtil.basename(normalized);
+        const node = createNode({ name, kind: 'dir', parentId: parent.id });
+        emitWatch('create', node);
+        kernel.emit('fs:create', { path: node.path });
+        return toMeta(node);
+      }
+
+      function move(src, dst, opts = {}) {
+        ensureInitialised();
+        const sourceNode = findNode(src);
+        if (!sourceNode) {
+          throw Object.assign(new Error('Source not found'), { code: 'E_NOENT', path: src });
+        }
+        const destPathInput = dst.startsWith('::') ? specialPaths.get(dst) || dst : dst;
+        const destNormalized = pathUtil.normalize(destPathInput);
+        const destParentPath = pathUtil.dirname(destNormalized);
+        const destParent = findNode(destParentPath);
+        if (!destParent || destParent.kind !== 'dir') {
+          throw Object.assign(new Error('Destination parent missing'), { code: 'E_NOENT', path: destParentPath });
+        }
+        if (destParent.readonly) {
+          throw Object.assign(new Error('Destination is read-only'), { code: 'E_DENIED', path: destParentPath });
+        }
+        const newName = pathUtil.basename(destNormalized);
+        if (destParent.children && destParent.children.has(newName.toLowerCase()) && !opts.overwrite) {
+          throw Object.assign(new Error('Destination exists'), { code: 'E_EXISTS', path: destNormalized });
+        }
+        const fromPath = sourceNode.path;
+        detachFromParent(sourceNode);
+        sourceNode.name = newName;
+        sourceNode.parentId = destParent.id;
+        attachToParent(sourceNode, destParent);
+        registerPath(sourceNode);
+        emitWatch('move', sourceNode, fromPath);
+        kernel.emit('fs:move', { from: fromPath, to: sourceNode.path });
+        return toMeta(sourceNode);
+      }
+
+      function cloneNode(node, parentId) {
+        const copy = createNode({
+          name: node.name,
+          kind: node.kind,
+          parentId,
+          attrib: node.attrib,
+          mime: node.mime,
+          target: node.target,
+          readonly: node.readonly
+        });
+        copy.created = now();
+        copy.modified = now();
+        if (node.kind === 'file') {
+          copy.data = node.data.slice();
+          copy.size = node.size;
+        }
+        if (node.children) {
+          node.children.forEach((childId) => {
+            const child = nodes.get(childId);
+            cloneNode(child, copy.id);
+          });
+        }
+        registerPath(copy);
+        return copy;
+      }
+
+      function copy(src, dst, opts = {}) {
+        ensureInitialised();
+        const sourceNode = findNode(src);
+        if (!sourceNode) throw Object.assign(new Error('Source not found'), { code: 'E_NOENT', path: src });
+        const destPathInput = dst.startsWith('::') ? specialPaths.get(dst) || dst : dst;
+        const destNormalized = pathUtil.normalize(destPathInput);
+        const destParentPath = pathUtil.dirname(destNormalized);
+        const destParent = findNode(destParentPath);
+        if (!destParent || destParent.kind !== 'dir') {
+          throw Object.assign(new Error('Destination parent missing'), { code: 'E_NOENT', path: destParentPath });
+        }
+        if (destParent.readonly) {
+          throw Object.assign(new Error('Destination is read-only'), { code: 'E_DENIED', path: destParentPath });
+        }
+        const name = pathUtil.basename(destNormalized);
+        if (destParent.children && destParent.children.has(name.toLowerCase()) && !opts.overwrite) {
+          throw Object.assign(new Error('Destination exists'), { code: 'E_EXISTS', path: destNormalized });
+        }
+        const copyNode = cloneNode(sourceNode, destParent.id);
+        copyNode.name = name;
+        registerPath(copyNode);
+        emitWatch('create', copyNode);
+        kernel.emit('fs:create', { path: copyNode.path });
+        return toMeta(copyNode);
+      }
+
+      function remove(path, toRecycleBin = true) {
+        ensureInitialised();
+        const node = findNode(path);
+        if (!node) return;
+        if (node.readonly) {
+          throw Object.assign(new Error('Path is read-only'), { code: 'E_DENIED', path });
+        }
+        const fromPath = node.path;
+        emitWatch('delete', node, fromPath);
+        kernel.emit('fs:delete', { path: fromPath, meta: toMeta(node) });
+        if (node.children) {
+          node.children.forEach((childId) => {
+            const child = nodes.get(childId);
+            remove(child.path, false);
+          });
+        }
+        detachFromParent(node);
+        pathIndex.delete(pathKey(node.path));
+        nodes.delete(node.id);
+      }
+
+      function createShortcut(target, shortcutPath, iconId) {
+        ensureInitialised();
+        const normalizedTarget = target.startsWith('::') ? specialPaths.get(target) || target : target;
+        const destPathInput = shortcutPath.startsWith('::') ? specialPaths.get(shortcutPath) || shortcutPath : shortcutPath;
+        const destNormalized = pathUtil.normalize(destPathInput);
+        const parentPath = pathUtil.dirname(destNormalized);
+        const parent = findNode(parentPath);
+        if (!parent || parent.kind !== 'dir') {
+          throw Object.assign(new Error('Destination parent missing'), { code: 'E_NOENT', path: parentPath });
+        }
+        const name = pathUtil.basename(destNormalized);
+        if (parent.children && parent.children.has(name.toLowerCase())) {
+          throw Object.assign(new Error('Destination exists'), { code: 'E_EXISTS', path: destNormalized });
+        }
+        const node = createNode({ name, kind: 'link', parentId: parent.id });
+        node.target = normalizedTarget;
+        node.icon = iconId;
+        emitWatch('create', node);
+        kernel.emit('fs:create', { path: node.path });
+        return toMeta(node);
+      }
+
+      function resolve(pathOrShortcut) {
+        ensureInitialised();
+        const node = findNode(pathOrShortcut);
+        if (!node) return pathOrShortcut;
+        if (node.kind === 'link' && node.target) {
+          return pathUtil.normalize(node.target);
+        }
+        return node.path;
+      }
+
+      function search(opts = {}) {
+        ensureInitialised();
+        const startNode = opts.path ? findNode(opts.path) : findNode('C:\\');
+        if (!startNode) return [];
+        const queue = [startNode];
+        const results = [];
+        const namePattern = opts.namePattern ? new RegExp('^' + opts.namePattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i') : null;
+        while (queue.length) {
+          const node = queue.shift();
+          if (node !== startNode && node.kind === 'file') {
+            let matches = true;
+            if (namePattern && !namePattern.test(node.name)) {
+              matches = false;
+            }
+            if (opts.exts && opts.exts.length && !opts.exts.includes(pathUtil.extname(node.name))) {
+              matches = false;
+            }
+            if (matches) {
+              results.push(toMeta(node));
+              if (opts.maxResults && results.length >= opts.maxResults) break;
+            }
+          }
+          if (node.children && (opts.recursive !== false || node === startNode)) {
+            node.children.forEach((childId) => {
+              const child = nodes.get(childId);
+              if (child && child.kind === 'dir') queue.push(child);
+              else if (child) queue.push(child);
+            });
+          }
+        }
+        return results;
+      }
+
+      function watch(pathOrRoot, cb) {
+        ensureInitialised();
+        const key = pathOrRoot === '::all'
+          ? '::all'
+          : pathKey((pathOrRoot && pathOrRoot.startsWith('::')) ? (specialPaths.get(pathOrRoot) || pathOrRoot) : pathUtil.normalize(pathOrRoot));
+        if (!watchers.has(key)) {
+          watchers.set(key, new Set());
+        }
+        watchers.get(key).add(cb);
+        return () => {
+          if (!watchers.has(key)) return;
+          watchers.get(key).delete(cb);
+        };
+      }
+
+      function download(path) {
+        ensureInitialised();
+        if (typeof document === 'undefined') return;
+        read(path, 'bytes').then((bytes) => {
+          const meta = stat(path);
+          const blob = new Blob([bytes], { type: meta?.mime || 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = meta?.name || 'download.bin';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      }
+
+      function init() {
+        nodes.clear();
+        pathIndex.clear();
+        specialPaths.clear();
+
+        const drives = ['A', 'C', 'D', 'N'];
+        drives.forEach((driveLetter) => {
+          const root = {
+            id: kernel.uid('fs'),
+            kind: 'dir',
+            name: `${driveLetter}:`,
+            parentId: null,
+            drive: driveLetter,
+            children: new Map(),
+            size: 0,
+            created: now(),
+            modified: now(),
+            attrib: driveLetter === 'D' || driveLetter === 'N' ? { R: true } : undefined,
+            mime: undefined,
+            target: undefined,
+            readonly: driveLetter === 'D' || driveLetter === 'N',
+            data: null,
+            path: `${driveLetter}:\\`
+          };
+          nodes.set(root.id, root);
+          pathIndex.set(pathKey(root.path), root.id);
+        });
+
+        const desktop = ensureDir('C:\\Desktop');
+        const docs = ensureDir('C:\\Documents');
+        const system = ensureDir('C:\\System');
+        const printers = ensureDir('C:\\System\\Printers');
+        const controlPanel = ensureDir('C:\\System\\Control Panel');
+        const recycle = ensureDir('C:\\Recycle Bin');
+
+        specialPaths.set('::desktop', desktop.path);
+        specialPaths.set('::documents', docs.path);
+        specialPaths.set('::controlpanel', controlPanel.path);
+        specialPaths.set('::printers', printers.path);
+        specialPaths.set('::recyclebin', recycle.path);
+        specialPaths.set('::network', 'N:\\');
+
+        initialised = true;
+      }
+
+      function reset() {
+        initialised = false;
+        nodes.clear();
+        pathIndex.clear();
+        specialPaths.clear();
+      }
+
+      return Object.freeze({
+        init,
+        reset,
+        stat,
+        exists,
+        list,
+        read,
+        write,
+        mkdir,
+        move,
+        copy,
+        remove,
+        createShortcut,
+        resolve,
+        search,
+        watch,
+        download,
+        special: Object.freeze({
+          desktop: '::desktop',
+          controlPanel: '::controlpanel',
+          printers: '::printers',
+          recycleBin: '::recyclebin',
+          network: '::network',
+          documents: '::documents'
+        })
+      });
+    });
+
+    define('app/explorer', ['svc/window', 'svc/vfs', 'util/path'], function (windowSvc, vfs, pathUtil) {
+      function createTreeItem(label, path, currentPath, onSelect) {
+        const item = document.createElement('div');
+        item.className = 'explorer__tree-item';
+        item.textContent = label;
+        item.dataset.path = path;
+        const candidate = path.startsWith('::') ? vfs.resolve(path) : path;
+        if (pathUtil.normalize(candidate) === pathUtil.normalize(currentPath)) {
+          item.dataset.active = 'true';
+        }
+        item.addEventListener('click', () => onSelect(path));
+        return item;
+      }
+
+      function renderTree(sidebar, currentPath, onSelect) {
+        sidebar.innerHTML = '';
+        const items = [
+          { label: 'Desktop', path: vfs.special.desktop },
+          { label: 'Documents', path: vfs.special.documents },
+          { label: 'C:\\', path: 'C:\\' },
+          { label: 'A:\\ (Floppy)', path: 'A:\\' },
+          { label: 'D:\\ (CD-ROM)', path: 'D:\\' },
+          { label: 'Network', path: vfs.special.network }
+        ];
+        items.forEach((entry) => {
+          const node = createTreeItem(entry.label, entry.path, currentPath, onSelect);
+          sidebar.appendChild(node);
+        });
+      }
+
+      function formatSize(bytes) {
+        if (bytes == null) return '';
+        if (bytes < 1024) return `${bytes} bytes`;
+        const kb = bytes / 1024;
+        if (kb < 1024) return `${kb.toFixed(1)} KB`;
+        const mb = kb / 1024;
+        return `${mb.toFixed(1)} MB`;
+      }
+
+      function createListRow(meta, onOpen, onSelect, isParent) {
+        const tr = document.createElement('tr');
+        tr.dataset.path = meta.path;
+        if (isParent) tr.dataset.parent = 'true';
+        const nameCell = document.createElement('td');
+        nameCell.textContent = meta.name;
+        const typeCell = document.createElement('td');
+        typeCell.textContent = meta.kind === 'dir' ? 'Folder' : (meta.ext || 'File');
+        const sizeCell = document.createElement('td');
+        sizeCell.textContent = meta.kind === 'file' ? formatSize(meta.size) : '';
+        tr.appendChild(nameCell);
+        tr.appendChild(typeCell);
+        tr.appendChild(sizeCell);
+        tr.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          onSelect(meta.path, tr);
+        });
+        tr.addEventListener('dblclick', (ev) => {
+          ev.preventDefault();
+          onOpen(meta, tr.dataset.parent === 'true');
+        });
+        return tr;
+      }
+
+      function explorerWindow(opts = {}) {
+        const resolved = vfs.resolve(opts.path || vfs.special.desktop);
+        let currentPath = resolved;
+        const container = document.createElement('div');
+        container.className = 'explorer';
+
+        const sidebar = document.createElement('div');
+        sidebar.className = 'explorer__sidebar';
+        const content = document.createElement('div');
+        content.className = 'explorer__content';
+        const toolbar = document.createElement('div');
+        toolbar.className = 'explorer__toolbar';
+        const list = document.createElement('div');
+        list.className = 'explorer__list';
+        const status = document.createElement('div');
+        status.className = 'explorer__status';
+
+        container.appendChild(sidebar);
+        container.appendChild(content);
+        content.appendChild(toolbar);
+        content.appendChild(list);
+        content.appendChild(status);
+
+        const btnNewFolder = document.createElement('button');
+        btnNewFolder.textContent = 'New Folder';
+        const btnNewText = document.createElement('button');
+        btnNewText.textContent = 'New Text Document';
+        const btnDelete = document.createElement('button');
+        btnDelete.textContent = 'Delete';
+
+        toolbar.appendChild(btnNewFolder);
+        toolbar.appendChild(btnNewText);
+        toolbar.appendChild(btnDelete);
+
+        let selectedPath = null;
+        let unwatch = null;
+
+        function updateStatus(text) {
+          status.textContent = text;
+        }
+
+        function clearSelection() {
+          selectedPath = null;
+          list.querySelectorAll('tr[data-selected="true"]').forEach((row) => {
+            row.dataset.selected = 'false';
+            row.removeAttribute('data-selected');
+          });
+        }
+
+        function selectRow(path, row) {
+          clearSelection();
+          selectedPath = path;
+          row.dataset.selected = 'true';
+        }
+
+        function openPath(path) {
+          currentPath = vfs.resolve(path);
+          refresh();
+        }
+
+        function createUniqueName(baseName, ext = '') {
+          const existing = new Set(vfs.list(currentPath).map((meta) => meta.name.toLowerCase()));
+          let name = `${baseName}${ext}`;
+          if (!existing.has(name.toLowerCase())) return name;
+          let counter = 2;
+          while (existing.has(`${baseName} (${counter})${ext}`.toLowerCase())) {
+            counter += 1;
+          }
+          return `${baseName} (${counter})${ext}`;
+        }
+
+        btnNewFolder.addEventListener('click', () => {
+          try {
+            const name = createUniqueName('New Folder');
+            vfs.mkdir(pathUtil.join(currentPath, name));
+          } catch (err) {
+            console.error(err);
+          }
+        });
+
+        btnNewText.addEventListener('click', async () => {
+          const name = createUniqueName('New Text Document', '.txt');
+          await vfs.write(pathUtil.join(currentPath, name), '');
+        });
+
+        btnDelete.addEventListener('click', () => {
+          if (!selectedPath) return;
+          try {
+            vfs.remove(selectedPath, false);
+            selectedPath = null;
+          } catch (err) {
+            console.error(err);
+          }
+        });
+
+        function refresh() {
+          renderTree(sidebar, currentPath, openPath);
+          if (unwatch) {
+            unwatch();
+          }
+          unwatch = vfs.watch(currentPath, () => refreshList());
+          refreshList();
+        }
+
+        function refreshList() {
+          const table = document.createElement('table');
+          const thead = document.createElement('thead');
+          const headerRow = document.createElement('tr');
+          ['Name', 'Type', 'Size'].forEach((label) => {
+            const th = document.createElement('th');
+            th.textContent = label;
+            headerRow.appendChild(th);
+          });
+          thead.appendChild(headerRow);
+          table.appendChild(thead);
+          const tbody = document.createElement('tbody');
+
+          const currentMeta = vfs.stat(currentPath);
+          const parentPath = currentMeta ? pathUtil.dirname(currentMeta.path) : currentPath;
+          if (parentPath && parentPath !== currentMeta.path) {
+            const meta = { path: parentPath, name: '..', kind: 'dir', ext: '', size: 0 };
+            const row = createListRow(meta, () => openPath(parentPath), () => {}, true);
+            tbody.appendChild(row);
+          }
+
+          const entries = vfs.list(currentPath, { showHidden: false });
+          entries.forEach((meta) => {
+            const row = createListRow(meta, (entryMeta, isParent) => {
+              if (entryMeta.kind === 'dir') {
+                openPath(entryMeta.path);
+              }
+            }, (path, rowEl) => selectRow(path, rowEl));
+            tbody.appendChild(row);
+          });
+
+          table.appendChild(tbody);
+          list.innerHTML = '';
+          list.appendChild(table);
+          updateStatus(`${entries.length} item(s)`);
+        }
+
+        container.addEventListener('click', () => clearSelection());
+
+        renderTree(sidebar, currentPath, openPath);
+        unwatch = vfs.watch(currentPath, () => refreshList());
+        refreshList();
+
+        const win = windowSvc.create({
+          title: opts.title || 'Explorer',
+          width: opts.width || 520,
+          height: opts.height || 360,
+          content: container
+        });
+
+        const originalClose = win.close;
+        win.close = () => {
+          if (unwatch) unwatch();
+          return originalClose();
+        };
+
+        return win;
+      }
+
+      return Object.freeze({ launch: explorerWindow });
+    });
   </script>
   <script id="boot">
     (function () {
@@ -1116,11 +2121,13 @@
         }
       }
 
-      ready(function () {
+      ready(async function () {
         const kernel = require('core/kernel');
         const settings = require('svc/settings');
         const display = require('svc/display');
         const windowSvc = require('svc/window');
+        const vfs = require('svc/vfs');
+        const explorer = require('app/explorer');
 
         display.init({
           crt: document.getElementById('crt'),
@@ -1143,30 +2150,22 @@
           }
         });
 
-        // Demo windows for phase 1 visual verification
-        const win1 = windowSvc.create({
-          title: 'Welcome',
-          x: 120,
-          y: 120,
-          width: 360,
-          height: 240,
-          content: '<div style="padding:12px;font-family:inherit;font-size:13px;">Phase 1 window manager online.<br>Use Alt+` to switch windows.</div>'
-        });
-        const win2 = windowSvc.create({
-          title: 'Settings Placeholder',
-          x: 320,
-          y: 220,
-          width: 320,
-          height: 200,
-          content: '<div style="padding:12px;font-family:inherit;font-size:13px;">Scaling mode: <strong>'+settings.get('display.mode')+'</strong></div>'
-        });
-        win2.focus();
+        vfs.reset();
+        vfs.init();
+        await Promise.all([
+          vfs.write('C:\\Documents\\Welcome.txt', 'Welcome to Win95Sim. This document lives entirely in memory.'),
+          vfs.mkdir('C:\\Desktop\\Projects').catch(() => null),
+          vfs.write('C:\\Desktop\\Projects\\todo.txt', '• Build Explorer\n• Celebrate phase 2')
+        ]);
+
+        explorer.launch({ path: vfs.special.desktop, width: 600, height: 400 });
 
         document.getElementById('boot-splash').style.display = 'none';
 
         window.__win95TestApi = {
-          services: { kernel, settings, display, window: windowSvc },
-          reset() {
+          services: { kernel, settings, display, window: windowSvc, vfs },
+          explorer,
+          async reset() {
             document.getElementById('desktop-root').innerHTML = '';
             windowSvc.init({
               desktop: document.getElementById('desktop-root'),
@@ -1182,6 +2181,8 @@
                 return frag.firstElementChild;
               }
             });
+            vfs.reset();
+            vfs.init();
           }
         };
       });

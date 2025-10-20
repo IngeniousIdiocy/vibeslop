@@ -14,6 +14,8 @@ The simulator ships in ten phases. Each phase includes engineering tasks, automa
 - **Automation**: Unit tests covering path normalization, shortcut resolution, search wildcard matching, recycle bin restore/delete; Playwright scenario creating, moving, deleting files/folders; visual snapshots for Explorer (icons, details views).
 - **Manual QA**: Drag/drop with modifiers, rubber-band selection, context menus, special folders (Desktop, Control Panel, Printers, Network), error dialogs.
 
+_Current delivery_: Phase 2 initial drop includes the VFS core (drives, special folders, path normalization, watchers, move/copy/remove, search) and an Explorer app with tree/list navigation, new folder/text document commands, and delete. Icon registry, recycle bin workflow, context menus, and dialog polish remain on the backlog for follow-up iterations within this phase.
+
 ## Phase 3 – Desktop, Taskbar, Start
 - Finish desktop icon surface, taskbar with task buttons, Start menu hierarchy, tray clock, recent documents integration.
 - **Automation**: Playwright regression verifying Start menu navigation, task button activation, clock ticking, recent document entries; visual snapshots for desktop idle, Start open, taskbar with minimized windows.

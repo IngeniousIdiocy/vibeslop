@@ -67,6 +67,13 @@ All assets, code, and templates are embedded inline. Build tooling may generate 
 
 Each layer depends only on lower layers. Services expose locked APIs (see `module-apis-v1.md`). Applications consume services via the `AppContext` object.
 
+### Implemented to date (Phase 1–2)
+
+- **Kernel / Settings / Display / Window Manager** – Provide the desktop viewport, scaling controls, window chrome (move/resize/min/max), system menu, and in-sim Alt+` task switcher.
+- **Virtual File System (`svc/vfs`)** – In-memory drive tree (A:, C:, D:, N:), special folder aliases, shortcut/link nodes, search, move/copy semantics, and watcher notifications (`fs:create`, `fs:update`, `fs:delete`, `fs:move`).
+- **Explorer (`app/explorer`)** – Uses the window service directly to render a sidebar tree (Desktop, Documents, drives) and a list view with live refresh, new folder/text document actions, delete, keyboard navigation, and parent traversal.
+- **Boot Flow Enhancements** – Seeds sample documents under `C:\Documents` and `C:\Desktop\Projects`, then launches Explorer pointed at the desktop after services initialize.
+
 ## Boot Flow
 1. Display boot splash while scripts parse.
 2. Load SFM, register third-party libraries as modules.
@@ -74,6 +81,7 @@ Each layer depends only on lower layers. Services expose locked APIs (see `modul
 4. Mount shell (desktop, taskbar, start).
 5. Register applications with `svc/process`.
 6. Seed VFS with default structure, sample files, printers, wallpapers.
+   - *Phase 2*: Boot seeding writes `Welcome.txt` in Documents and a `todo.txt` inside `Desktop\Projects`, then opens Explorer.
 7. Play startup sound after user gesture and reveal desktop.
 
 ## Runtime Interaction

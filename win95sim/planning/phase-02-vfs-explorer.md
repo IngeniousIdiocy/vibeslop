@@ -12,6 +12,12 @@
 4. Recycle bin semantics: delete to bin, restore, empty.
 5. File import/export hooks (input type="file", download) with placeholder UI for later improvements.
 
+### Status – 2024-Phase2 Drop
+- ✅ `svc/vfs` core (drives, special folders, shortcuts, search, move/copy/remove, watchers) implemented alongside supporting `util/path` helpers.
+- ✅ Explorer window launched from boot with sidebar tree, list view, new folder/text document, delete, parent navigation, live refresh.
+- ✅ Node-based unit coverage added in `tests/phase2.test.js` for path normalization, file CRUD, move/copy, watchers, and search.
+- ⚠️ Remaining work: recycle bin UX, icon registry/file type presentation, context menus, drag/drop modifiers, properties dialog, import/export UI, process registration, integration/visual tests.
+
 ## Engineering Tasks
 - Implement tree data structure with metadata store and binary/blob handling for files.
 - Implement watchers broadcasting changes to Explorer/desktop.
@@ -22,7 +28,7 @@
 - Integrate Recycle Bin UI with confirm/restore/empty actions.
 
 ## Testing
-- **Unit**: VFS path normalization, mkdir/write/read/move/copy/remove, shortcut resolution, recycle bin metadata, search filters.
+- **Unit**: VFS path normalization, mkdir/write/read/move/copy/remove, shortcut resolution, recycle bin metadata, search filters. *(Initial subset implemented via `tests/phase2.test.js` covering normalization, CRUD, watchers, search.)*
 - **Integration**: Playwright scenario creating nested folders, renaming, dragging between panes, deleting/restoring; verify watchers update desktop icons.
 - **Visual**: Snapshots for Explorer large icons, details view, properties dialog.
 - **Performance**: Automated test generating 10k files and measuring list virtualization frame time.

@@ -8,7 +8,7 @@
 ## Test Layers
 1. **Unit Tests (Node + JSDOM)**
    - Target pure logic modules: `core/kernel`, `svc/settings`, `svc/vfs`, `util/path`, `util/bitmap`, command parsers, printer queues.
-   - Execute via Node test runner (e.g., Vitest or Jest configured for single-file modules) using a harness that loads the bundled script and exposes the SFM registry.
+   - Execute via Node test runner (currently `node --test` harnesses in `tests/phase1.test.js` and `tests/phase2.test.js`) using a helper that loads the bundled script and exposes the SFM registry.
    - Fast feedback (<2 minutes) suitable for pre-commit hooks and CI.
 
 2. **Integration Tests (Playwright)**
