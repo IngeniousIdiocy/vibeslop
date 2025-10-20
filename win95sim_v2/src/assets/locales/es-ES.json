@@ -1,0 +1,9 @@
+{
+  "locale": "es-ES",
+  "direction": "ltr",
+  "messages": {
+    "desktop.title": "Mi PC",
+    "menu.file": "Archivo",
+    "menu.edit": "Editar"
+  }
+}
