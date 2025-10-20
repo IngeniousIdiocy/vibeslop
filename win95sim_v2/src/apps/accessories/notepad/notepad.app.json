@@ -1,0 +1,12 @@
+{
+  "id": "apps/notepad",
+  "name": "Notepad",
+  "entry": "./index.ts",
+  "icon": "./icons/notepad.png",
+  "permissions": ["filesystem.read", "filesystem.write", "print.spool"],
+  "fileAssociations": [".txt", ".log"],
+  "startMenu": {
+    "path": ["Programs", "Accessories"],
+    "label": "Notepad"
+  }
+}
