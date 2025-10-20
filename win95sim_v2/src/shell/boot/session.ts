@@ -3,6 +3,7 @@ import { createEventBus } from '@core/kernel/eventBus';
 import { createSettingsService } from '@services/settings';
 import { createDisplayService } from '@services/display';
 import { createWindowService, WindowDescriptor } from '@services/window';
+import { createDiagnosticsService } from '@services/diagnostics';
 import { createWindowManager } from '@apps/shell/window-manager';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
@@ -21,11 +22,13 @@ export function createShellSession(): ShellSession {
   const display = createDisplayService();
   const windows = createWindowService();
   const windowManager = createWindowManager({ display, windows, bus });
+  const diagnostics = createDiagnosticsService({ settings });
 
   registry.register({ id: 'services/settings', version: '2.0.0', factory: () => settings });
   registry.register({ id: 'services/display', version: '2.0.0', factory: () => display });
   registry.register({ id: 'services/windows', version: '2.0.0', factory: () => windows });
   registry.register({ id: 'apps/window-manager', version: '2.0.0', factory: () => windowManager });
+  registry.register({ id: 'services/diagnostics', version: '2.0.0', factory: () => diagnostics });
   registry.register({ id: 'shell/session', version: '2.0.0', factory: () => ({ bus, registry }) });
 
   let viewport: ReturnType<typeof createCrtViewport> | undefined;

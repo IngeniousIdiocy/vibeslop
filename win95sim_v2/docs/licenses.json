@@ -1,0 +1,20 @@
+{
+  "project": {
+    "name": "Win95Sim V2",
+    "license": "MIT",
+    "homepage": "https://github.com/vibeslop/win95sim_v2",
+    "copyright": "Copyright (c) 2024"
+  },
+  "dependencies": [
+    {
+      "name": "esbuild",
+      "license": "MIT",
+      "homepage": "https://esbuild.github.io"
+    },
+    {
+      "name": "TypeScript",
+      "license": "Apache-2.0",
+      "homepage": "https://www.typescriptlang.org/"
+    }
+  ]
+}
