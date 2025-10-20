@@ -1,0 +1,14 @@
+phase,module,win95-feature,status,notes
+01,shell/desktop,Desktop icons,planned,Requires filesystem stubs to surface shortcuts
+01,features/window-chrome,Resizable overlapping windows,planned,Implements via registry + CSS tokens
+01,core/runtime,Multitasking scheduler,planned,Stub process service for now
+02,apps/explorer,Explorer tree + details view,planned,Depends on filesystem service
+03,apps/command-shell,MS-DOS prompt emulation,planned,Interop with process service events
+04,features/dialogs,Common dialog framework,planned,Reuses window chrome API
+04,apps/notepad,Plain-text editor with menu accelerators,planned,Consumes dialogs + filesystem write access
+05,apps/navigator,IE-like browsing experience,planned,Requires networking service and sandboxed rendering
+06,apps/paint,Bitmap editing tools,planned,Uses media service for palette handling
+07,apps/games,Classic games suite,planned,Leverages shared window chrome + audio assets
+08,apps/control-panel,Category-based settings,planned,Needs device service API
+09,ui/accessibility,High-contrast + screen reader support,planned,Expands CSS tokens and focus handling
+10,tools/release,Offline package + checksum,planned,Bundles dist/ for distribution
