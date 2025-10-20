@@ -13,15 +13,18 @@
               "id": "programs/accessories/notepad",
               "label": "Notepad",
               "type": "command",
-              "command": "shell:start:notepad"
+              "command": "shell:start:notepad",
+              "icon": "icons/notepad.ico"
             },
             {
               "id": "programs/accessories/paint",
               "label": "Paint",
               "type": "command",
-              "command": "shell:start:paint"
+              "command": "shell:start:paint",
+              "icon": "icons/tools.ico"
             }
-          ]
+          ],
+          "icon": "icons/folder_open.ico"
         },
         {
           "id": "programs/games",
@@ -32,16 +35,20 @@
               "id": "programs/games/minesweeper",
               "label": "Minesweeper",
               "type": "command",
-              "command": "shell:start:minesweeper"
+              "command": "shell:start:minesweeper",
+              "icon": "icons/program.ico"
             }
-          ]
+          ],
+          "icon": "icons/folder_open.ico"
         }
-      ]
+      ],
+      "icon": "icons/folder_open.ico"
     },
     {
       "id": "documents",
       "label": "Documents",
-      "items": []
+      "items": [],
+      "icon": "icons/text_file.ico"
     },
     {
       "id": "settings",
@@ -51,15 +58,18 @@
           "id": "settings/control-panel",
           "label": "Control Panel",
           "type": "command",
-          "command": "shell:start:control-panel"
+          "command": "shell:start:control-panel",
+          "icon": "icons/tools.ico"
         },
         {
           "id": "settings/taskbar",
           "label": "Taskbar & Start Menu...",
           "type": "command",
-          "command": "shell:start:taskbar-settings"
+          "command": "shell:start:taskbar-settings",
+          "icon": "icons/tools.ico"
         }
-      ]
+      ],
+      "icon": "icons/tools.ico"
     },
     {
       "id": "find",
@@ -69,9 +79,11 @@
           "id": "find/files",
           "label": "Files or Folders...",
           "type": "command",
-          "command": "shell:start:find-files"
+          "command": "shell:start:find-files",
+          "icon": "icons/search.ico"
         }
-      ]
+      ],
+      "icon": "icons/search.ico"
     },
     {
       "id": "help",
@@ -81,9 +93,11 @@
           "id": "help/windows-help",
           "label": "Windows Help",
           "type": "command",
-          "command": "shell:start:help"
+          "command": "shell:start:help",
+          "icon": "icons/world.ico"
         }
-      ]
+      ],
+      "icon": "icons/world.ico"
     },
     {
       "id": "run",
@@ -93,9 +107,11 @@
           "id": "run/command",
           "label": "Run",
           "type": "command",
-          "command": "shell:start:run"
+          "command": "shell:start:run",
+          "icon": "icons/program.ico"
         }
-      ]
+      ],
+      "icon": "icons/program.ico"
     },
     {
       "id": "shutdown",
@@ -105,9 +121,11 @@
           "id": "shutdown/system",
           "label": "Shut Down",
           "type": "command",
-          "command": "shell:start:shutdown"
+          "command": "shell:start:shutdown",
+          "icon": "icons/program.ico"
         }
-      ]
+      ],
+      "icon": "icons/program.ico"
     }
   ]
 }

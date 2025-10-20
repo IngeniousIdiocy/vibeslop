@@ -10,14 +10,25 @@ declare global {
 export function boot() {
   const session = createShellSession();
   if (typeof document !== 'undefined') {
-    session.mount(document.body);
+    const root = (document.body ?? document.documentElement) as HTMLElement | null;
+    if (root) {
+      session.mount(root);
+    }
   }
-  window.win95sim = session;
+  if (typeof window !== 'undefined') {
+    window.win95sim = session;
+  }
   return session;
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('DOMContentLoaded', () => {
-    boot();
-  });
+function startSession() {
+  boot();
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', startSession, { once: true });
+  } else {
+    startSession();
+  }
 }

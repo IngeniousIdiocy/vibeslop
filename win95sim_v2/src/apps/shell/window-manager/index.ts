@@ -30,6 +30,7 @@ function mergeBounds(bounds: WindowBounds, updates: Partial<WindowBounds>): Wind
 
 export function createWindowManager(options: WindowManagerOptions): WindowManager {
   const { display, windows, bus } = options;
+  const previousBounds = new Map<string, WindowBounds>();
 
   function emitSessionEvent(type: string, descriptor: WindowDescriptor) {
     bus.emit(type, {
@@ -41,6 +42,7 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
   return {
     createWindow(descriptor) {
       const created = windows.create(descriptor);
+      previousBounds.delete(created.id);
       emitSessionEvent('window-manager:created', created);
       return created;
     },
@@ -74,12 +76,42 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
       return record;
     },
     maximizeWindow(id) {
-      const record = windows.update(id, { state: 'maximized' });
-      emitSessionEvent('window-manager:maximized', record);
-      return record;
+      const current = windows.get(id);
+      if (!current) {
+        throw new Error(`Unknown window ${id}`);
+      }
+
+      if (current.state !== 'maximized') {
+        previousBounds.set(id, { ...current.bounds });
+      }
+
+      const { width, height } = display.getState();
+      const record = windows.update(id, {
+        state: 'maximized',
+        bounds: {
+          x: 0,
+          y: 0,
+          width,
+          height,
+        },
+      });
+      const focused = windows.focus(id) ?? record;
+      emitSessionEvent('window-manager:maximized', focused);
+      return focused;
     },
     restoreWindow(id) {
-      const record = windows.update(id, { state: 'normal' });
+      const current = windows.get(id);
+      if (!current) {
+        throw new Error(`Unknown window ${id}`);
+      }
+
+      const previous = previousBounds.get(id) ?? current.bounds;
+      previousBounds.delete(id);
+
+      const record = windows.update(id, {
+        state: 'normal',
+        bounds: { ...previous },
+      });
       const focused = windows.focus(id) ?? record;
       emitSessionEvent('window-manager:restored', focused);
       return focused;
@@ -89,6 +121,7 @@ export function createWindowManager(options: WindowManagerOptions): WindowManage
       if (record) {
         emitSessionEvent('window-manager:closed', record);
       }
+      previousBounds.delete(id);
       windows.remove(id);
     },
     listWindows() {

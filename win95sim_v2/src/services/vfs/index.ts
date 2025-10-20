@@ -121,12 +121,17 @@ function createShortcutNode(path: string, target: string, metadata?: Record<stri
   };
 }
 
-interface SerializedNode {
+interface InternalSerializedNode {
   node: InternalNode;
-  children: SerializedNode[];
+  children: InternalSerializedNode[];
 }
 
-function serializeTree(node: InternalNode, getChildren: (path: string) => InternalNode[]): SerializedNode {
+interface PublicSerializedNode {
+  node: VfsNode;
+  children: PublicSerializedNode[];
+}
+
+function serializeTree(node: InternalNode, getChildren: (path: string) => InternalNode[]): InternalSerializedNode {
   return {
     node: toInternalClone(node),
     children: node.kind === 'directory' ? getChildren(node.path).map((child) => serializeTree(child, getChildren)) : [],
@@ -152,12 +157,52 @@ function toInternalClone(node: InternalNode): InternalNode {
   return { ...node };
 }
 
-function flattenSerialized(node: SerializedNode): InternalNode[] {
+function flattenSerialized(node: InternalSerializedNode): InternalNode[] {
   const result: InternalNode[] = [toInternalClone(node.node)];
   node.children.forEach((child) => {
     result.push(...flattenSerialized(child));
   });
   return result;
+}
+
+function toPublicSerialized(node: InternalSerializedNode): PublicSerializedNode {
+  return {
+    node: toPublic(node.node, true),
+    children: node.children.map(toPublicSerialized),
+  };
+}
+
+function toInternal(node: VfsNode): InternalNode {
+  if (node.kind === 'directory') {
+    return {
+      ...node,
+      icon: node.icon ?? lookupIcon('directory'),
+      children: [...node.children],
+    };
+  }
+
+  if (node.kind === 'file') {
+    const encoding: 'binary' | 'text' = node.textContent !== undefined ? 'text' : 'binary';
+    return {
+      ...node,
+      icon: node.icon ?? lookupIcon(lookupMime(node.path).icon),
+      content: new Uint8Array(node.content),
+      textContent: node.textContent,
+      encoding,
+    };
+  }
+
+  return {
+    ...node,
+    icon: node.icon ?? lookupIcon('shortcut'),
+  };
+}
+
+function toInternalSerialized(node: PublicSerializedNode): InternalSerializedNode {
+  return {
+    node: toInternal(node.node),
+    children: node.children.map(toInternalSerialized),
+  };
 }
 
 export function createVfsService(options: CreateVfsServiceOptions = {}): VfsService {
@@ -237,7 +282,7 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
     return node;
   }
 
-  function hydrateTree(tree: SerializedNode) {
+  function hydrateTree(tree: InternalSerializedNode) {
     const flat = flattenSerialized(tree).sort((a, b) => comparePathDepth(a.path, b.path));
     flat.forEach((node) => {
       if (node.kind === 'directory') {
@@ -407,7 +452,7 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
       return entry.children.map((child) => nodes.get(child)!).filter(Boolean);
     });
 
-    const entry = capture({ tree: serialized, originalPath: normalized });
+    const entry = capture({ tree: toPublicSerialized(serialized), originalPath: normalized });
     removeNode(normalized);
     emit('deleted', node);
     bus.emit('vfs:recycle-bin', entry);
@@ -485,8 +530,9 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
       throw new Error(`Recycle Bin entry ${id} not found`);
     }
 
-    const flattened = flattenSerialized(tree).map((entry) => entry.path);
-    hydrateTree(tree);
+    const internalTree = toInternalSerialized(tree);
+    const flattened = flattenSerialized(internalTree).map((entry) => entry.path);
+    hydrateTree(internalTree);
     return flattened.map((path) => {
       const entry = nodes.get(path)!;
       emit('restored', entry);

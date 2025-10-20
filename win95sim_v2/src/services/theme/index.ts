@@ -52,22 +52,61 @@ export interface ThemeService {
 
 const builtinThemes: ThemeDefinition[] = [classicTheme, highContrastTheme];
 
+type StyleTarget = CSSStyleDeclaration | Record<string, string>;
+type DatasetTarget = DOMStringMap | Record<string, string>;
+
+interface ElementLike {
+  style?: StyleTarget;
+  dataset?: DatasetTarget;
+  toggleAttribute?: (name: string, force?: boolean) => void;
+}
+
 type DocumentLike = {
-  documentElement?: {
-    style?: Record<string, string>;
-    dataset?: Record<string, string>;
-    toggleAttribute?: (name: string, force?: boolean) => void;
-  };
-  body?: {
-    style?: Record<string, string>;
-    dataset?: Record<string, string>;
-    toggleAttribute?: (name: string, force?: boolean) => void;
-  };
+  documentElement?: ElementLike;
+  body?: ElementLike;
 };
 
 export function createCssVariableThemeHost(
-  doc: DocumentLike | undefined = typeof document !== 'undefined' ? (document as DocumentLike) : undefined,
+  doc: DocumentLike | undefined = typeof document !== 'undefined' ? (document as unknown as DocumentLike) : undefined,
 ): ThemeHost {
+  function applyTokens(target: StyleTarget | undefined, tokens: Record<string, string>) {
+    if (!target) {
+      return;
+    }
+
+    if (typeof (target as CSSStyleDeclaration).setProperty === 'function') {
+      const css = target as CSSStyleDeclaration;
+      Object.entries(tokens).forEach(([name, value]) => {
+        css.setProperty(name, value);
+      });
+      return;
+    }
+
+    const map = (target as Record<string, string>) ?? {};
+    Object.entries(tokens).forEach(([name, value]) => {
+      map[name] = value;
+    });
+  }
+
+  function applyDataset(dataset: DatasetTarget | undefined, theme: ThemeDefinition, context: ThemeHostContext) {
+    if (!dataset) {
+      return;
+    }
+
+    dataset.theme = theme.id;
+    if (theme.metadata?.highContrast) {
+      dataset.themeContrast = 'high';
+    } else {
+      delete dataset.themeContrast;
+    }
+
+    if (context.reducedMotion) {
+      dataset.reducedMotion = 'true';
+    } else {
+      delete dataset.reducedMotion;
+    }
+  }
+
   return {
     apply(theme, tokens, context) {
       if (!doc) {
@@ -88,27 +127,13 @@ export function createCssVariableThemeHost(
 
       if (typeof root.toggleAttribute === 'function') {
         root.toggleAttribute('data-reduced-motion', context.reducedMotion);
-      } else if (root.dataset) {
-        if (context.reducedMotion) {
-          root.dataset.reducedMotion = 'true';
-        } else {
-          delete root.dataset.reducedMotion;
-        }
       }
 
-      if (root.dataset) {
-        root.dataset.theme = theme.id;
-        if (theme.metadata?.highContrast) {
-          root.dataset.themeContrast = 'high';
-        } else {
-          delete root.dataset.themeContrast;
-        }
+      applyDataset(root.dataset, theme, context);
+      if (!root.style) {
+        root.style = {};
       }
-
-      const style = root.style ?? (root.style = {} as Record<string, string>);
-      Object.entries(tokens).forEach(([name, value]) => {
-        style[name] = value;
-      });
+      applyTokens(root.style, tokens);
     },
   };
 }

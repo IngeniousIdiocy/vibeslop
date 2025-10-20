@@ -21,12 +21,14 @@ let resolverPatched = false;
 const overrideModules = new Map();
 const overrideDir = path.join(cacheDir, '__overrides');
 
+const tscBin = require.resolve('typescript/bin/tsc');
+
 function ensureCompiled() {
   if (compiled) {
     return;
   }
 
-  const result = spawnSync('npx', ['tsc', '--project', tsconfig], {
+  const result = spawnSync(process.execPath, [tscBin, '--project', tsconfig], {
     cwd: projectRoot,
     stdio: 'pipe',
     encoding: 'utf8',
@@ -35,7 +37,8 @@ function ensureCompiled() {
   if (result.status !== 0) {
     const stderr = result.stderr || '';
     if (/error TS\d+/.test(stderr) || result.status === null) {
-      throw new Error(`TypeScript compilation failed:\n${stderr}`);
+      const details = stderr || (result.error ? `${result.error.message}` : '');
+      throw new Error(`TypeScript compilation failed:\n${details}`.trimEnd());
     }
   }
 

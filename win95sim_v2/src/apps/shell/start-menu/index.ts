@@ -10,12 +10,14 @@ export interface StartMenuManifestItem {
   type?: StartMenuItemType;
   command?: string;
   items?: StartMenuManifestItem[];
+  icon?: string;
 }
 
 export interface StartMenuManifestSection {
   id: string;
   label: string;
   items: StartMenuManifestItem[];
+  icon?: string;
 }
 
 export interface StartMenuManifest {
@@ -51,6 +53,7 @@ function cloneManifest(manifest: StartMenuManifest): StartMenuManifest {
   return {
     sections: manifest.sections.map((section) => ({
       ...section,
+      icon: section.icon,
       items: section.items.map(cloneItem),
     })),
   };
@@ -59,6 +62,7 @@ function cloneManifest(manifest: StartMenuManifest): StartMenuManifest {
 function cloneItem(item: StartMenuManifestItem): StartMenuManifestItem {
   return {
     ...item,
+    icon: item.icon,
     items: item.items?.map(cloneItem),
   };
 }

@@ -27,6 +27,19 @@ export interface PrintJobRequest {
   contentType?: string;
 }
 
+export interface PrintPage {
+  number: number;
+  lines: string[];
+}
+
+export interface TextPrintOptions {
+  documentName: string;
+  text: string;
+  printerId?: string;
+  columns?: number;
+  linesPerPage?: number;
+}
+
 export interface PrintJob {
   id: string;
   printerId: string;
@@ -40,6 +53,7 @@ export interface PrintJob {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
+  pages?: PrintPage[];
 }
 
 export interface PrintSpoolResult {
@@ -74,6 +88,7 @@ export interface PrintService {
   installPrinter(printer: PrinterDefinition): PrinterDefinition;
   removePrinter(id: string): PrinterDefinition | undefined;
   submitJob(request: PrintJobRequest): PrintJob;
+  spoolText(options: TextPrintOptions): PrintJob;
   getJob(id: string): PrintJob | undefined;
   listJobs(printerId?: string): PrintJob[];
   pauseJob(id: string): PrintJob | undefined;

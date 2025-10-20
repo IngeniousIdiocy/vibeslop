@@ -103,11 +103,12 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
   }
 
   function renderBreadcrumbs(path: string) {
-    if (!breadcrumbs) {
+    const host = breadcrumbs;
+    if (!host) {
       return;
     }
 
-    breadcrumbs.innerHTML = '';
+    host.innerHTML = '';
     const segments = path.split('/');
     let accumulator = segments.shift() ?? '';
     const drive = accumulator;
@@ -116,7 +117,7 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
     driveButton.addEventListener('click', () => {
       void setPath(`${drive}/`);
     });
-    breadcrumbs.appendChild(driveButton);
+    host.appendChild(driveButton);
 
     segments.forEach((segment) => {
       if (!segment) {
@@ -128,7 +129,7 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
       crumb.addEventListener('click', () => {
         void setPath(accumulator);
       });
-      breadcrumbs.appendChild(crumb);
+      host.appendChild(crumb);
     });
   }
 

@@ -61,7 +61,8 @@ function coerceToUint8Array(data: ArrayBuffer | Uint8Array | string): Uint8Array
 }
 
 export function createDownloadManager(options: DownloadManagerOptions = {}): DownloadManager {
-  const fetchResource = options.fetchResource ?? (async () => ({ data: new Uint8Array() }));
+  const fetchResource: (request: DownloadRequest) => Promise<DownloadResponse> =
+    options.fetchResource ?? (async () => ({ data: new Uint8Array() }));
   const saveFile = options.saveFile ?? (() => {});
   const idGenerator = options.idGenerator ?? defaultIdGenerator;
 
@@ -123,3 +124,5 @@ export function createDownloadManager(options: DownloadManagerOptions = {}): Dow
     bus,
   };
 }
+
+export default createDownloadManager;

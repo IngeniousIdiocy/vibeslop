@@ -22,15 +22,28 @@ export interface DisplayService {
 }
 
 const DEFAULT_STATE: DisplayState = {
-  width: 640,
-  height: 480,
+  width: 1024,
+  height: 768,
   scalingMode: 'fit',
   integerScale: true,
 };
 
 export function createDisplayService(initial: Partial<DisplayState> = {}): DisplayService {
   let state: DisplayState = { ...DEFAULT_STATE, ...initial };
-  const bus = createEventBus();
+  const busFactory = typeof createEventBus === 'function'
+    ? createEventBus
+    : (() => ({
+        emit() {
+          /* noop fallback */
+        },
+        on() {
+          return () => undefined;
+        },
+        once() {
+          return () => undefined;
+        },
+      })) as () => EventBus;
+  const bus = busFactory();
 
   function emit() {
     bus.emit<DisplayChangeEvent>('display:changed', { state });

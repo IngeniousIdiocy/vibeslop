@@ -1,5 +1,5 @@
 import { EventBus } from '@core/kernel/eventBus';
-import { WindowDescriptor, WindowService } from '@services/window';
+import type { WindowDescriptor, WindowEvent, WindowService } from '@services/window';
 
 export type TaskButtonState = 'active' | 'inactive' | 'minimized';
 
@@ -50,13 +50,13 @@ export function createTaskbarController(options: TaskbarOptions): TaskbarControl
     }
   }
 
-  windows.bus.on('window:created', ({ descriptor }) => {
+  windows.bus.on<WindowEvent>('window:created', ({ descriptor }) => {
     ensureButton(descriptor);
     setActive(descriptor.id);
     bus.emit('taskbar:buttons-changed', listButtons());
   });
 
-  windows.bus.on('window:updated', ({ descriptor }) => {
+  windows.bus.on<WindowEvent>('window:updated', ({ descriptor }) => {
     ensureButton(descriptor);
     const button = buttons.get(descriptor.id);
     if (!button) {
@@ -74,13 +74,13 @@ export function createTaskbarController(options: TaskbarOptions): TaskbarControl
     bus.emit('taskbar:buttons-changed', listButtons());
   });
 
-  windows.bus.on('window:activated', ({ descriptor }) => {
+  windows.bus.on<WindowEvent>('window:activated', ({ descriptor }) => {
     ensureButton(descriptor);
     setActive(descriptor.id);
     bus.emit('taskbar:buttons-changed', listButtons());
   });
 
-  windows.bus.on('window:removed', ({ id }) => {
+  windows.bus.on<WindowEvent>('window:removed', ({ id }) => {
     buttons.delete(id);
     bus.emit('taskbar:buttons-changed', listButtons());
   });

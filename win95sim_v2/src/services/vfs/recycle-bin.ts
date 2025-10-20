@@ -21,7 +21,6 @@ function cloneNode(node: VfsNode): VfsNode {
       ...node,
       content: new Uint8Array(node.content),
       textContent: node.textContent,
-      children: undefined as never,
     };
   }
 

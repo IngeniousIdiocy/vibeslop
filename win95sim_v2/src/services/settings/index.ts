@@ -28,7 +28,7 @@ export function createSettingsService(initialValues: Record<string, SettingValue
       bus.emit<SettingsChangeEvent>('settings:changed', { key, value });
     },
     watch(key, handler) {
-      return bus.on('settings:changed', (event) => {
+      return bus.on<SettingsChangeEvent>('settings:changed', (event) => {
         if (event.key === key) {
           handler(event);
         }

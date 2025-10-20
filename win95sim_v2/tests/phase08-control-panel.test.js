@@ -62,20 +62,20 @@ test('control panel loads applets dynamically', async () => {
   const displaySession = displayApplet.open();
   assert.deepStrictEqual(displaySession.tabs, ['Background', 'Screen Saver', 'Appearance', 'Settings']);
 
-  assert.equal(displaySession.state.applied.width, 640);
-  displaySession.previewResolution(1024, 768);
-  assert.equal(displaySession.state.pending.width, 1024);
-  assert.equal(display.getState().width, 640, 'pending state should not mutate display service');
+  assert.equal(displaySession.state.applied.width, 1024);
+  displaySession.previewResolution(1280, 960);
+  assert.equal(displaySession.state.pending.width, 1280);
+  assert.equal(display.getState().width, 1024, 'pending state should not mutate display service');
   displaySession.setScalingMode('pixel');
   displaySession.toggleIntegerScale(false);
   displaySession.apply();
-  assert.equal(display.getState().width, 1024);
+  assert.equal(display.getState().width, 1280);
   assert.equal(display.getState().scalingMode, 'pixel');
   assert.equal(display.getState().integerScale, false);
   displaySession.previewResolution(300, 10000);
   assert.equal(displaySession.state.pending.height, 1536, 'height should be clamped');
   displaySession.cancel();
-  assert.equal(displaySession.state.pending.width, 1024, 'cancel restores applied state');
+  assert.equal(displaySession.state.pending.width, 1280, 'cancel restores applied state');
 
   const dateTimeApplet = registry.resolve('apps/control-panel/date-time');
   const dateTimeSession = dateTimeApplet.open();

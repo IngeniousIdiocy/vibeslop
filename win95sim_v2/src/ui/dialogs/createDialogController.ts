@@ -69,7 +69,7 @@ export function createDialogController<Context>(
       return emitAction(actionId);
     },
     onAction(handler) {
-      return bus.on('dialog:action', (event) => handler(event.id, event.context));
+      return bus.on<DialogActionEvent<Context>>('dialog:action', (event) => handler(event.id, event.context));
     },
   };
 

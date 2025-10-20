@@ -100,9 +100,7 @@ function renderReleaseHtml({ banner, styles, script }) {
   const styleTags = styles
     .map((style) => `    <style data-source="${style.path}">\n${style.content}\n    </style>`)
     .join('\n');
-  const scriptTag = script
-    ? `    <script type="module" data-source="${script.path}">\n${script.content}\n    </script>`
-    : '';
+  const scriptTag = script ? `    <script data-source="${script.path}">\n${script.content}\n    </script>` : '';
 
   return `${banner}\n<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <meta name="generator" content="win95sim-v2 packager" />\n${styleTags}\n  </head>\n  <body>\n${scriptTag}\n  </body>\n</html>\n`;
 }

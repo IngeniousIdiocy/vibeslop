@@ -15,27 +15,14 @@ async function clean() {
   console.log('dist/ cleaned');
 }
 
-function createAliasPlugin() {
-  const aliases = {
-    '@core': path.join(rootDir, 'src/core'),
-    '@services': path.join(rootDir, 'src/services'),
-    '@ui': path.join(rootDir, 'src/ui'),
-    '@apps': path.join(rootDir, 'src/apps'),
-    '@shell': path.join(rootDir, 'src/shell'),
-    '@features': path.join(rootDir, 'src/features'),
-  };
-
-  return {
-    name: 'alias',
-    setup(build) {
-      Object.entries(aliases).forEach(([alias, target]) => {
-        build.onResolve({ filter: new RegExp(`^${alias}/`) }, (args) => ({
-          path: path.join(target, args.path.replace(`${alias}/`, '')),
-        }));
-      });
-    },
-  };
-}
+const aliasMap = {
+  '@core': path.join(rootDir, 'src/core'),
+  '@services': path.join(rootDir, 'src/services'),
+  '@ui': path.join(rootDir, 'src/ui'),
+  '@apps': path.join(rootDir, 'src/apps'),
+  '@shell': path.join(rootDir, 'src/shell'),
+  '@features': path.join(rootDir, 'src/features'),
+};
 
 async function ensureDir(dir) {
   await fs.mkdir(dir, { recursive: true });
@@ -64,6 +51,17 @@ async function copyStaticAssets() {
   );
 
   return copied;
+}
+
+async function copyIconAssets() {
+  const sourceDir = path.join(rootDir, 'icons');
+  if (!existsSync(sourceDir)) {
+    return [];
+  }
+
+  await copyDirectory(sourceDir, path.join(assetsDir, 'icons'));
+  const entries = await fs.readdir(sourceDir);
+  return entries.map((entry) => `assets/icons/${entry}`);
 }
 
 async function copyDirectory(source, target) {
@@ -99,7 +97,7 @@ async function writeHtml({ scriptPath, stylePaths }) {
       .join('\n')}
   </head>
   <body>
-    <script type="module" src="${scriptPath}"></script>
+    <script src="${scriptPath}" defer></script>
   </body>
 </html>`;
 
@@ -114,14 +112,15 @@ async function build() {
     entryPoints: [path.join(rootDir, 'src/main.ts')],
     bundle: true,
     sourcemap: true,
-    format: 'esm',
+    format: 'iife',
+    globalName: 'Win95Sim',
     minify: false,
     outdir: assetsDir,
     entryNames: 'app-[hash]',
     assetNames: 'asset-[hash]',
     loader: { '.css': 'css' },
+    alias: aliasMap,
     metafile: true,
-    plugins: [createAliasPlugin()],
   });
 
   const outputs = Object.entries(result.metafile.outputs);
@@ -135,7 +134,10 @@ async function build() {
     .filter(([file]) => file.endsWith('.css'))
     .map(([file]) => `assets/${path.basename(file)}`);
 
-  const copiedAssets = await copyStaticAssets();
+  const copiedAssets = [
+    ...(await copyStaticAssets()),
+    ...(await copyIconAssets()),
+  ];
 
   await writeHtml({ scriptPath: scriptFile, stylePaths: styleOutputs });
 

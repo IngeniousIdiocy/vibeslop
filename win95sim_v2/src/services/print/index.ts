@@ -6,6 +6,8 @@ import {
   PrintSpooler,
   PrinterDefinition,
   PrintSpoolResult,
+  TextPrintOptions,
+  PrintPage,
 } from './types';
 import { createMemorySpooler } from './spooler';
 
@@ -36,6 +38,37 @@ const DEFAULT_PRINTERS: PrinterDefinition[] = [
 
 interface InternalJobRecord extends PrintJob {
   _queueIndex: number;
+}
+
+function wrapLine(line: string, columns: number): string[] {
+  if (line.length <= columns) {
+    return [line];
+  }
+
+  const segments: string[] = [];
+  for (let index = 0; index < line.length; index += columns) {
+    segments.push(line.slice(index, index + columns));
+  }
+  return segments;
+}
+
+function paginateLines(lines: string[], columns: number, linesPerPage: number): PrintPage[] {
+  const normalized: string[] = [];
+  lines.forEach((line) => {
+    wrapLine(line, columns).forEach((segment) => normalized.push(segment));
+  });
+
+  if (normalized.length === 0) {
+    return [{ number: 1, lines: [] }];
+  }
+
+  const pages: PrintPage[] = [];
+  for (let index = 0; index < normalized.length; index += linesPerPage) {
+    const slice = normalized.slice(index, index + linesPerPage);
+    pages.push({ number: pages.length + 1, lines: slice });
+  }
+
+  return pages;
 }
 
 export function createPrintService(options: CreatePrintServiceOptions = {}): PrintService {
@@ -101,6 +134,21 @@ export function createPrintService(options: CreatePrintServiceOptions = {}): Pri
   function getPrinter(id: string) {
     const printer = printers.get(id);
     return printer ? { ...printer } : undefined;
+  }
+
+  function resolvePrinterId(preferred?: string): string {
+    if (preferred) {
+      return ensurePrinter(preferred).id;
+    }
+    const defaultPrinter = Array.from(printers.values()).find((entry) => entry.isDefault);
+    if (defaultPrinter) {
+      return defaultPrinter.id;
+    }
+    const first = printers.values().next().value;
+    if (!first) {
+      throw new Error('No printers are installed');
+    }
+    return first.id;
   }
 
   function listPrinters() {
@@ -208,6 +256,27 @@ export function createPrintService(options: CreatePrintServiceOptions = {}): Pri
     return cloneJob(job);
   }
 
+  function spoolText(options: TextPrintOptions): PrintJob {
+    const printerId = resolvePrinterId(options.printerId);
+    const rawText = options.text.replace(/\r\n/g, '\n');
+    const lines = rawText.split('\n');
+    const pages = paginateLines(lines, options.columns ?? 80, options.linesPerPage ?? 60);
+    const job = submitJob({
+      printerId,
+      documentName: options.documentName,
+      content: rawText,
+      contentType: 'text/plain',
+      copies: 1,
+    });
+    const record = jobs.get(job.id);
+    if (record) {
+      record.pages = pages;
+      return cloneJob(record);
+    }
+
+    return { ...job, pages };
+  }
+
   function getJob(id: string) {
     const job = jobs.get(id);
     return job ? cloneJob(job) : undefined;
@@ -274,6 +343,7 @@ export function createPrintService(options: CreatePrintServiceOptions = {}): Pri
     installPrinter,
     removePrinter,
     submitJob,
+    spoolText,
     getJob,
     listJobs,
     pauseJob,
@@ -288,89 +358,3 @@ export function createPrintService(options: CreatePrintServiceOptions = {}): Pri
 export type { PrintJob, PrintJobRequest, PrintService, PrinterDefinition } from './types';
 export { createMemorySpooler } from './spooler';
 export type { MemorySpooler, SpoolRecord } from './spooler';
-let jobCounter = 0;
-
-export interface TextPrintOptions {
-  documentName: string;
-  text: string;
-  columns?: number;
-  linesPerPage?: number;
-}
-
-export interface PrintPage {
-  number: number;
-  lines: string[];
-}
-
-export interface PrintJob {
-  id: string;
-  documentName: string;
-  createdAt: number;
-  pages: PrintPage[];
-}
-
-export interface PrintService {
-  spoolText(options: TextPrintOptions): PrintJob;
-  listJobs(): PrintJob[];
-  clear(): void;
-}
-
-function wrapLine(line: string, columns: number): string[] {
-  if (line.length <= columns) {
-    return [line];
-  }
-
-  const wrapped: string[] = [];
-  let index = 0;
-  while (index < line.length) {
-    wrapped.push(line.slice(index, index + columns));
-    index += columns;
-  }
-  return wrapped;
-}
-
-function paginate(lines: string[], columns: number, linesPerPage: number): PrintPage[] {
-  const normalizedLines: string[] = [];
-  lines.forEach((line) => {
-    wrapLine(line, columns).forEach((wrappedLine) => normalizedLines.push(wrappedLine));
-  });
-
-  const pages: PrintPage[] = [];
-  let pageNumber = 1;
-  for (let i = 0; i < normalizedLines.length; i += linesPerPage) {
-    const pageLines = normalizedLines.slice(i, i + linesPerPage);
-    pages.push({ number: pageNumber++, lines: pageLines });
-  }
-
-  if (pages.length === 0) {
-    pages.push({ number: 1, lines: [] });
-  }
-
-  return pages;
-}
-
-export function createPrintService(): PrintService {
-  const jobs: PrintJob[] = [];
-
-  return {
-    spoolText(options) {
-      const { documentName, text, columns = 80, linesPerPage = 60 } = options;
-      const rawLines = text.replace(/\r\n/g, '\n').split('\n');
-      const pages = paginate(rawLines, columns, linesPerPage);
-      const job: PrintJob = {
-        id: `print-${++jobCounter}`,
-        documentName,
-        createdAt: Date.now(),
-        pages,
-      };
-      jobs.push(job);
-      return job;
-    },
-    listJobs() {
-      return jobs.slice();
-    },
-    clear() {
-      jobs.length = 0;
-    },
-  };
-}

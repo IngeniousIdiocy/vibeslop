@@ -32,9 +32,40 @@ export interface LocalizationService {
   preload(locale: string): Promise<LocaleCatalog>;
 }
 
+function normalizeCatalog(raw: unknown): LocaleCatalog {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error('Invalid locale catalog');
+  }
+
+  const candidate = raw as { locale?: unknown; direction?: unknown; messages?: unknown };
+  if (typeof candidate.locale !== 'string') {
+    throw new Error('Locale catalog missing locale identifier');
+  }
+
+  const direction = candidate.direction === 'rtl' ? 'rtl' : 'ltr';
+  const messagesSource = candidate.messages;
+  const messages: Record<string, string> = {};
+  if (messagesSource && typeof messagesSource === 'object') {
+    Object.entries(messagesSource as Record<string, unknown>).forEach(([key, value]) => {
+      messages[key] = typeof value === 'string' ? value : String(value);
+    });
+  }
+
+  return {
+    locale: candidate.locale,
+    direction,
+    messages,
+  };
+}
+
+function createStaticLoader(raw: unknown): LocaleLoader {
+  const catalog = normalizeCatalog(raw);
+  return () => catalog;
+}
+
 const builtinLoaders: Record<string, LocaleLoader> = {
-  'en-US': () => enUsCatalog,
-  'es-ES': () => esEsCatalog,
+  'en-US': createStaticLoader(enUsCatalog),
+  'es-ES': createStaticLoader(esEsCatalog),
 };
 
 export function createLocalizationService(options: LocalizationServiceOptions = {}): LocalizationService {

@@ -14,7 +14,7 @@ test('build pipeline emits dist/ bundle manifest', async () => {
   await fs.mkdir(assetsDir, { recursive: true });
 
   const initialHtml = `<!doctype html>
-<html><head><link rel="stylesheet" href="assets/app.css"></head><body><script type="module" src="assets/app.js"></script></body></html>`;
+<html><head><link rel="stylesheet" href="assets/app.css"></head><body><script src="assets/app.js" defer></script></body></html>`;
   await fs.writeFile(path.join(distDir, 'index.html'), initialHtml, 'utf8');
 
   const sourceManifest = {
@@ -23,7 +23,7 @@ test('build pipeline emits dist/ bundle manifest', async () => {
     assets: [],
   };
   await fs.writeFile(path.join(assetsDir, 'manifest.json'), JSON.stringify(sourceManifest, null, 2));
-  await fs.writeFile(path.join(assetsDir, 'app.js'), 'export const boot = () => console.log("hi");', 'utf8');
+  await fs.writeFile(path.join(assetsDir, 'app.js'), 'window.demoBoot = () => console.log("hi");', 'utf8');
   await fs.writeFile(path.join(assetsDir, 'app.css'), 'body{background:#008080;}', 'utf8');
 
   await fs.mkdir(path.join(workspace, 'docs'), { recursive: true });
