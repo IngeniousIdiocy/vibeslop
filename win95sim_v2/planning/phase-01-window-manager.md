@@ -16,6 +16,10 @@
 4. Shared UI kit in `src/ui/components/` (caption buttons, window frame, CRT viewport) referenced by the window manager and exported for later phases.
 5. `scripts/scaffolding/create-module.js` CLI that generates module folders with documentation stubs to keep structure consistent.
 6. Shared testing harness (`tests/helpers/runtime.ts`) exposing `createTestRuntime()` for Node + browser tests.
+7. Pointer-driven window move/resize interactions implemented via `src/features/window-interactions/` and wired through the window frame component.
+8. Desktop icon drag-and-drop support that feeds the layout service while preserving grid snapping and selection state.
+9. Desktop shortcuts mapped to dedicated shell commands (covering My Computer, Recycle Bin, Internet Explorer, Paint, Notepad, and Windows Explorer) with double-click handling that clears stray text selection to keep the Start menu stable.
+10. Start menu Programs list exposes core accessories such as Paint with Windows 98-era icons so desktop and menu affordances stay in sync.
 
 ## Engineering Tasks
 - Scaffold repository configuration: ESLint, Prettier, TypeScript, Jest/Node test runner, Playwright baseline, commit hooks.
@@ -33,6 +37,7 @@
 
 ## Testing
 - **Unit**: kernel pub/sub, settings watch/unwatch, display scaling math, window state transitions (implemented with Jest/Node in `tests/core/`).
+- **Unit**: pointer drag integration for window frames and desktop icons exercising the window interaction controller and layout updates (`tests/phase01-window-manager.test.js`).
 - **Integration** (Playwright): spawn sample windows, verify move/resize/min/max, ensure pixel mode scrollbars, assert integer scaling toggle updates data attribute, check Alt+` overlay using built bundle.
 - **Visual**: Percy/Chromatic snapshots for desktop with two sample windows (active/inactive) built from `dist/` output.
 - **Accessibility**: axe-core scan on empty desktop executed against built assets.

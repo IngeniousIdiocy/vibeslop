@@ -89,6 +89,7 @@ body {
   cursor: default;
   color: #ffffff;
   text-decoration: none;
+  touch-action: none;
 }
 
 .desktop-icon:focus-visible {
@@ -96,10 +97,20 @@ body {
   outline-offset: 2px;
 }
 
+.desktop-icon[data-dragging='true'] {
+  cursor: grabbing;
+  opacity: 0.9;
+}
+
 .desktop-icon__image {
   width: 32px;
   height: 32px;
   image-rendering: pixelated;
+}
+
+.desktop-icon__image,
+.desktop-icon__label {
+  pointer-events: none;
 }
 
 .desktop-icon__label {
@@ -134,10 +145,18 @@ body {
   min-height: 120px;
 }
 
+.window-frame[data-interacting='true'] {
+  cursor: move;
+}
+
 .window-frame[data-state='maximized'] {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.window-frame[data-state='maximized'] .window-resize-handle {
+  display: none;
 }
 
 .window-caption {
@@ -152,6 +171,9 @@ body {
   font-weight: bold;
   font-size: 11px;
   line-height: 1;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
 }
 
 .window-frame[data-active='true'] .window-caption {
@@ -176,6 +198,79 @@ body {
 .window-caption__buttons {
   display: flex;
   gap: 2px;
+}
+
+.window-resize-handle {
+  position: absolute;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.window-resize-handle--n,
+.window-resize-handle--s {
+  left: 6px;
+  right: 6px;
+  height: 6px;
+}
+
+.window-resize-handle--n {
+  top: -2px;
+  cursor: ns-resize;
+}
+
+.window-resize-handle--s {
+  bottom: -2px;
+  cursor: ns-resize;
+}
+
+.window-resize-handle--e,
+.window-resize-handle--w {
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+}
+
+.window-resize-handle--e {
+  right: -2px;
+  cursor: ew-resize;
+}
+
+.window-resize-handle--w {
+  left: -2px;
+  cursor: ew-resize;
+}
+
+.window-resize-handle--ne,
+.window-resize-handle--nw,
+.window-resize-handle--se,
+.window-resize-handle--sw {
+  width: 12px;
+  height: 12px;
+}
+
+.window-resize-handle--ne {
+  top: -2px;
+  right: -2px;
+  cursor: nesw-resize;
+}
+
+.window-resize-handle--nw {
+  top: -2px;
+  left: -2px;
+  cursor: nwse-resize;
+}
+
+.window-resize-handle--se {
+  bottom: -2px;
+  right: -2px;
+  cursor: nwse-resize;
+}
+
+.window-resize-handle--sw {
+  bottom: -2px;
+  left: -2px;
+  cursor: nesw-resize;
 }
 
 .window-caption__button {
