@@ -125,3 +125,5 @@ export function createTaskbarController(options: TaskbarOptions): TaskbarControl
     },
   };
 }
+
+export default createTaskbarController;

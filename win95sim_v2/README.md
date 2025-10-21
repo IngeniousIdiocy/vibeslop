@@ -42,6 +42,16 @@ win95sim_v2/
 - Keep each phase within its assigned folders to avoid cross-team churn.
 - Document all new capabilities, assets, and risks as you build them.
 
+## Built-in desktop apps
+The current build ships working Win95 staples that double as reference integrations:
+
+- **Internet Explorer** (`shell:start:internet-explorer`) – Navigator UI with toolbar, address bar, and sandboxed iframe viewport.
+- **Paint** (`shell:start:paint`) – Canvas-based paint studio backed by the Phase 06 engine and palette tooling.
+- **Notepad** (`shell:start:notepad`) – Phase 04 text editor with word wrap, font settings, and print integration.
+- **Windows Explorer** (`shell:start:explorer`) – VFS-driven file browser wired to the desktop layout service.
+
+Desktop shortcuts for these apps are pre-installed and the Start menu mirrors the same commands so downstream teams can see how to register additional experiences.
+
 ## Roadmap snapshot
 The planning folder captures detailed guidance for each phase. Highlights:
 - **Phase 01** – Multi-window desktop shell, module registry, asset pipeline, shared UI tokens.

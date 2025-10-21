@@ -148,8 +148,16 @@ test('start menu exposes manifest sections and recent documents', () => {
 
   const startMenu = createStartMenuModel({ recentDocuments });
   const sections = startMenu.getSections();
-  assert.ok(sections.some((section) => section.id === 'programs'));
+  const programsSection = sections.find((section) => section.id === 'programs');
+  assert.ok(programsSection);
   assert.ok(sections.some((section) => section.id === 'documents'));
+
+  const accessoriesManifest = programsSection.items.find((item) => item.id === 'programs/accessories');
+  assert.ok(accessoriesManifest);
+  const paintManifest = accessoriesManifest.items?.find((item) => item.id === 'programs/accessories/paint');
+  assert.ok(paintManifest);
+  assert.equal(paintManifest.icon, 'icons/w98_paint.ico');
+  assert.equal(paintManifest.command, 'shell:start:paint');
 
   recentDocuments.add({ id: 'doc-1', title: 'Budget.xls', path: 'C:/Docs/Budget.xls' });
   recentDocuments.add({ id: 'doc-2', title: 'Letter.doc', path: 'C:/Docs/Letter.doc' });
@@ -212,4 +220,19 @@ test('menu command registry composes declarative menu schemas', () => {
   assert.equal(menu.items.find((item) => item.id === 'new').children.length, 1);
   menu.execute('desktop:new-folder');
   assert.ok(executed.includes('new-folder'));
+});
+
+test('shell defines desktop shortcuts for core apps', () => {
+  const { DESKTOP_DEFAULT_ENTRIES, DESKTOP_SHORTCUT_COMMANDS } = loadModule('src/shell/boot/session.ts');
+
+  const entries = Object.fromEntries(DESKTOP_DEFAULT_ENTRIES.map((entry) => [entry.id, entry]));
+  assert.ok(entries['desktop/internet-explorer']);
+  assert.equal(entries['desktop/paint'].icon, 'icons/w98_paint.ico');
+  assert.equal(entries['desktop/notepad'].icon, 'icons/w98_notepad.ico');
+  assert.equal(entries['desktop/explorer'].icon, 'icons/w98_directory_explorer.ico');
+
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/internet-explorer'], 'shell:start:internet-explorer');
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/paint'], 'shell:start:paint');
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/notepad'], 'shell:start:notepad');
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/explorer'], 'shell:start:explorer');
 });

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { loadModule } = require('./helpers/loadModule');
+const { withFakeDom } = require('./helpers/fakeDom');
 
 const navigatorModule = () => loadModule('src/apps/internet/navigator/index.ts');
 const settingsModule = () => loadModule('src/services/settings/index.ts');
@@ -134,4 +135,54 @@ test('download manager drives lifecycle events and saves resources', async () =>
   assert.strictEqual(record.receivedBytes, 7);
   assert.deepStrictEqual(events, ['completed']);
   assert.deepStrictEqual(saved[0].data, 'payload');
+});
+
+test('navigator app mounts toolbar and status bar', () => {
+  const { createNavigatorApp } = navigatorModule();
+
+  withFakeDom(({ document, FakeElement }) => {
+    if (typeof FakeElement.prototype.removeEventListener !== 'function') {
+      FakeElement.prototype.removeEventListener = function (type, handler) {
+        const listeners = this.eventListeners?.get(type);
+        if (listeners) {
+          listeners.delete(handler);
+        }
+      };
+    }
+    const settings = createSettings();
+    const app = createNavigatorApp({ settings });
+    const host = document.createElement('div');
+    app.mount(host);
+
+    assert.equal(host.children.length, 1);
+    const root = host.children[0];
+    assert.ok(typeof root.className === 'string' && root.className.includes('app-navigator'));
+
+    const findByClass = (node, className) => {
+      if (!node || !node.children) {
+        return undefined;
+      }
+      if (typeof node.className === 'string' && node.className.split(/\s+/).includes(className)) {
+        return node;
+      }
+      for (const child of node.children) {
+        const match = findByClass(child, className);
+        if (match) {
+          return match;
+        }
+      }
+      return undefined;
+    };
+
+    const toolbar = findByClass(root, 'app-navigator__toolbar');
+    const addressRow = findByClass(root, 'app-navigator__address-row');
+    const status = findByClass(root, 'app-navigator__status');
+
+    assert.ok(toolbar, 'expected toolbar');
+    assert.ok(addressRow, 'expected address row');
+    assert.ok(status, 'expected status bar');
+
+    app.destroy();
+    assert.equal(host.children.length, 0);
+  });
 });

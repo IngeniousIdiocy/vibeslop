@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadModule } = require('./helpers/loadModule');
+const { withFakeDom } = require('./helpers/fakeDom');
 
 function loadPaintEngine() {
   return loadModule('src/apps/creative/paint/engine/index.ts');
@@ -8,6 +9,10 @@ function loadPaintEngine() {
 
 function loadPaletteStore() {
   return loadModule('src/services/media/paletteStore.ts');
+}
+
+function loadPaintApp() {
+  return loadModule('src/apps/creative/paint/index.ts');
 }
 
 test('paint supports basic drawing tools', () => {
@@ -118,4 +123,56 @@ test('media service loads palette data', async () => {
 
   store.clear();
   assert.deepEqual(store.list(), []);
+});
+
+test('paint app mounts toolbar, canvas, and status', () => {
+  const { createPaintApp } = loadPaintApp();
+
+  withFakeDom(({ document, FakeElement }) => {
+    if (typeof FakeElement.prototype.removeEventListener !== 'function') {
+      FakeElement.prototype.removeEventListener = function (type, handler) {
+        const listeners = this.eventListeners?.get(type);
+        if (listeners) {
+          listeners.delete(handler);
+        }
+      };
+    }
+    const host = document.createElement('div');
+    const app = createPaintApp({ width: 32, height: 24 });
+    app.mount(host);
+
+    assert.equal(host.children.length, 1);
+    const root = host.children[0];
+    assert.ok(root.className.includes('app-paint'));
+
+    const findByClass = (node, className) => {
+      if (!node || !node.children) {
+        return undefined;
+      }
+      if (typeof node.className === 'string' && node.className.split(/\s+/).includes(className)) {
+        return node;
+      }
+      for (const child of node.children) {
+        const found = findByClass(child, className);
+        if (found) {
+          return found;
+        }
+      }
+      return undefined;
+    };
+
+    const toolbar = findByClass(root, 'app-paint__toolbar');
+    const palette = findByClass(root, 'app-paint__palette');
+    const surface = findByClass(root, 'app-paint__surface');
+    const status = findByClass(root, 'app-paint__status');
+
+    assert.ok(toolbar, 'expected toolbar to render');
+    assert.ok(palette, 'expected palette to render');
+    assert.ok(surface, 'expected drawing surface to render');
+    assert.ok(status, 'expected status bar to render');
+    assert.ok(palette.children.length >= 6, 'expected multiple color swatches');
+
+    app.destroy();
+    assert.equal(host.children.length, 0);
+  });
 });

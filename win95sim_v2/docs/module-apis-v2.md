@@ -48,6 +48,17 @@ registers the following module ids:
 | `apps/window-manager` | Window lifecycle APIs |
 | `shell/session` | Exposes `{ bus, registry }` for downstream boot flows |
 
+`@shell/boot/session` also exports desktop helpers that mirror the built-in shortcut layout:
+
+```ts
+import { DESKTOP_DEFAULT_ENTRIES, DESKTOP_SHORTCUT_COMMANDS } from '@shell/boot/session';
+
+DESKTOP_DEFAULT_ENTRIES.forEach((entry) => console.log(entry.id, entry.icon));
+const paintCommand = DESKTOP_SHORTCUT_COMMANDS['desktop/paint']; // -> 'shell:start:paint'
+```
+
+Reuse these constants when seeding additional desktop icons so new surfaces stay aligned with the shell defaults.
+
 ### `services/settings`
 ```ts
 interface SettingsService {
@@ -234,6 +245,39 @@ interface RecentDocumentsService {
   bus: EventBus;
 }
 ```
+
+### `apps/internet/navigator`
+High-level Navigator services and UI wrapper.
+
+```ts
+import {
+  createNavigatorSession,
+  createBookmarkStore,
+  createNavigatorApp,
+} from '@apps/internet/navigator';
+
+const session = createNavigatorSession({ settings, homeUrl: 'https://example.com' });
+const bookmarks = createBookmarkStore({ settings });
+
+const app = createNavigatorApp({ settings });
+app.mount(hostElement);
+```
+
+- `createNavigatorSession` handles tab state, navigation history, and emits `navigator:*` events.
+- `createBookmarkStore` persists favorites under the `navigator.bookmarks` namespace.
+- `createNavigatorApp` renders the Win95-style Internet Explorer chrome (menus, toolbar, address bar, iframe viewport, status bar) and returns `{ mount, destroy, navigate }` for hosts embedding the browser UI.
+
+### `apps/creative/paint`
+UI shell for the paint engine.
+
+```ts
+import { createPaintApp } from '@apps/creative/paint';
+
+const paint = createPaintApp({ width: 480, height: 320, background: [255, 255, 255, 255] });
+paint.mount(canvasHost);
+```
+
+The instance exposes `{ mount(host), destroy() }`. It mounts palette swatches, brush controls, layered `<canvas>` surfaces, and a status bar while delegating undo/redo to `@apps/creative/paint/engine`.
 
 ## UI primitives
 ### CSS tokens (`ui/tokens.css`)

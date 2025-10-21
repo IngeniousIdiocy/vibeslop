@@ -71,6 +71,26 @@ export function createNavigatorApp(options: NavigatorAppOptions): NavigatorAppIn
   const busUnsubscribes: Array<() => void> = [];
   const domTeardowns: Array<() => void> = [];
 
+  function addClassName(element: HTMLElement | null, token: string) {
+    if (!element) {
+      return;
+    }
+    const classes = new Set((element.className ?? '').split(/\s+/).filter(Boolean));
+    if (!classes.has(token)) {
+      classes.add(token);
+      element.className = Array.from(classes).join(' ');
+    }
+  }
+
+  function removeClassName(element: HTMLElement | null, token: string) {
+    if (!element) {
+      return;
+    }
+    const classes = new Set((element.className ?? '').split(/\s+/).filter(Boolean));
+    classes.delete(token);
+    element.className = Array.from(classes).join(' ');
+  }
+
   function resolveIconPath(path: string): string {
     if (!path) {
       return '';
@@ -265,7 +285,7 @@ export function createNavigatorApp(options: NavigatorAppOptions): NavigatorAppIn
     }
 
     hostElement = host;
-    hostElement.classList.add('app-navigator__host');
+    addClassName(hostElement, 'app-navigator__host');
 
     container = document.createElement('div');
     container.className = 'app-navigator';
@@ -465,7 +485,7 @@ export function createNavigatorApp(options: NavigatorAppOptions): NavigatorAppIn
     const toolbarButtons = [backButton, forwardButton, reloadButton];
     toolbarButtons.forEach((button) => {
       if (button) {
-        button.classList.add('app-navigator__toolbar-button--icon');
+        button.className = `${button.className} app-navigator__toolbar-button--icon`.trim();
       }
     });
 
@@ -494,7 +514,7 @@ export function createNavigatorApp(options: NavigatorAppOptions): NavigatorAppIn
     }
 
     if (hostElement) {
-      hostElement.classList.remove('app-navigator__host');
+      removeClassName(hostElement, 'app-navigator__host');
     }
 
     container = null;

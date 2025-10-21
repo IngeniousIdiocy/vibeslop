@@ -53,6 +53,17 @@ The bookmark store persists entries under `navigator.bookmarks`. It supports
 adding, removing, and reordering bookmarks. Consumers should listen to the
 `bookmarks:changed` event on the store’s bus to keep UI in sync.
 
+## Browser chrome wrapper
+
+```ts
+import { createNavigatorApp } from '@apps/internet/navigator';
+
+const app = createNavigatorApp({ settings });
+app.mount(hostElement);
+```
+
+`createNavigatorApp` renders the Win95-style Internet Explorer UI (menus, toolbar, address bar, throbber, sandboxed iframe viewport, status bar). The returned object exposes `mount(host)`, `destroy()`, and `navigate(url)` so hosts can embed the browser without duplicating chrome logic.
+
 ## Security & sanitization
 
 Reader mode and View Source both delegate to

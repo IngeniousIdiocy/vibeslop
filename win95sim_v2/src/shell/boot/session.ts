@@ -10,6 +10,7 @@ import { createTaskbarController, type TaskButton } from '@apps/shell/taskbar';
 import { createStartMenuModel, type StartMenuManifestSection } from '@apps/shell/start-menu';
 import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
 import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
+import { createPaintApp, type PaintAppInstance } from '@apps/creative/paint';
 import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
 import { createRecentDocumentsService } from '@services/recent-documents';
 import { createCrtViewport } from '@ui/components/crtViewport';
@@ -73,6 +74,58 @@ const DEFAULT_VFS_SEED: Array<{ path: string; kind: 'directory' | 'file' | 'shor
   },
 ];
 
+export const DESKTOP_DEFAULT_ENTRIES: DesktopEntry[] = [
+  {
+    id: 'desktop/computer',
+    title: 'My Computer',
+    resource: '::desktop/computer',
+    type: 'folder',
+    icon: 'icons/w98_computer.ico',
+  },
+  {
+    id: 'desktop/recycle-bin',
+    title: 'Recycle Bin',
+    resource: '::desktop/recycle-bin',
+    type: 'folder',
+    icon: 'icons/w98_recycle_bin_empty.ico',
+  },
+  {
+    id: 'desktop/internet-explorer',
+    title: 'Internet Explorer',
+    resource: '::desktop/internet-explorer',
+    type: 'shortcut',
+    icon: 'icons/w98_msie1.ico',
+  },
+  {
+    id: 'desktop/paint',
+    title: 'Paint',
+    resource: '::desktop/paint',
+    type: 'shortcut',
+    icon: 'icons/w98_paint.ico',
+  },
+  {
+    id: 'desktop/notepad',
+    title: 'Notepad',
+    resource: '::desktop/notepad',
+    type: 'shortcut',
+    icon: 'icons/w98_notepad.ico',
+  },
+  {
+    id: 'desktop/explorer',
+    title: 'Windows Explorer',
+    resource: '::desktop/explorer',
+    type: 'shortcut',
+    icon: 'icons/w98_directory_explorer.ico',
+  },
+];
+
+export const DESKTOP_SHORTCUT_COMMANDS: Record<string, string> = {
+  'desktop/internet-explorer': 'shell:start:internet-explorer',
+  'desktop/paint': 'shell:start:paint',
+  'desktop/notepad': 'shell:start:notepad',
+  'desktop/explorer': 'shell:start:explorer',
+};
+
 export function createShellSession(): ShellSession {
   const registry = createModuleRegistry();
   const bus = createEventBus();
@@ -87,30 +140,19 @@ export function createShellSession(): ShellSession {
   const startMenuModel = createStartMenuModel({ recentDocuments });
   const taskbar = createTaskbarController({ windows, bus });
   const layout = createLayoutService({ defaultGridSize: 48 });
-  const desktopEntries: DesktopEntry[] = [
-    {
-      id: 'desktop/computer',
-      title: 'My Computer',
-      resource: '::desktop/computer',
-      type: 'folder',
-      icon: 'icons/w98_computer.ico',
-    },
-    {
-      id: 'desktop/recycle-bin',
-      title: 'Recycle Bin',
-      resource: '::desktop/recycle-bin',
-      type: 'folder',
-      icon: 'icons/w98_recycle_bin_empty.ico',
-    },
-  ];
+  const desktopEntries: DesktopEntry[] = DESKTOP_DEFAULT_ENTRIES.map((entry) => ({ ...entry }));
   const desktopModule = createDesktopModule({
     layout,
     resolveEntries: () => desktopEntries,
     gridSize: 48,
   });
 
-  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/computer', { x: 15, y: 10 }, { snapToGrid: false });
-  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/recycle-bin', { x: 15, y: 78 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/computer', { x: 30, y: 10 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/recycle-bin', { x: 30, y: 78 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/internet-explorer', { x: 30, y: 146 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/paint', { x: 30, y: 214 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/notepad', { x: 30, y: 282 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/explorer', { x: 30, y: 350 }, { snapToGrid: false });
 
   layout.bus.on('layout:updated', ({ surfaceId }) => {
     if (surfaceId === DESKTOP_SURFACE_ID) {
@@ -319,6 +361,12 @@ export function createShellSession(): ShellSession {
         height: 280,
         content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
       }),
+    ...Object.fromEntries(
+      Object.entries(DESKTOP_SHORTCUT_COMMANDS).map(([id, command]) => [
+        id,
+        () => handleStartCommand(command),
+      ]),
+    ),
   };
 
   function renderDesktop() {
@@ -658,6 +706,36 @@ export function createShellSession(): ShellSession {
     return descriptor;
   }
 
+  function launchPaintWindow(options: { id?: string; title?: string } = {}) {
+    let paintInstance: PaintAppInstance | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'Paint',
+      width: 620,
+      height: 520,
+      content: () => {
+        const host = document.createElement('div');
+        paintInstance = createPaintApp({
+          width: 480,
+          height: 320,
+        });
+        paintInstance.mount(host);
+        return host;
+      },
+    });
+    if (paintInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        paintInstance?.destroy();
+      });
+    }
+    return descriptor;
+  }
+
   function launchNavigatorWindow(options: { id?: string; title?: string } = {}) {
     let navigatorInstance: NavigatorAppInstance | undefined;
     const descriptor = openWindow({
@@ -720,12 +798,9 @@ export function createShellSession(): ShellSession {
         content: () => createNotepadContent(),
       }),
     'shell:start:paint': () =>
-      openWindow({
+      launchPaintWindow({
+        id: `app:paint:${windowSequence}`,
         title: 'Paint',
-        width: 520,
-        height: 360,
-        content: () =>
-          createPlaceholderContent('Paint', 'The art studio is under construction. Grab your virtual brushes soon!'),
       }),
     'shell:start:minesweeper': () =>
       openWindow({
