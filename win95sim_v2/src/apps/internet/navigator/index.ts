@@ -11,3 +11,9 @@ export {
   type BookmarkStore,
   type BookmarkEntry,
 } from './stores/bookmarks';
+
+export {
+  createNavigatorApp,
+  type NavigatorAppInstance,
+  type NavigatorAppOptions,
+} from './app';

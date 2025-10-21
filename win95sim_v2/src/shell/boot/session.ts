@@ -10,6 +10,7 @@ import { createTaskbarController, type TaskButton } from '@apps/shell/taskbar';
 import { createStartMenuModel, type StartMenuManifestSection } from '@apps/shell/start-menu';
 import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
 import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
+import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
 import { createRecentDocumentsService } from '@services/recent-documents';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
@@ -44,6 +45,7 @@ const DEFAULT_WINDOW_HEIGHT = 260;
 const WINDOW_CASCADE_STEP = 24;
 const DESKTOP_SURFACE_ID = '::desktop';
 const DEFAULT_EXPLORER_HOME = 'C:/';
+const DEFAULT_NAVIGATOR_HOME = 'https://www.example.com/';
 const STARTUP_FOLDER_PATH = 'C:/Start Menu/Programs/StartUp';
 const DEFAULT_VFS_SEED: Array<{ path: string; kind: 'directory' | 'file' | 'shortcut'; content?: string; target?: string }> = [
   { path: 'C:/Documents', kind: 'directory' },
@@ -656,6 +658,36 @@ export function createShellSession(): ShellSession {
     return descriptor;
   }
 
+  function launchNavigatorWindow(options: { id?: string; title?: string } = {}) {
+    let navigatorInstance: NavigatorAppInstance | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'Internet Explorer',
+      width: 760,
+      height: 560,
+      content: () => {
+        const host = document.createElement('div');
+        navigatorInstance = createNavigatorApp({
+          settings,
+          homeUrl: DEFAULT_NAVIGATOR_HOME,
+        });
+        navigatorInstance.mount(host);
+        return host;
+      },
+    });
+    if (navigatorInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        navigatorInstance?.destroy();
+      });
+    }
+    return descriptor;
+  }
+
   function openWelcomeWindow() {
     const existing = windows.get('shell:welcome');
     if (existing) {
@@ -703,17 +735,7 @@ export function createShellSession(): ShellSession {
         content: () =>
           createPlaceholderContent('Minesweeper', 'Careful! The mines are still being planted in this preview build.'),
       }),
-    'shell:start:internet-explorer': () =>
-      openWindow({
-        title: 'Internet Explorer',
-        width: 640,
-        height: 480,
-        content: () =>
-          createPlaceholderContent(
-            'Internet Explorer',
-            'Surfing the web is coming soon. For now, enjoy the local desktop experience.',
-          ),
-      }),
+    'shell:start:internet-explorer': () => launchNavigatorWindow(),
     'shell:start:internet-mail': () =>
       openWindow({
         title: 'Internet Mail',

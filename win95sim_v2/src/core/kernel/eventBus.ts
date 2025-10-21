@@ -63,3 +63,5 @@ export function createEventBus(): EventBus {
     },
   };
 }
+
+export default createEventBus;
