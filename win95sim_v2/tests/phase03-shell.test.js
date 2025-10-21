@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const { withFakeDom } = require('./helpers/fakeDom');
 const { loadModule } = require('./helpers/loadModule');
 
 function createMemoryAdapter() {
@@ -227,12 +228,161 @@ test('shell defines desktop shortcuts for core apps', () => {
 
   const entries = Object.fromEntries(DESKTOP_DEFAULT_ENTRIES.map((entry) => [entry.id, entry]));
   assert.ok(entries['desktop/internet-explorer']);
+  assert.equal(entries['desktop/computer'].icon, 'icons/w98_computer.ico');
+  assert.equal(entries['desktop/recycle-bin'].icon, 'icons/w98_recycle_bin_empty.ico');
   assert.equal(entries['desktop/paint'].icon, 'icons/w98_paint.ico');
   assert.equal(entries['desktop/notepad'].icon, 'icons/w98_notepad.ico');
   assert.equal(entries['desktop/explorer'].icon, 'icons/w98_directory_explorer.ico');
 
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/computer'], 'shell:start:my-computer');
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/recycle-bin'], 'shell:start:recycle-bin');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/internet-explorer'], 'shell:start:internet-explorer');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/paint'], 'shell:start:paint');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/notepad'], 'shell:start:notepad');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/explorer'], 'shell:start:explorer');
+});
+
+test('double-clicking desktop shortcuts launches core applications', () => {
+  const overrides = {
+    '@apps/explorer': `
+      const instances = [];
+      function createExplorerApp(options) {
+        const instance = {
+          options,
+          mounted: false,
+          destroyed: false,
+          mount(host) {
+            this.mounted = true;
+            if (host && host.dataset) {
+              host.dataset.app = 'explorer';
+            }
+          },
+          destroy() {
+            this.destroyed = true;
+          },
+        };
+        instances.push(instance);
+        return instance;
+      }
+      module.exports = { createExplorerApp, __instances: instances };
+    `,
+    '@apps/paint': `
+      const instances = [];
+      function createPaintApp() {
+        const instance = {
+          mounted: false,
+          destroyed: false,
+          mount(host) {
+            this.mounted = true;
+            if (host && host.dataset) {
+              host.dataset.app = 'paint';
+            }
+          },
+          destroy() {
+            this.destroyed = true;
+          },
+        };
+        instances.push(instance);
+        return instance;
+      }
+      module.exports = { createPaintApp, __instances: instances };
+    `,
+    '@apps/internet/navigator': `
+      const instances = [];
+      function createNavigatorApp() {
+        const instance = {
+          mounted: false,
+          destroyed: false,
+          mount(host) {
+            this.mounted = true;
+            if (host && host.dataset) {
+              host.dataset.app = 'navigator';
+            }
+          },
+          destroy() {
+            this.destroyed = true;
+          },
+          navigate() {},
+        };
+        instances.push(instance);
+        return instance;
+      }
+      module.exports = { createNavigatorApp, __instances: instances };
+    `,
+  };
+
+  withFakeDom(({ document }) => {
+    const { createShellSession } = loadModule('src/shell/boot/session.ts', { overrides });
+
+    const previousWindow = global.window;
+    global.window = {
+      addEventListener() {},
+      removeEventListener() {},
+      getSelection() {
+        return {
+          removeAllRanges() {},
+        };
+      },
+    };
+
+    try {
+      const session = createShellSession();
+      session.mount(document.body);
+
+      const shortcutExpectations = new Map([
+        ['desktop/internet-explorer', 'Internet Explorer'],
+        ['desktop/paint', 'Paint'],
+        ['desktop/notepad', 'Notepad'],
+        ['desktop/explorer', 'Windows Explorer'],
+      ]);
+
+      const findByDataset = (element, key, value) => {
+        if (element.dataset && element.dataset[key] === value) {
+          return element;
+        }
+        for (const child of element.children) {
+          const match = findByDataset(child, key, value);
+          if (match) {
+            return match;
+          }
+        }
+        return undefined;
+      };
+
+      const collectWindowTitles = (element, titles = []) => {
+        if (typeof element.className === 'string' && element.className.split(/\s+/).includes('window-caption__title')) {
+          if (element.textContent) {
+            titles.push(element.textContent);
+          }
+        }
+        for (const child of element.children) {
+          collectWindowTitles(child, titles);
+        }
+        return titles;
+      };
+
+      const createMouseEvent = () => ({
+        preventDefault() {},
+        stopPropagation() {},
+      });
+
+      for (const [id, expectedTitle] of shortcutExpectations.entries()) {
+        const icon = findByDataset(document.body, 'id', id);
+        assert.ok(icon, `expected desktop icon for ${id}`);
+        icon.dispatchEvent('dblclick', createMouseEvent());
+
+        const titles = collectWindowTitles(document.body);
+        assert.ok(
+          titles.includes(expectedTitle),
+          `expected to find window titled "${expectedTitle}" after activating ${id}`,
+        );
+      }
+    } finally {
+      if (previousWindow === undefined) {
+        delete global.window;
+      } else {
+        global.window = previousWindow;
+      }
+    }
+  });
 });

@@ -55,6 +55,7 @@ import { DESKTOP_DEFAULT_ENTRIES, DESKTOP_SHORTCUT_COMMANDS } from '@shell/boot/
 
 DESKTOP_DEFAULT_ENTRIES.forEach((entry) => console.log(entry.id, entry.icon));
 const paintCommand = DESKTOP_SHORTCUT_COMMANDS['desktop/paint']; // -> 'shell:start:paint'
+const myComputerCommand = DESKTOP_SHORTCUT_COMMANDS['desktop/computer']; // -> 'shell:start:my-computer'
 ```
 
 Reuse these constants when seeding additional desktop icons so new surfaces stay aligned with the shell defaults.

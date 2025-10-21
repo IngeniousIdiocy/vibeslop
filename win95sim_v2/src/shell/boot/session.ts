@@ -17,8 +17,9 @@ import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
 import { createTaskbarView } from '@ui/components/taskbar';
 import { createStartMenuView } from '@ui/components/startMenu';
-import { createDesktopView } from '@ui/components/desktopIcons';
+import { createDesktopView, type DesktopDragEvent } from '@ui/components/desktopIcons';
 import { createVfsService } from '@services/vfs';
+import { createWindowInteractionController } from '@features/window-interactions';
 
 export interface ShellSession {
   mount(root: HTMLElement): void;
@@ -120,6 +121,8 @@ export const DESKTOP_DEFAULT_ENTRIES: DesktopEntry[] = [
 ];
 
 export const DESKTOP_SHORTCUT_COMMANDS: Record<string, string> = {
+  'desktop/computer': 'shell:start:my-computer',
+  'desktop/recycle-bin': 'shell:start:recycle-bin',
   'desktop/internet-explorer': 'shell:start:internet-explorer',
   'desktop/paint': 'shell:start:paint',
   'desktop/notepad': 'shell:start:notepad',
@@ -170,6 +173,7 @@ export function createShellSession(): ShellSession {
   registry.register({ id: 'shell/session', version: '2.0.0', factory: () => ({ bus, registry }) });
 
   const frames = new Map<string, ReturnType<typeof createWindowFrame>>();
+  const windowControllers = new Map<string, ReturnType<typeof createWindowInteractionController>>();
   const pendingContent = new Map<string, HTMLElement>();
   const appTeardowns = new Map<string, () => void>();
 
@@ -180,9 +184,35 @@ export function createShellSession(): ShellSession {
   let taskbarView: ReturnType<typeof createTaskbarView> | undefined;
   let startMenuView: ReturnType<typeof createStartMenuView> | undefined;
   let currentTaskButtons: TaskButton[] = taskbar.listButtons();
+  let desktopDragState:
+    | {
+        pointerId: number;
+        ids: string[];
+        origins: Map<string, { x: number; y: number }>;
+      }
+    | undefined;
 
   let cascadeOffset = 0;
   let windowSequence = 1;
+
+  function resolveWorkspaceBounds(): { width: number; height: number } | undefined {
+    if (workspace && typeof workspace.getBoundingClientRect === 'function') {
+      const rect = workspace.getBoundingClientRect();
+      if (rect) {
+        const width = typeof rect.width === 'number' ? rect.width : 0;
+        const height = typeof rect.height === 'number' ? rect.height : 0;
+        if (width > 0 && height > 0) {
+          return { width, height };
+        }
+      }
+    }
+
+    const state = display.getState();
+    if (state.width && state.height) {
+      return { width: state.width, height: state.height };
+    }
+    return undefined;
+  }
 
   function ensureViewport(root: HTMLElement) {
     if (viewport) {
@@ -205,6 +235,9 @@ export function createShellSession(): ShellSession {
         desktopModule.clearSelection();
         renderDesktop();
       },
+      onDragStart: (event) => handleDesktopDragStart(event),
+      onDrag: (event) => handleDesktopDrag(event),
+      onDragEnd: (event) => handleDesktopDragEnd(event),
     });
     workspace.appendChild(desktopView.element);
 
@@ -252,25 +285,19 @@ export function createShellSession(): ShellSession {
     });
 
     const updateDisplayDimensions = () => {
-      if (!workspace) {
+      const bounds = resolveWorkspaceBounds();
+      if (!bounds) {
         return;
       }
-      let width = DEFAULT_WINDOW_WIDTH;
-      let height = DEFAULT_WINDOW_HEIGHT;
-      if (typeof workspace.getBoundingClientRect === 'function') {
-        const rect = workspace.getBoundingClientRect();
-        if (rect && typeof rect.width === 'number' && typeof rect.height === 'number') {
-          width = rect.width || width;
-          height = rect.height || height;
-        }
-      } else {
-        const state = display.getState();
-        width = state.width;
-        height = state.height;
+      const width = Math.max(0, Math.round(bounds.width));
+      const height = Math.max(0, Math.round(bounds.height));
+      if (width === 0 || height === 0) {
+        return;
       }
-      if (width > 0 && height > 0) {
-        display.setResolution(Math.round(width), Math.round(height));
-      }
+      display.setResolution(width, height);
+      windowControllers.forEach((controller) => {
+        controller.setWorkspaceBounds({ width, height });
+      });
     };
     updateDisplayDimensions();
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -317,6 +344,16 @@ export function createShellSession(): ShellSession {
 
       frames.set(descriptor.id, frame);
       windowsLayer.appendChild(frame.element);
+      const bounds = resolveWorkspaceBounds();
+      const controller = createWindowInteractionController({
+        windowId: descriptor.id,
+        frame,
+        windowManager,
+        windows,
+        display,
+        workspaceBounds: bounds,
+      });
+      windowControllers.set(descriptor.id, controller);
       renderWindow(descriptor.id, descriptor);
     });
 
@@ -332,6 +369,11 @@ export function createShellSession(): ShellSession {
         frame.element.remove();
         frames.delete(id);
       }
+      const controller = windowControllers.get(id);
+      if (controller) {
+        controller.destroy();
+        windowControllers.delete(id);
+      }
       pendingContent.delete(id);
       const teardown = appTeardowns.get(id);
       if (teardown) {
@@ -346,28 +388,12 @@ export function createShellSession(): ShellSession {
     return viewport;
   }
 
-  const desktopActions: Record<string, () => void> = {
-    'desktop/computer': () =>
-      launchExplorerWindow({
-        id: 'app:explorer:my-computer',
-        title: 'My Computer',
-        startPath: DEFAULT_EXPLORER_HOME,
-      }),
-    'desktop/recycle-bin': () =>
-      openWindow({
-        id: 'shell:window:recycle-bin',
-        title: 'Recycle Bin',
-        width: 340,
-        height: 280,
-        content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
-      }),
-    ...Object.fromEntries(
-      Object.entries(DESKTOP_SHORTCUT_COMMANDS).map(([id, command]) => [
-        id,
-        () => handleStartCommand(command),
-      ]),
-    ),
-  };
+  const desktopActions: Record<string, () => void> = Object.fromEntries(
+    Object.entries(DESKTOP_SHORTCUT_COMMANDS).map(([id, command]) => [
+      id,
+      () => handleStartCommand(command),
+    ]),
+  );
 
   function renderDesktop() {
     if (!desktopView) {
@@ -390,6 +416,89 @@ export function createShellSession(): ShellSession {
     }
     desktopModule.setSelection(Array.from(current));
     renderDesktop();
+  }
+
+  function handleDesktopDragStart(event: DesktopDragEvent) {
+    const currentSelection = new Set(desktopModule.getSelection());
+    if (!currentSelection.has(event.id)) {
+      currentSelection.clear();
+      currentSelection.add(event.id);
+      desktopModule.setSelection(Array.from(currentSelection));
+      renderDesktop();
+    }
+
+    const snapshot = layout.getSnapshot(DESKTOP_SURFACE_ID);
+    const trackedIds = Array.from(currentSelection);
+    const origins = new Map<string, { x: number; y: number }>();
+
+    trackedIds.forEach((itemId) => {
+      const position = snapshot.items[itemId];
+      if (position) {
+        origins.set(itemId, { x: position.x, y: position.y });
+      }
+    });
+
+    if (!origins.has(event.id)) {
+      const fallback = snapshot.items[event.id];
+      if (fallback) {
+        origins.set(event.id, { x: fallback.x, y: fallback.y });
+      }
+    }
+
+    if (origins.size === 0) {
+      desktopDragState = undefined;
+      return;
+    }
+
+    desktopDragState = {
+      pointerId: event.pointerId,
+      ids: Array.from(origins.keys()),
+      origins,
+    };
+  }
+
+  function handleDesktopDrag(event: DesktopDragEvent) {
+    if (!desktopDragState || desktopDragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    desktopDragState.ids.forEach((id) => {
+      const origin = desktopDragState?.origins.get(id);
+      if (!origin) {
+        return;
+      }
+      desktopModule.move(
+        id,
+        {
+          x: origin.x + event.delta.x,
+          y: origin.y + event.delta.y,
+        },
+        { snapToGrid: false },
+      );
+    });
+  }
+
+  function handleDesktopDragEnd(event: DesktopDragEvent) {
+    if (!desktopDragState || desktopDragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    desktopDragState.ids.forEach((id) => {
+      const origin = desktopDragState?.origins.get(id);
+      if (!origin) {
+        return;
+      }
+      desktopModule.move(
+        id,
+        {
+          x: origin.x + event.delta.x,
+          y: origin.y + event.delta.y,
+        },
+        { snapToGrid: true },
+      );
+    });
+
+    desktopDragState = undefined;
   }
 
   function handleDesktopOpen(id: string) {
@@ -788,6 +897,20 @@ export function createShellSession(): ShellSession {
       openWindow({
         title: 'Empty Window',
         content: () => createPlaceholderContent('Empty Window', 'A blank canvas for your retro dreams.'),
+      }),
+    'shell:start:my-computer': () =>
+      launchExplorerWindow({
+        id: 'app:explorer:my-computer',
+        title: 'My Computer',
+        startPath: DEFAULT_EXPLORER_HOME,
+      }),
+    'shell:start:recycle-bin': () =>
+      openWindow({
+        id: 'shell:window:recycle-bin',
+        title: 'Recycle Bin',
+        width: 340,
+        height: 280,
+        content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
       }),
     'shell:start:notepad': () =>
       openWindow({

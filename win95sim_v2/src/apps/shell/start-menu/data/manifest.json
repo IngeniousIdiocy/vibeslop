@@ -16,13 +16,13 @@
               "command": "shell:start:notepad",
               "icon": "icons/w98_notepad.ico"
             },
-        {
-          "id": "programs/accessories/paint",
-          "label": "Paint",
-          "type": "command",
-          "command": "shell:start:paint",
-          "icon": "icons/w98_paint.ico"
-        },
+            {
+              "id": "programs/accessories/paint",
+              "label": "Paint",
+              "type": "command",
+              "command": "shell:start:paint",
+              "icon": "icons/w98_paint.ico"
+            },
             {
               "id": "programs/accessories/games",
               "label": "Games",

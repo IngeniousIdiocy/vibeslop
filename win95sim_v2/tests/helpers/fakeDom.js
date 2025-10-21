@@ -34,6 +34,10 @@ class FakeElement {
     }
   }
 
+  focus() {}
+
+  blur() {}
+
   addEventListener(type, handler) {
     if (!this.eventListeners.has(type)) {
       this.eventListeners.set(type, new Set());

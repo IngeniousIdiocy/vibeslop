@@ -24,12 +24,16 @@ export interface DesktopModuleOptions {
 
 export interface DesktopModule {
   list(): DesktopIcon[];
-  move(id: string, position: LayoutPosition): void;
+  move(id: string, position: LayoutPosition, options?: DesktopMoveOptions): void;
   rename(id: string, nextTitle: string): DesktopEntry | undefined;
   getSelection(): string[];
   setSelection(ids: string[]): void;
   clearSelection(): void;
   arrange(): void;
+}
+
+export interface DesktopMoveOptions {
+  snapToGrid?: boolean;
 }
 
 const DEFAULT_SURFACE = '::desktop';
@@ -79,8 +83,10 @@ export function createDesktopModule(options: DesktopModuleOptions): DesktopModul
 
   return {
     list,
-    move(id, position) {
-      layout.setItem(surfaceId, id, position);
+    move(id, position, moveOptions) {
+      layout.setItem(surfaceId, id, position, {
+        snapToGrid: moveOptions?.snapToGrid ?? true,
+      });
     },
     rename(id, nextTitle) {
       const entries = options.resolveEntries();
