@@ -28,6 +28,46 @@ export interface WindowInteractionEvent {
 
 export type WindowInteractionHandler = (event: WindowInteractionEvent) => void;
 
+function isCaptionButtonTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== 'object') {
+    return false;
+  }
+
+  const element = target as {
+    classList?: { contains?: (className: string) => boolean };
+    className?: string;
+    parentElement?: EventTarget | null;
+    closest?: (selector: string) => Element | null;
+  };
+
+  if (typeof element.closest === 'function') {
+    const closestButton = element.closest('.window-caption__button');
+    if (closestButton) {
+      return true;
+    }
+  }
+
+  if (element.classList && typeof element.classList.contains === 'function') {
+    if (element.classList.contains('window-caption__button')) {
+      return true;
+    }
+  }
+
+  if (typeof element.className === 'string') {
+    const classNames = element.className.split(/\s+/);
+    if (classNames.includes('window-caption__button')) {
+      return true;
+    }
+  }
+
+  const parent = element.parentElement;
+  if (parent && parent !== target) {
+    return isCaptionButtonTarget(parent);
+  }
+
+  return false;
+}
+
 export function createWindowFrame(options: WindowFrameOptions): WindowFrame {
   const element = document.createElement('div');
   element.className = 'window-frame';
@@ -94,10 +134,8 @@ export function createWindowFrame(options: WindowFrameOptions): WindowFrame {
       if (event.button !== undefined && event.button !== 0) {
         return;
       }
-      if (detail.type === 'move' && event.target instanceof HTMLElement) {
-        if (event.target.closest('.window-caption__button')) {
-          return;
-        }
+      if (detail.type === 'move' && isCaptionButtonTarget(event.target)) {
+        return;
       }
       activePointerId = resolvePointerId(event);
       event.preventDefault?.();
