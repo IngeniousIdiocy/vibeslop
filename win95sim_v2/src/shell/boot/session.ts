@@ -118,6 +118,20 @@ export const DESKTOP_DEFAULT_ENTRIES: DesktopEntry[] = [
     type: 'shortcut',
     icon: 'icons/w98_directory_explorer.ico',
   },
+  {
+    id: 'desktop/minesweeper',
+    title: 'Minesweeper',
+    resource: '::desktop/minesweeper',
+    type: 'shortcut',
+    icon: 'icons/w98_minesweeper.ico',
+  },
+  {
+    id: 'desktop/msdos',
+    title: 'MS-DOS Prompt',
+    resource: '::desktop/msdos',
+    type: 'shortcut',
+    icon: 'icons/w98_ms-dos.ico',
+  },
 ];
 
 export const DESKTOP_SHORTCUT_COMMANDS: Record<string, string> = {
@@ -127,6 +141,8 @@ export const DESKTOP_SHORTCUT_COMMANDS: Record<string, string> = {
   'desktop/paint': 'shell:start:paint',
   'desktop/notepad': 'shell:start:notepad',
   'desktop/explorer': 'shell:start:explorer',
+  'desktop/minesweeper': 'shell:start:minesweeper',
+  'desktop/msdos': 'shell:start:msdos',
 };
 
 export function createShellSession(): ShellSession {
@@ -156,6 +172,8 @@ export function createShellSession(): ShellSession {
   layout.setItem(DESKTOP_SURFACE_ID, 'desktop/paint', { x: 30, y: 214 }, { snapToGrid: false });
   layout.setItem(DESKTOP_SURFACE_ID, 'desktop/notepad', { x: 30, y: 282 }, { snapToGrid: false });
   layout.setItem(DESKTOP_SURFACE_ID, 'desktop/explorer', { x: 30, y: 350 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/minesweeper', { x: 30, y: 418 }, { snapToGrid: false });
+  layout.setItem(DESKTOP_SURFACE_ID, 'desktop/msdos', { x: 30, y: 486 }, { snapToGrid: false });
 
   layout.bus.on('layout:updated', ({ surfaceId }) => {
     if (surfaceId === DESKTOP_SURFACE_ID) {
@@ -388,13 +406,6 @@ export function createShellSession(): ShellSession {
     return viewport;
   }
 
-  const desktopActions: Record<string, () => void> = Object.fromEntries(
-    Object.entries(DESKTOP_SHORTCUT_COMMANDS).map(([id, command]) => [
-      id,
-      () => handleStartCommand(command),
-    ]),
-  );
-
   function renderDesktop() {
     if (!desktopView) {
       return;
@@ -502,9 +513,9 @@ export function createShellSession(): ShellSession {
   }
 
   function handleDesktopOpen(id: string) {
-    const action = desktopActions[id];
-    if (action) {
-      action();
+    const command = DESKTOP_SHORTCUT_COMMANDS[id];
+    if (command) {
+      executeCommand(command);
     } else {
       openWindow({
         title: 'Win95Sim',
@@ -1021,7 +1032,8 @@ export function createShellSession(): ShellSession {
       }),
   };
 
-  function handleStartCommand(command: string) {
+  function executeCommand(command: string, options: { closeStartMenu?: boolean } = {}) {
+    const shouldCloseStartMenu = options.closeStartMenu ?? false;
     if (command.startsWith('shell:open:recent:')) {
       const recentId = command.slice('shell:open:recent:'.length);
       const entry = recentDocuments.list().find((item) => item.id === recentId);
@@ -1033,7 +1045,9 @@ export function createShellSession(): ShellSession {
           content: () =>
             createPlaceholderContent(entry.title, `Win95Sim cannot open "${entry.path}" yet, but it's on the roadmap.`),
         });
-        closeStartMenu();
+        if (shouldCloseStartMenu) {
+          closeStartMenu();
+        }
         return;
       }
     }
@@ -1050,7 +1064,13 @@ export function createShellSession(): ShellSession {
           createPlaceholderContent('Coming Soon', `Command "${command}" is not available in this build.`),
       });
     }
-    closeStartMenu();
+    if (shouldCloseStartMenu) {
+      closeStartMenu();
+    }
+  }
+
+  function handleStartCommand(command: string) {
+    executeCommand(command, { closeStartMenu: true });
   }
 
   return {
