@@ -271,6 +271,59 @@ test('shell defines desktop shortcuts for core apps', () => {
   assert.equal(findCommand('programs/ms-dos'), DESKTOP_SHORTCUT_COMMANDS['desktop/msdos']);
 });
 
+test('desktop view reuses icon elements across renders', () => {
+  withFakeDom(({ document }) => {
+    const { createDesktopView } = loadModule('src/ui/components/desktopIcons.ts');
+
+    const updates = [];
+    const view = createDesktopView({
+      onSelect: (id) => updates.push(['select', id]),
+      onOpen: (id) => updates.push(['open', id]),
+    });
+
+    const icon = {
+      id: 'desktop/test',
+      title: 'Test App',
+      resource: '::desktop/test',
+      type: 'shortcut',
+      icon: undefined,
+      position: { x: 0, y: 0 },
+      selected: false,
+    };
+
+    view.render([icon]);
+    assert.equal(view.element.children.length, 1);
+    const firstInstance = view.element.children[0];
+
+    view.render([{ ...icon, title: 'Test App (2)', position: { x: 48, y: 0 }, selected: true }]);
+    assert.equal(view.element.children.length, 1);
+    const secondInstance = view.element.children[0];
+
+    assert.strictEqual(firstInstance, secondInstance);
+    assert.equal(secondInstance.dataset.selected, 'true');
+    assert.equal(secondInstance.style.left, '48px');
+    const label = secondInstance.children[1];
+    assert.ok(label, 'expected desktop icon label element');
+    assert.equal(label.textContent, 'Test App (2)');
+
+    const createEvent = (overrides = {}) => ({
+      preventDefault() {},
+      stopPropagation() {},
+      ctrlKey: false,
+      metaKey: false,
+      ...overrides,
+    });
+
+    secondInstance.dispatchEvent('click', createEvent());
+    secondInstance.dispatchEvent('dblclick', createEvent());
+
+    assert.deepEqual(updates, [
+      ['select', 'desktop/test'],
+      ['open', 'desktop/test'],
+    ]);
+  });
+});
+
 test('double-clicking desktop shortcuts launches core applications', () => {
   const overrides = {
     '@apps/explorer': `
@@ -397,15 +450,44 @@ test('double-clicking desktop shortcuts launches core applications', () => {
         stopPropagation() {},
       });
 
+      const countTitles = () => {
+        const titles = collectWindowTitles(document.body);
+        return titles.reduce((map, title) => {
+          map.set(title, (map.get(title) ?? 0) + 1);
+          return map;
+        }, new Map());
+      };
+
       for (const [id, expectedTitle] of shortcutExpectations.entries()) {
-        const icon = findByDataset(document.body, 'id', id);
+        let icon = findByDataset(document.body, 'id', id);
         assert.ok(icon, `expected desktop icon for ${id}`);
+
+        const beforeCounts = countTitles();
+
+        icon.dispatchEvent(
+          'click',
+          {
+            preventDefault() {},
+            stopPropagation() {},
+            ctrlKey: false,
+            metaKey: false,
+          },
+        );
+
+        icon = findByDataset(document.body, 'id', id);
+        assert.ok(icon, `expected desktop icon for ${id} after selection render`);
+
         icon.dispatchEvent('dblclick', createMouseEvent());
 
-        const titles = collectWindowTitles(document.body);
+        const afterCounts = countTitles();
         assert.ok(
-          titles.includes(expectedTitle),
+          (afterCounts.get(expectedTitle) ?? 0) > (beforeCounts.get(expectedTitle) ?? 0),
           `expected to find window titled "${expectedTitle}" after activating ${id}`,
+        );
+        assert.equal(
+          afterCounts.get('Empty Window') ?? 0,
+          beforeCounts.get('Empty Window') ?? 0,
+          'did not expect desktop activation to trigger the blank window placeholder',
         );
       }
     } finally {
