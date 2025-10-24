@@ -94,6 +94,11 @@ export function createWindowFrame(options: WindowFrameOptions): WindowFrame {
       if (event.button !== undefined && event.button !== 0) {
         return;
       }
+      if (detail.type === 'move' && event.target instanceof HTMLElement) {
+        if (event.target.closest('.window-caption__button')) {
+          return;
+        }
+      }
       activePointerId = resolvePointerId(event);
       event.preventDefault?.();
       event.stopPropagation?.();
