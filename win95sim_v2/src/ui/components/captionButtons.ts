@@ -35,9 +35,21 @@ export function createCaptionButtons(options: CaptionButtonOptions = {}) {
     button.type = 'button';
     button.textContent = label;
     button.setAttribute('aria-label', ariaLabel);
-    if (handler) {
-      button.addEventListener('click', handler);
-    }
+    const stopPointerPropagation = (event: PointerEvent) => {
+      event.stopPropagation();
+    };
+    const stopMousePropagation = (event: MouseEvent) => {
+      event.stopPropagation();
+    };
+    button.addEventListener('pointerdown', stopPointerPropagation);
+    button.addEventListener('pointerup', stopPointerPropagation);
+    button.addEventListener('pointercancel', stopPointerPropagation);
+    button.addEventListener('mousedown', stopMousePropagation);
+    button.addEventListener('mouseup', stopMousePropagation);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      handler?.();
+    });
     container.appendChild(button);
   });
 
