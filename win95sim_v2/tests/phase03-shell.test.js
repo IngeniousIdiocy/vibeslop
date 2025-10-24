@@ -225,6 +225,8 @@ test('menu command registry composes declarative menu schemas', () => {
 
 test('shell defines desktop shortcuts for core apps', () => {
   const { DESKTOP_DEFAULT_ENTRIES, DESKTOP_SHORTCUT_COMMANDS } = loadModule('src/shell/boot/session.ts');
+  const { createStartMenuModel } = loadModule('src/apps/shell/start-menu/index.ts');
+  const { createRecentDocumentsService } = loadModule('src/services/recent-documents/index.ts');
 
   const entries = Object.fromEntries(DESKTOP_DEFAULT_ENTRIES.map((entry) => [entry.id, entry]));
   assert.ok(entries['desktop/internet-explorer']);
@@ -233,6 +235,8 @@ test('shell defines desktop shortcuts for core apps', () => {
   assert.equal(entries['desktop/paint'].icon, 'icons/w98_paint.ico');
   assert.equal(entries['desktop/notepad'].icon, 'icons/w98_notepad.ico');
   assert.equal(entries['desktop/explorer'].icon, 'icons/w98_directory_explorer.ico');
+  assert.equal(entries['desktop/minesweeper'].icon, 'icons/w98_minesweeper.ico');
+  assert.equal(entries['desktop/msdos'].icon, 'icons/w98_ms-dos.ico');
 
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/computer'], 'shell:start:my-computer');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/recycle-bin'], 'shell:start:recycle-bin');
@@ -240,6 +244,31 @@ test('shell defines desktop shortcuts for core apps', () => {
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/paint'], 'shell:start:paint');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/notepad'], 'shell:start:notepad');
   assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/explorer'], 'shell:start:explorer');
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/minesweeper'], 'shell:start:minesweeper');
+  assert.equal(DESKTOP_SHORTCUT_COMMANDS['desktop/msdos'], 'shell:start:msdos');
+
+  const startMenu = createStartMenuModel({ recentDocuments: createRecentDocumentsService() });
+  const programsSchema = startMenu.getMenuSchema('programs');
+  const findCommand = (id) => {
+    const visit = (items = []) => {
+      for (const item of items) {
+        if (item.id === id) {
+          return item.command;
+        }
+        if (item.children) {
+          const match = visit(item.children);
+          if (match) {
+            return match;
+          }
+        }
+      }
+      return undefined;
+    };
+    return visit(programsSchema.items);
+  };
+
+  assert.equal(findCommand('programs/accessories/games/minesweeper'), DESKTOP_SHORTCUT_COMMANDS['desktop/minesweeper']);
+  assert.equal(findCommand('programs/ms-dos'), DESKTOP_SHORTCUT_COMMANDS['desktop/msdos']);
 });
 
 test('double-clicking desktop shortcuts launches core applications', () => {
@@ -334,6 +363,8 @@ test('double-clicking desktop shortcuts launches core applications', () => {
         ['desktop/paint', 'Paint'],
         ['desktop/notepad', 'Notepad'],
         ['desktop/explorer', 'Windows Explorer'],
+        ['desktop/minesweeper', 'Minesweeper'],
+        ['desktop/msdos', 'MS-DOS Prompt'],
       ]);
 
       const findByDataset = (element, key, value) => {
