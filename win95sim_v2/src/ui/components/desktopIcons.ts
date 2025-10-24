@@ -61,6 +61,24 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
 
   const iconNodes = new Map<string, IconNode>();
 
+  const clearDomSelection = () => {
+    if (typeof document !== 'undefined') {
+      const documentSelection = (document as Document & {
+        getSelection?: () => Selection | null;
+      }).getSelection?.();
+      if (documentSelection && typeof documentSelection.removeAllRanges === 'function') {
+        documentSelection.removeAllRanges();
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      const windowSelection = window.getSelection?.();
+      if (windowSelection && typeof windowSelection.removeAllRanges === 'function') {
+        windowSelection.removeAllRanges();
+      }
+    }
+  };
+
   const resolvePointerId = (event: PointerEvent) => (typeof event.pointerId === 'number' ? event.pointerId : 0);
   const getPointerPosition = (event: PointerEvent) => ({
     x: typeof event.clientX === 'number' ? event.clientX : 0,
@@ -178,27 +196,24 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
         return;
       }
       const additive = Boolean(event.ctrlKey || event.metaKey);
-      options.onSelect?.(current.id, additive);
-    });
-
-    icon.addEventListener('dblclick', (event) => {
-      event.preventDefault?.();
-      event.stopPropagation?.();
-      options.onOpen?.(current.id);
-      icon.blur();
-      if (typeof window !== 'undefined') {
-        const selection = window.getSelection?.();
-        if (selection && typeof selection.removeAllRanges === 'function') {
-          selection.removeAllRanges();
-        }
+      const detail = typeof event.detail === 'number' ? event.detail : 0;
+      if (detail <= 1) {
+        options.onSelect?.(current.id, additive);
       }
-      suppressClick = false;
+      if (detail >= 2) {
+        event.preventDefault?.();
+        options.onOpen?.(current.id);
+        icon.blur();
+        clearDomSelection();
+        suppressClick = false;
+      }
     });
 
     icon.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault?.();
         options.onOpen?.(current.id);
+        clearDomSelection();
       }
     });
 

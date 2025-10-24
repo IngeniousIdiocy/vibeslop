@@ -63,6 +63,9 @@ function createPointerEvent(target, overrides = {}) {
     button: 0,
     clientX: 0,
     clientY: 0,
+    ctrlKey: false,
+    metaKey: false,
+    detail: 1,
     preventDefault() {},
     stopPropagation() {},
     target,
@@ -452,13 +455,23 @@ test('desktop shortcuts launch their mapped applications', () => {
       }
 
       function openShortcut(datasetId, pointerId) {
-        const icon = findIcon(root, datasetId);
+        let icon = findIcon(root, datasetId);
         assert.ok(icon, `expected desktop icon ${datasetId}`);
         if (typeof icon.blur !== 'function') {
           icon.blur = () => {};
         }
-        const dblEvent = createPointerEvent(icon, { pointerId });
-        icon.dispatchEvent('dblclick', dblEvent);
+
+        const createClickEvent = (detail) =>
+          createPointerEvent(icon, {
+            pointerId,
+            detail,
+          });
+
+        icon.dispatchEvent('click', createClickEvent(1));
+
+        icon = findIcon(root, datasetId) ?? icon;
+
+        icon.dispatchEvent('click', createClickEvent(2));
         const freshWindows = session
           .listWindows()
           .filter((win) => !seenIds.has(win.id));

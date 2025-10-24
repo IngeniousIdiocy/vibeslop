@@ -306,21 +306,100 @@ test('desktop view reuses icon elements across renders', () => {
     assert.ok(label, 'expected desktop icon label element');
     assert.equal(label.textContent, 'Test App (2)');
 
-    const createEvent = (overrides = {}) => ({
+    const createEvent = (detail) => ({
       preventDefault() {},
       stopPropagation() {},
       ctrlKey: false,
       metaKey: false,
-      ...overrides,
+      detail,
     });
 
-    secondInstance.dispatchEvent('click', createEvent());
-    secondInstance.dispatchEvent('dblclick', createEvent());
+    secondInstance.dispatchEvent('click', createEvent(1));
+    secondInstance.dispatchEvent('click', createEvent(2));
 
     assert.deepEqual(updates, [
       ['select', 'desktop/test'],
       ['open', 'desktop/test'],
     ]);
+  });
+});
+
+test('desktop activation clears DOM selections', () => {
+  withFakeDom(({ document }) => {
+    const { createDesktopView } = loadModule('src/ui/components/desktopIcons.ts');
+
+    const selectionCalls = [];
+    const windowSelectionCalls = [];
+    const openLog = [];
+
+    const view = createDesktopView({
+      onOpen: (id) => openLog.push(id),
+    });
+
+    const icon = {
+      id: 'desktop/test',
+      title: 'Test App',
+      resource: '::desktop/test',
+      type: 'shortcut',
+      icon: undefined,
+      position: { x: 0, y: 0 },
+      selected: false,
+    };
+
+    const previousDocumentGetSelection = document.getSelection;
+    const documentSelection = {
+      removeAllRanges() {
+        selectionCalls.push('document');
+      },
+    };
+
+    document.getSelection = () => documentSelection;
+
+    const previousWindow = global.window;
+    global.window = {
+      ...(previousWindow && typeof previousWindow === 'object' ? previousWindow : {}),
+      getSelection() {
+        return {
+          removeAllRanges() {
+            windowSelectionCalls.push('window');
+          },
+        };
+      },
+      addEventListener: previousWindow?.addEventListener ?? (() => {}),
+      removeEventListener: previousWindow?.removeEventListener ?? (() => {}),
+    };
+
+    try {
+      view.render([icon]);
+      const element = view.element.children[0];
+      assert.ok(element, 'expected rendered desktop icon');
+
+      const createEvent = (detail) => ({
+        preventDefault() {},
+        stopPropagation() {},
+        ctrlKey: false,
+        metaKey: false,
+        detail,
+      });
+
+      element.dispatchEvent('click', createEvent(1));
+      element.dispatchEvent('click', createEvent(2));
+    } finally {
+      if (previousWindow === undefined) {
+        delete global.window;
+      } else {
+        global.window = previousWindow;
+      }
+      if (previousDocumentGetSelection === undefined) {
+        delete document.getSelection;
+      } else {
+        document.getSelection = previousDocumentGetSelection;
+      }
+    }
+
+    assert.deepEqual(openLog, ['desktop/test']);
+    assert.equal(selectionCalls.length, 1);
+    assert.equal(windowSelectionCalls.length, 1);
   });
 });
 
@@ -445,9 +524,12 @@ test('double-clicking desktop shortcuts launches core applications', () => {
         return titles;
       };
 
-      const createMouseEvent = () => ({
+      const createMouseEvent = (detail) => ({
         preventDefault() {},
         stopPropagation() {},
+        ctrlKey: false,
+        metaKey: false,
+        detail,
       });
 
       const countTitles = () => {
@@ -464,20 +546,12 @@ test('double-clicking desktop shortcuts launches core applications', () => {
 
         const beforeCounts = countTitles();
 
-        icon.dispatchEvent(
-          'click',
-          {
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            metaKey: false,
-          },
-        );
+        icon.dispatchEvent('click', createMouseEvent(1));
 
         icon = findByDataset(document.body, 'id', id);
         assert.ok(icon, `expected desktop icon for ${id} after selection render`);
 
-        icon.dispatchEvent('dblclick', createMouseEvent());
+        icon.dispatchEvent('click', createMouseEvent(2));
 
         const afterCounts = countTitles();
         assert.ok(
