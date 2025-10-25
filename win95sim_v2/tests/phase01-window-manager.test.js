@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { loadModule } = require('./helpers/loadModule');
 const { withFakeDom } = require('./helpers/fakeDom');
 
@@ -73,6 +75,35 @@ function createPointerEvent(target, overrides = {}) {
     ...overrides,
   };
 }
+
+test('window frame layout uses flex columns so app hosts fill the height', () => {
+  const cssPath = path.join(__dirname, '..', 'src', 'styles', 'global.css');
+  const css = fs.readFileSync(cssPath, 'utf8');
+
+  const readRule = (selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, 'm');
+    const match = css.match(pattern);
+    assert.ok(match, `expected ${selector} styles`);
+    return match[1];
+  };
+
+  const frameRule = readRule('.window-frame');
+  assert.match(frameRule, /display\s*:\s*flex/);
+  assert.match(frameRule, /flex-direction\s*:\s*column/);
+
+  const bodyRule = readRule('.window-body');
+  assert.match(bodyRule, /display\s*:\s*flex/);
+  assert.match(bodyRule, /flex-direction\s*:\s*column/);
+  assert.match(bodyRule, /flex\s*:\s*1\s+1\s+auto/);
+  assert.match(bodyRule, /min-height\s*:\s*0/);
+
+  const contentRule = readRule('.window-content');
+  assert.match(contentRule, /display\s*:\s*flex/);
+  assert.match(contentRule, /flex-direction\s*:\s*column/);
+  assert.match(contentRule, /flex\s*:\s*1\s+1\s+auto/);
+  assert.match(contentRule, /min-height\s*:\s*0/);
+});
 
 test('window manager exposes create/move/resize lifecycle', () => {
   const { createWindowManager } = loadModule('src/apps/shell/window-manager/index.ts');
