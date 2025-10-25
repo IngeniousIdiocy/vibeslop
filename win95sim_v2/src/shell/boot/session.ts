@@ -295,10 +295,40 @@ export function createShellSession(): ShellSession {
     viewport.mount(desktop);
 
     workspace.addEventListener('dblclick', (event) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('.window-frame') || target?.closest('.desktop-icon')) {
-        return;
+      const rawTarget = event.target as EventTarget | null;
+      let targetElement: HTMLElement | null = null;
+
+      if (typeof HTMLElement !== 'undefined' && rawTarget instanceof HTMLElement) {
+        targetElement = rawTarget;
+      } else if (rawTarget && typeof (rawTarget as { parentElement?: unknown }).parentElement === 'object') {
+        targetElement =
+          ((rawTarget as { parentElement?: HTMLElement | null }).parentElement as HTMLElement | null) ?? null;
       }
+
+      const isWithinClass = (element: HTMLElement | null, className: string) => {
+        let current: HTMLElement | null = element;
+        while (current) {
+          const classValue = typeof current.className === 'string' ? current.className : '';
+          const classes = classValue.split(/\s+/).filter(Boolean);
+          if (classes.includes(className)) {
+            return true;
+          }
+          current = current.parentElement as HTMLElement | null;
+        }
+        return false;
+      };
+
+      if (targetElement) {
+        if (typeof (targetElement as { closest?: unknown }).closest === 'function') {
+          const elementWithClosest = targetElement as { closest: (selector: string) => Element | null };
+          if (elementWithClosest.closest('.window-frame') || elementWithClosest.closest('.desktop-icon')) {
+            return;
+          }
+        } else if (isWithinClass(targetElement, 'window-frame') || isWithinClass(targetElement, 'desktop-icon')) {
+          return;
+        }
+      }
+
       handleStartCommand('shell:start:blank');
     });
 
