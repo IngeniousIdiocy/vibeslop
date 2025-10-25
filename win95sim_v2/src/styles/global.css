@@ -1,5 +1,14 @@
 @import '../ui/tokens.css';
 
+:root {
+  --win95-scrollbar-size: 17px;
+  --win95-scrollbar-track: #c0c0c0;
+  --win95-scrollbar-thumb-light: #f4f4f4;
+  --win95-scrollbar-thumb-dark: #bcbcbc;
+  --win95-scrollbar-shadow: #808080;
+  --win95-scrollbar-highlight: #ffffff;
+}
+
 html {
   height: 100%;
 }
@@ -11,6 +20,63 @@ body {
   color: #000;
   min-height: 100vh;
   height: 100%;
+}
+
+* {
+  scrollbar-width: auto;
+  scrollbar-color: var(--win95-scrollbar-shadow) var(--win95-scrollbar-track);
+}
+
+* {
+  scrollbar-width: auto;
+  scrollbar-color: var(--win95-scrollbar-shadow) var(--win95-scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: var(--win95-scrollbar-size);
+  height: var(--win95-scrollbar-size);
+  background-color: var(--win95-scrollbar-track);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--win95-scrollbar-track);
+  border: 1px solid var(--win95-scrollbar-shadow);
+  box-shadow:
+    inset 1px 1px 0 var(--win95-scrollbar-highlight),
+    inset -1px -1px 0 #404040;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--win95-scrollbar-thumb-light), var(--win95-scrollbar-thumb-dark));
+  border: 2px solid var(--win95-scrollbar-shadow);
+  border-top-color: var(--win95-scrollbar-highlight);
+  border-left-color: var(--win95-scrollbar-highlight);
+  box-shadow:
+    inset 1px 1px 0 var(--win95-scrollbar-highlight),
+    inset -1px -1px 0 #404040;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, var(--win95-scrollbar-thumb-dark), var(--win95-scrollbar-thumb-light));
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--win95-scrollbar-track);
+  border: 1px solid var(--win95-scrollbar-shadow);
+  border-top-color: var(--win95-scrollbar-highlight);
+  border-left-color: var(--win95-scrollbar-highlight);
+}
+
+*::-webkit-scrollbar-button {
+  width: var(--win95-scrollbar-size);
+  height: var(--win95-scrollbar-size);
+  background: var(--win95-scrollbar-track);
+  border: 1px solid var(--win95-scrollbar-shadow);
+  border-top-color: var(--win95-scrollbar-highlight);
+  border-left-color: var(--win95-scrollbar-highlight);
+  box-shadow:
+    inset 1px 1px 0 var(--win95-scrollbar-highlight),
+    inset -1px -1px 0 #404040;
 }
 
 .crt-viewport {

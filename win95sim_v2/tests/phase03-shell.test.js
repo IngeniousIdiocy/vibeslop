@@ -475,7 +475,8 @@ test('double-clicking desktop shortcuts launches core applications', () => {
   };
 
   withFakeDom(({ document }) => {
-    const { createShellSession } = loadModule('src/shell/boot/session.ts', { overrides });
+    const { createShellSession, DESKTOP_DEFAULT_ENTRIES } = loadModule('src/shell/boot/session.ts', { overrides });
+    const iconLookup = new Map(DESKTOP_DEFAULT_ENTRIES.map((entry) => [entry.id, entry.icon]));
 
     const previousWindow = global.window;
     global.window = {
@@ -542,6 +543,47 @@ test('double-clicking desktop shortcuts launches core applications', () => {
         }, new Map());
       };
 
+      const normalizeIconPath = (iconPath) => {
+        if (!iconPath) {
+          return 'assets/icons/w2k_default_application.ico';
+        }
+        if (iconPath.startsWith('assets/')) {
+          return iconPath;
+        }
+        if (iconPath.startsWith('/')) {
+          return `assets${iconPath}`;
+        }
+        return `assets/${iconPath}`;
+      };
+
+      const findWindowIconByTitle = (element, targetTitle) => {
+        const classes = typeof element.className === 'string' ? element.className.split(/\s+/).filter(Boolean) : [];
+        if (classes.includes('window-caption')) {
+          let titleNode;
+          let iconNode;
+          for (const child of element.children) {
+            const childClasses = typeof child.className === 'string'
+              ? child.className.split(/\s+/).filter(Boolean)
+              : [];
+            if (childClasses.includes('window-caption__title')) {
+              titleNode = child;
+            } else if (childClasses.includes('window-caption__icon')) {
+              iconNode = child;
+            }
+          }
+          if (titleNode?.textContent === targetTitle && iconNode) {
+            return iconNode;
+          }
+        }
+        for (const child of element.children) {
+          const match = findWindowIconByTitle(child, targetTitle);
+          if (match) {
+            return match;
+          }
+        }
+        return undefined;
+      };
+
       for (const [id, expectedTitle] of shortcutExpectations.entries()) {
         let icon = findByDataset(document.body, 'id', id);
         assert.ok(icon, `expected desktop icon for ${id}`);
@@ -565,6 +607,16 @@ test('double-clicking desktop shortcuts launches core applications', () => {
           afterCounts.get('Empty Window') ?? 0,
           beforeCounts.get('Empty Window') ?? 0,
           'did not expect desktop activation to trigger the blank window placeholder',
+        );
+
+        const expectedIconPath = iconLookup.get(id);
+        assert.ok(expectedIconPath, `expected icon mapping for ${id}`);
+        const iconElement = findWindowIconByTitle(document.body, expectedTitle);
+        assert.ok(iconElement, `expected window icon element for ${expectedTitle}`);
+        assert.equal(
+          iconElement.src,
+          normalizeIconPath(expectedIconPath),
+          `expected ${expectedTitle} window chrome to use its application icon`,
         );
       }
     } finally {

@@ -35,6 +35,7 @@ type WindowContentSource =
 interface ShellWindowOptions {
   id?: string;
   title: string;
+  icon?: string;
   width?: number;
   height?: number;
   x?: number;
@@ -49,6 +50,28 @@ const DESKTOP_SURFACE_ID = '::desktop';
 const DEFAULT_EXPLORER_HOME = 'C:/';
 const DEFAULT_NAVIGATOR_HOME = 'https://www.example.com/';
 const STARTUP_FOLDER_PATH = 'C:/Start Menu/Programs/StartUp';
+const WINDOW_ICONS = {
+  defaultApp: 'icons/w2k_default_application.ico',
+  welcome: 'icons/w98_windows.ico',
+  myComputer: 'icons/w98_computer.ico',
+  recycleBin: 'icons/w98_recycle_bin_empty.ico',
+  internetExplorer: 'icons/w98_msie1.ico',
+  paint: 'icons/w98_paint.ico',
+  notepad: 'icons/w98_notepad.ico',
+  explorer: 'icons/w98_directory_explorer.ico',
+  minesweeper: 'icons/w98_minesweeper.ico',
+  msdos: 'icons/w98_ms-dos.ico',
+  internetMail: 'icons/w98_mailbox_world.ico',
+  internetNews: 'icons/w98_newspaper.ico',
+  controlPanel: 'icons/w98_directory_control_panel.ico',
+  taskbar: 'icons/w2k_taskbar.ico',
+  findFiles: 'icons/w2k_search.ico',
+  help: 'icons/w98_help_book_cool.ico',
+  run: 'icons/w2k_run.ico',
+  startup: 'icons/w2k_folder_open.ico',
+  shutdown: 'icons/w2k_shutdown.ico',
+  documents: 'icons/w2k_folder_closed.ico',
+} as const;
 const DEFAULT_VFS_SEED: Array<{ path: string; kind: 'directory' | 'file' | 'shortcut'; content?: string; target?: string }> = [
   { path: 'C:/Documents', kind: 'directory' },
   {
@@ -81,56 +104,56 @@ export const DESKTOP_DEFAULT_ENTRIES: DesktopEntry[] = [
     title: 'My Computer',
     resource: '::desktop/computer',
     type: 'folder',
-    icon: 'icons/w98_computer.ico',
+    icon: WINDOW_ICONS.myComputer,
   },
   {
     id: 'desktop/recycle-bin',
     title: 'Recycle Bin',
     resource: '::desktop/recycle-bin',
     type: 'folder',
-    icon: 'icons/w98_recycle_bin_empty.ico',
+    icon: WINDOW_ICONS.recycleBin,
   },
   {
     id: 'desktop/internet-explorer',
     title: 'Internet Explorer',
     resource: '::desktop/internet-explorer',
     type: 'shortcut',
-    icon: 'icons/w98_msie1.ico',
+    icon: WINDOW_ICONS.internetExplorer,
   },
   {
     id: 'desktop/paint',
     title: 'Paint',
     resource: '::desktop/paint',
     type: 'shortcut',
-    icon: 'icons/w98_paint.ico',
+    icon: WINDOW_ICONS.paint,
   },
   {
     id: 'desktop/notepad',
     title: 'Notepad',
     resource: '::desktop/notepad',
     type: 'shortcut',
-    icon: 'icons/w98_notepad.ico',
+    icon: WINDOW_ICONS.notepad,
   },
   {
     id: 'desktop/explorer',
     title: 'Windows Explorer',
     resource: '::desktop/explorer',
     type: 'shortcut',
-    icon: 'icons/w98_directory_explorer.ico',
+    icon: WINDOW_ICONS.explorer,
   },
   {
     id: 'desktop/minesweeper',
     title: 'Minesweeper',
     resource: '::desktop/minesweeper',
     type: 'shortcut',
-    icon: 'icons/w98_minesweeper.ico',
+    icon: WINDOW_ICONS.minesweeper,
   },
   {
     id: 'desktop/msdos',
     title: 'MS-DOS Prompt',
     resource: '::desktop/msdos',
     type: 'shortcut',
-    icon: 'icons/w98_ms-dos.ico',
+    icon: WINDOW_ICONS.msdos,
   },
 ];
 
@@ -383,6 +406,7 @@ export function createShellSession(): ShellSession {
 
       const frame = createWindowFrame({
         title: descriptor.title,
+        icon: descriptor.icon,
         onClose: () => windowManager.closeWindow(descriptor.id),
         onMinimize: () => windowManager.minimizeWindow(descriptor.id),
         onMaximize: () => {
@@ -568,6 +592,7 @@ export function createShellSession(): ShellSession {
     } else {
       openWindow({
         title: 'Win95Sim',
+        icon: WINDOW_ICONS.defaultApp,
         width: 320,
         height: 240,
         content: () =>
@@ -708,6 +733,7 @@ export function createShellSession(): ShellSession {
     const displayState = display.getState();
     const width = Math.min(options.width ?? DEFAULT_WINDOW_WIDTH, displayState.width || DEFAULT_WINDOW_WIDTH);
     const height = Math.min(options.height ?? DEFAULT_WINDOW_HEIGHT, displayState.height || DEFAULT_WINDOW_HEIGHT);
+    const icon = options.icon ?? WINDOW_ICONS.defaultApp;
 
     const baseX = options.x ?? (80 + cascadeOffset);
     const baseY = options.y ?? (60 + cascadeOffset);
@@ -731,6 +757,7 @@ export function createShellSession(): ShellSession {
       return windowManager.createWindow({
         id,
         title: options.title,
+        icon,
         bounds: {
           x,
           y,
@@ -845,11 +872,12 @@ export function createShellSession(): ShellSession {
     return form;
   }
 
-  function launchExplorerWindow(options: { id?: string; title?: string; startPath?: string } = {}) {
+  function launchExplorerWindow(options: { id?: string; title?: string; startPath?: string; icon?: string } = {}) {
     let explorerInstance: ExplorerInstance | undefined;
     const descriptor = openWindow({
       id: options.id,
       title: options.title ?? 'Windows Explorer',
+      icon: options.icon ?? WINDOW_ICONS.explorer,
       width: 640,
       height: 480,
       content: () => {
@@ -875,11 +903,12 @@ export function createShellSession(): ShellSession {
     return descriptor;
   }
 
-  function launchPaintWindow(options: { id?: string; title?: string } = {}) {
+  function launchPaintWindow(options: { id?: string; title?: string; icon?: string } = {}) {
     let paintInstance: PaintAppInstance | undefined;
     const descriptor = openWindow({
       id: options.id,
       title: options.title ?? 'Paint',
+      icon: options.icon ?? WINDOW_ICONS.paint,
       width: 620,
       height: 520,
       content: () => {
@@ -905,11 +934,12 @@ export function createShellSession(): ShellSession {
     return descriptor;
   }
 
-  function launchNavigatorWindow(options: { id?: string; title?: string } = {}) {
+  function launchNavigatorWindow(options: { id?: string; title?: string; icon?: string } = {}) {
     let navigatorInstance: NavigatorAppInstance | undefined;
     const descriptor = openWindow({
       id: options.id,
       title: options.title ?? 'Internet Explorer',
+      icon: options.icon ?? WINDOW_ICONS.internetExplorer,
       width: 760,
       height: 560,
       content: () => {
@@ -945,6 +975,7 @@ export function createShellSession(): ShellSession {
     return openWindow({
       id: 'shell:welcome',
       title: 'Windows 95',
+      icon: WINDOW_ICONS.welcome,
       width: 360,
       height: 260,
       content: () => createWelcomeContent(),
@@ -956,6 +987,7 @@ export function createShellSession(): ShellSession {
     'shell:start:blank': () =>
       openWindow({
         title: 'Empty Window',
+        icon: WINDOW_ICONS.defaultApp,
         content: () => createPlaceholderContent('Empty Window', 'A blank canvas for your retro dreams.'),
       }),
     'shell:start:my-computer': () =>
@@ -963,11 +995,13 @@ export function createShellSession(): ShellSession {
         id: 'app:explorer:my-computer',
         title: 'My Computer',
         startPath: DEFAULT_EXPLORER_HOME,
+        icon: WINDOW_ICONS.myComputer,
       }),
     'shell:start:recycle-bin': () =>
       openWindow({
         id: 'shell:window:recycle-bin',
         title: 'Recycle Bin',
+        icon: WINDOW_ICONS.recycleBin,
         width: 340,
         height: 280,
         content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
@@ -976,6 +1010,7 @@ export function createShellSession(): ShellSession {
       openWindow({
         id: `app:notepad:${windowSequence}`,
         title: 'Notepad',
+        icon: WINDOW_ICONS.notepad,
         width: 520,
         height: 340,
         content: () => createNotepadContent(),
@@ -988,6 +1023,7 @@ export function createShellSession(): ShellSession {
     'shell:start:minesweeper': () =>
       openWindow({
         title: 'Minesweeper',
+        icon: WINDOW_ICONS.minesweeper,
         width: 360,
         height: 320,
         content: () =>
@@ -997,6 +1033,7 @@ export function createShellSession(): ShellSession {
     'shell:start:internet-mail': () =>
       openWindow({
         title: 'Internet Mail',
+        icon: WINDOW_ICONS.internetMail,
         width: 460,
         height: 320,
         content: () =>
@@ -1005,6 +1042,7 @@ export function createShellSession(): ShellSession {
     'shell:start:internet-news': () =>
       openWindow({
         title: 'Internet News',
+        icon: WINDOW_ICONS.internetNews,
         width: 460,
         height: 320,
         content: () =>
@@ -1013,6 +1051,7 @@ export function createShellSession(): ShellSession {
     'shell:start:msdos': () =>
       openWindow({
         title: 'MS-DOS Prompt',
+        icon: WINDOW_ICONS.msdos,
         width: 520,
         height: 340,
         content: () =>
@@ -1024,6 +1063,7 @@ export function createShellSession(): ShellSession {
     'shell:start:control-panel': () =>
       openWindow({
         title: 'Control Panel',
+        icon: WINDOW_ICONS.controlPanel,
         width: 420,
         height: 320,
         content: () => createPlaceholderContent('Control Panel', 'Settings are not yet configurable in this demo.'),
@@ -1031,6 +1071,7 @@ export function createShellSession(): ShellSession {
     'shell:start:taskbar-settings': () =>
       openWindow({
         title: 'Taskbar & Start Menu',
+        icon: WINDOW_ICONS.taskbar,
         width: 360,
         height: 220,
         content: () =>
@@ -1039,6 +1080,7 @@ export function createShellSession(): ShellSession {
     'shell:start:find-files': () =>
       openWindow({
         title: 'Find Files',
+        icon: WINDOW_ICONS.findFiles,
         width: 420,
         height: 280,
         content: () =>
@@ -1047,6 +1089,7 @@ export function createShellSession(): ShellSession {
     'shell:start:help': () =>
       openWindow({
         title: 'Windows Help',
+        icon: WINDOW_ICONS.help,
         width: 420,
         height: 320,
         content: () =>
@@ -1055,6 +1098,7 @@ export function createShellSession(): ShellSession {
     'shell:start:run': () =>
       openWindow({
         title: 'Run',
+        icon: WINDOW_ICONS.run,
         width: 360,
         height: 210,
         content: () => createRunDialogContent(),
@@ -1064,16 +1108,19 @@ export function createShellSession(): ShellSession {
         id: 'app:explorer:startup',
         title: 'StartUp',
         startPath: STARTUP_FOLDER_PATH,
+        icon: WINDOW_ICONS.startup,
       }),
     'shell:start:explorer': () =>
       launchExplorerWindow({
         id: 'app:explorer:root',
         title: 'Windows Explorer',
         startPath: DEFAULT_EXPLORER_HOME,
+        icon: WINDOW_ICONS.explorer,
       }),
     'shell:start:shutdown': () =>
       openWindow({
         title: 'Shut Down Windows',
+        icon: WINDOW_ICONS.shutdown,
         width: 360,
         height: 220,
         content: () =>
@@ -1089,6 +1136,7 @@ export function createShellSession(): ShellSession {
       if (entry) {
         openWindow({
           title: entry.title,
+          icon: WINDOW_ICONS.documents,
           width: 420,
           height: 260,
           content: () =>
@@ -1107,6 +1155,7 @@ export function createShellSession(): ShellSession {
     } else {
       openWindow({
         title: 'Win95Sim',
+        icon: WINDOW_ICONS.defaultApp,
         width: 360,
         height: 220,
         content: () =>

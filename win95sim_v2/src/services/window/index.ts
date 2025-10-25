@@ -12,6 +12,7 @@ export interface WindowBounds {
 export interface WindowDescriptor {
   id: string;
   title: string;
+  icon?: string;
   bounds: WindowBounds;
   state?: WindowState;
   zIndex?: number;

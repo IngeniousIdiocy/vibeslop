@@ -98,6 +98,7 @@ type WindowState = 'normal' | 'minimized' | 'maximized';
 interface WindowDescriptor {
   id: string;
   title: string;
+  icon?: string;
   bounds: { x: number; y: number; width: number; height: number };
   state?: WindowState;
   zIndex?: number;

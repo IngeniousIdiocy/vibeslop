@@ -59,6 +59,12 @@ function createEventBus() {
 module.exports = { createEventBus };
 `;
 
+const GLOBAL_CSS_PATH = path.join(__dirname, '..', 'src', 'styles', 'global.css');
+
+function readGlobalCss() {
+  return fs.readFileSync(GLOBAL_CSS_PATH, 'utf8');
+}
+
 function createPointerEvent(target, overrides = {}) {
   return {
     pointerId: 1,
@@ -77,8 +83,7 @@ function createPointerEvent(target, overrides = {}) {
 }
 
 test('window frame layout uses flex columns so app hosts fill the height', () => {
-  const cssPath = path.join(__dirname, '..', 'src', 'styles', 'global.css');
-  const css = fs.readFileSync(cssPath, 'utf8');
+  const css = readGlobalCss();
 
   const readRule = (selector) => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -103,6 +108,24 @@ test('window frame layout uses flex columns so app hosts fill the height', () =>
   assert.match(contentRule, /flex-direction\s*:\s*column/);
   assert.match(contentRule, /flex\s*:\s*1\s+1\s+auto/);
   assert.match(contentRule, /min-height\s*:\s*0/);
+});
+
+test('scrollbars emulate Win95 beveled chrome', () => {
+  const css = readGlobalCss();
+  assert.match(css, /--win95-scrollbar-size:\s*17px/);
+  assert.match(
+    css,
+    new RegExp('\\*\\s*\\{[^}]*scrollbar-color\\s*:\\s*var\\(--win95-scrollbar-shadow\\)\\s+var\\(--win95-scrollbar-track\\)', 's'),
+  );
+  assert.match(
+    css,
+    /\*::\-webkit-scrollbar\s*\{[^}]*width:\s*var\(--win95-scrollbar-size\)[^}]*height:\s*var\(--win95-scrollbar-size\)/s,
+  );
+  assert.match(
+    css,
+    /\*::\-webkit-scrollbar-thumb\s*\{[^}]*border-top-color:\s*var\(--win95-scrollbar-highlight\)[^}]*border-left-color:\s*var\(--win95-scrollbar-highlight\)/s,
+  );
+  assert.match(css, /\*::\-webkit-scrollbar-button\s*\{[^}]*border-top-color:\s*var\(--win95-scrollbar-highlight\)/s);
 });
 
 test('window manager exposes create/move/resize lifecycle', () => {
