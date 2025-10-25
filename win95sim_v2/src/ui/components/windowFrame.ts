@@ -1,6 +1,6 @@
 import { createCaptionButtons, CaptionButtonOptions } from './captionButtons';
 
-const DEFAULT_WINDOW_ICON = 'assets/icons/program.ico';
+const DEFAULT_WINDOW_ICON = 'assets/icons/w2k_default_application.ico';
 
 export interface WindowFrameOptions extends CaptionButtonOptions {
   title: string;

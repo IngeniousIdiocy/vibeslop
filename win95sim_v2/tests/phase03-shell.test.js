@@ -316,6 +316,7 @@ test('desktop view reuses icon elements across renders', () => {
 
     secondInstance.dispatchEvent('click', createEvent(1));
     secondInstance.dispatchEvent('click', createEvent(2));
+    secondInstance.dispatchEvent('dblclick', createEvent(2));
 
     assert.deepEqual(updates, [
       ['select', 'desktop/test'],
@@ -384,6 +385,7 @@ test('desktop activation clears DOM selections', () => {
 
       element.dispatchEvent('click', createEvent(1));
       element.dispatchEvent('click', createEvent(2));
+      element.dispatchEvent('dblclick', createEvent(2));
     } finally {
       if (previousWindow === undefined) {
         delete global.window;
@@ -552,6 +554,7 @@ test('double-clicking desktop shortcuts launches core applications', () => {
         assert.ok(icon, `expected desktop icon for ${id} after selection render`);
 
         icon.dispatchEvent('click', createMouseEvent(2));
+        icon.dispatchEvent('dblclick', createMouseEvent(2));
 
         const afterCounts = countTitles();
         assert.ok(
@@ -571,5 +574,361 @@ test('double-clicking desktop shortcuts launches core applications', () => {
         global.window = previousWindow;
       }
     }
+  });
+});
+
+test('double-clicking desktop icon does not trigger workspace dblclick handler', () => {
+  const overrides = {
+    '@apps/explorer': `
+      const instances = [];
+      function createExplorerApp(options) {
+        const instance = {
+          options,
+          mounted: false,
+          destroyed: false,
+          mount(host) {
+            this.mounted = true;
+            if (host && host.dataset) {
+              host.dataset.app = 'explorer';
+            }
+          },
+          destroy() {
+            this.destroyed = true;
+          },
+        };
+        instances.push(instance);
+        return instance;
+      }
+      module.exports = { createExplorerApp, __instances: instances };
+    `,
+  };
+
+  withFakeDom(({ document }) => {
+    const { createShellSession } = loadModule('src/shell/boot/session.ts', { overrides });
+
+    const previousWindow = global.window;
+    global.window = {
+      addEventListener() {},
+      removeEventListener() {},
+      getSelection() {
+        return {
+          removeAllRanges() {},
+        };
+      },
+    };
+
+    try {
+      const session = createShellSession();
+      session.mount(document.body);
+
+      // Track workspace dblclick events to verify test setup
+      const workspaceDblclicks = [];
+      const findWorkspace = (element) => {
+        if (element.className === 'desktop-root__workspace') {
+          return element;
+        }
+        for (const child of element.children) {
+          const found = findWorkspace(child);
+          if (found) return found;
+        }
+        return null;
+      };
+      const workspace = findWorkspace(document.body);
+      if (workspace) {
+        // Add a listener AFTER session setup to catch workspace dblclick events
+        workspace.addEventListener('dblclick', (e) => {
+          workspaceDblclicks.push({ target: e.target, currentTarget: e.currentTarget });
+        });
+      }
+
+      const findByDataset = (element, key, value) => {
+        if (element.dataset && element.dataset[key] === value) {
+          return element;
+        }
+        for (const child of element.children) {
+          const match = findByDataset(child, key, value);
+          if (match) {
+            return match;
+          }
+        }
+        return undefined;
+      };
+
+      const collectWindowTitles = (element, titles = []) => {
+        if (typeof element.className === 'string' && element.className.split(/\s+/).includes('window-caption__title')) {
+          if (element.textContent) {
+            titles.push(element.textContent);
+          }
+        }
+        for (const child of element.children) {
+          collectWindowTitles(child, titles);
+        }
+        return titles;
+      };
+
+      const getWindowTitles = () => collectWindowTitles(document.body);
+
+      // Test the Windows Explorer icon
+      const icon = findByDataset(document.body, 'id', 'desktop/explorer');
+      assert.ok(icon, 'expected to find desktop/explorer icon');
+
+      const beforeTitles = getWindowTitles();
+      const beforeEmptyCount = beforeTitles.filter((t) => t === 'Empty Window').length;
+      const beforeExplorerCount = beforeTitles.filter((t) => t === 'Windows Explorer').length;
+
+      // Simulate COMPLETE real browser double-click sequence
+      // Real browsers generate: pointerdown, pointerup, click, pointerdown, pointerup, click, dblclick
+      
+      // First click
+      icon.dispatchEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      icon.dispatchEvent('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      icon.dispatchEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        detail: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      // Second click
+      icon.dispatchEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      icon.dispatchEvent('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      icon.dispatchEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        detail: 2,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      icon.dispatchEvent('dblclick', {
+        bubbles: true,
+        cancelable: true,
+        detail: 2,
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      const afterTitles = getWindowTitles();
+      const afterEmptyCount = afterTitles.filter((t) => t === 'Empty Window').length;
+      const afterExplorerCount = afterTitles.filter((t) => t === 'Windows Explorer').length;
+
+      // The bug: Empty Window gets created because dblclick bubbles to workspace
+      // If this assert fails, it means the workspace dblclick handler fired (the bug!)
+      assert.equal(
+        afterEmptyCount,
+        beforeEmptyCount,
+        `Empty Window should NOT be created when double-clicking a desktop icon. Workspace dblclick fired ${workspaceDblclicks.length} times`
+      );
+
+      // The expected behavior: Windows Explorer should open
+      assert.ok(
+        afterExplorerCount > beforeExplorerCount,
+        'Windows Explorer should be opened when double-clicking its desktop icon'
+      );
+    } finally {
+      if (previousWindow === undefined) {
+        delete global.window;
+      } else {
+        global.window = previousWindow;
+      }
+    }
+  });
+
+});
+
+test('double-clicking desktop icon opens only ONE instance (not two)', () => {
+  withFakeDom(({ document }) => {
+    const { createDesktopView } = loadModule('src/ui/components/desktopIcons.ts');
+
+    let openCount = 0;
+    const view = createDesktopView({
+      onOpen: (id) => {
+        openCount++;
+      },
+    });
+
+    const icon = {
+      id: 'desktop/notepad',
+      title: 'Notepad',
+      resource: '::desktop/notepad.lnk',
+      type: 'shortcut',
+      icon: undefined,
+      position: { x: 0, y: 0 },
+      selected: false,
+    };
+
+    view.render([icon]);
+    const element = view.element.children[0];
+    assert.ok(element, 'expected rendered desktop icon');
+
+    // Simulate full double-click sequence
+    element.dispatchEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('click', { bubbles: true, cancelable: true, detail: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('click', { bubbles: true, cancelable: true, detail: 2, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('dblclick', { bubbles: true, cancelable: true, detail: 2, button: 0, clientX: 100, clientY: 100 });
+
+    assert.equal(openCount, 1, 'double-click should open exactly ONE instance, not two');
+  });
+});
+
+test('dragging desktop icon more than 5px suppresses click event', () => {
+  withFakeDom(({ document }) => {
+    const { createDesktopView } = loadModule('src/ui/components/desktopIcons.ts');
+
+    let selectCount = 0;
+    let openCount = 0;
+    const view = createDesktopView({
+      onSelect: (id) => {
+        selectCount++;
+      },
+      onOpen: (id) => {
+        openCount++;
+      },
+    });
+
+    const icon = {
+      id: 'desktop/notepad',
+      title: 'Notepad',
+      resource: '::desktop/notepad.lnk',
+      type: 'shortcut',
+      icon: undefined,
+      position: { x: 0, y: 0 },
+      selected: false,
+    };
+
+    view.render([icon]);
+    const element = view.element.children[0];
+    assert.ok(element, 'expected rendered desktop icon');
+
+    // Simulate drag: pointerdown, move > 5px, pointerup, click
+    element.dispatchEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 110, clientY: 110 }); // Move 10px
+    element.dispatchEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 110, clientY: 110 });
+    element.dispatchEvent('click', { bubbles: true, cancelable: true, detail: 1, button: 0, clientX: 110, clientY: 110 });
+
+    assert.equal(selectCount, 0, 'dragging should suppress selection');
+    assert.equal(openCount, 0, 'dragging should suppress opening');
+  });
+});
+
+test('small movements (< 5px) during click do not trigger drag', () => {
+  withFakeDom(({ document }) => {
+    const { createDesktopView } = loadModule('src/ui/components/desktopIcons.ts');
+
+    let selectCount = 0;
+    let dragStartCount = 0;
+    const view = createDesktopView({
+      onSelect: (id) => {
+        selectCount++;
+      },
+      onDragStart: () => {
+        dragStartCount++;
+      },
+    });
+
+    const icon = {
+      id: 'desktop/notepad',
+      title: 'Notepad',
+      resource: '::desktop/notepad.lnk',
+      type: 'shortcut',
+      icon: undefined,
+      position: { x: 0, y: 0 },
+      selected: false,
+    };
+
+    view.render([icon]);
+    const element = view.element.children[0];
+    assert.ok(element, 'expected rendered desktop icon');
+
+    // Simulate tiny movement: pointerdown, move 2px, pointerup, click
+    element.dispatchEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 102, clientY: 102 }); // Move only 2px
+    element.dispatchEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 102, clientY: 102 });
+    element.dispatchEvent('click', { bubbles: true, cancelable: true, detail: 1, button: 0, clientX: 102, clientY: 102 });
+
+    assert.equal(selectCount, 1, 'small movements should still allow selection');
+    assert.equal(dragStartCount, 0, 'small movements should not trigger drag');
+  });
+});
+
+test('dblclick event fires even after small pointer movements', () => {
+  withFakeDom(({ document }) => {
+    const { createDesktopView } = loadModule('src/ui/components/desktopIcons.ts');
+
+    let openCount = 0;
+    const view = createDesktopView({
+      onOpen: (id) => {
+        openCount++;
+      },
+    });
+
+    const icon = {
+      id: 'desktop/notepad',
+      title: 'Notepad',
+      resource: '::desktop/notepad.lnk',
+      type: 'shortcut',
+      icon: undefined,
+      position: { x: 0, y: 0 },
+      selected: false,
+    };
+
+    view.render([icon]);
+    const element = view.element.children[0];
+    assert.ok(element, 'expected rendered desktop icon');
+
+    // Simulate double-click with small movements between clicks
+    // First click
+    element.dispatchEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    element.dispatchEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 101, clientY: 101 });
+    element.dispatchEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 101, clientY: 101 });
+    element.dispatchEvent('click', { bubbles: true, cancelable: true, detail: 1, button: 0, clientX: 101, clientY: 101 });
+    
+    // Second click
+    element.dispatchEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 101, clientY: 101 });
+    element.dispatchEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 102, clientY: 102 });
+    element.dispatchEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 102, clientY: 102 });
+    element.dispatchEvent('click', { bubbles: true, cancelable: true, detail: 2, button: 0, clientX: 102, clientY: 102 });
+    element.dispatchEvent('dblclick', { bubbles: true, cancelable: true, detail: 2, button: 0, clientX: 102, clientY: 102 });
+
+    assert.equal(openCount, 1, 'dblclick should work even with small pointer movements');
   });
 });

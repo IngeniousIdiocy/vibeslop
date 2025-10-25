@@ -472,6 +472,7 @@ test('desktop shortcuts launch their mapped applications', () => {
         icon = findIcon(root, datasetId) ?? icon;
 
         icon.dispatchEvent('click', createClickEvent(2));
+        icon.dispatchEvent('dblclick', createClickEvent(2));
         const freshWindows = session
           .listWindows()
           .filter((win) => !seenIds.has(win.id));

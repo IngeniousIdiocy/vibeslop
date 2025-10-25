@@ -144,16 +144,18 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
         return;
       }
       const pointerId = resolvePointerId(event);
+      const origin = getPointerPosition(event);
       pointerState = {
         pointerId,
-        origin: getPointerPosition(event),
+        origin,
       };
       suppressClick = false;
-      icon.dataset.dragging = 'true';
+      // Don't set dragging state yet - wait for actual movement
       icon.setPointerCapture?.(pointerId);
-      event.preventDefault?.();
+      // DO NOT preventDefault - it blocks click/dblclick events!
+      // Only stop propagation to prevent workspace from handling it
       event.stopPropagation?.();
-      emitDragEvent('start', event);
+      // Don't emit drag start yet - wait for actual movement
     });
 
     icon.addEventListener('pointermove', (event) => {
@@ -163,10 +165,17 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       const currentPosition = getPointerPosition(event);
       const deltaX = Math.abs(currentPosition.x - pointerState.origin.x);
       const deltaY = Math.abs(currentPosition.y - pointerState.origin.y);
-      if (!suppressClick && (deltaX > 1 || deltaY > 1)) {
+      // Higher threshold to avoid interfering with double-clicks (5px instead of 1px)
+      if (!suppressClick && (deltaX > 5 || deltaY > 5)) {
         suppressClick = true;
+        icon.dataset.dragging = 'true';
+        // Only emit drag start when we actually start dragging
+        emitDragEvent('start', event);
       }
-      emitDragEvent('move', event);
+      // Only emit move if we're actually dragging
+      if (suppressClick) {
+        emitDragEvent('move', event);
+      }
     });
 
     const releasePointer = (event: PointerEvent) => {
@@ -197,16 +206,36 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       }
       const additive = Boolean(event.ctrlKey || event.metaKey);
       const detail = typeof event.detail === 'number' ? event.detail : 0;
+      
+      // For double-click, we rely on the dblclick handler to open
+      // Just prevent default behavior on second click to avoid selection issues
+      if (detail >= 2) {
+        event.preventDefault?.();
+        return;
+      }
+      
+      // Single click - selection only
       if (detail <= 1) {
         options.onSelect?.(current.id, additive);
       }
-      if (detail >= 2) {
-        event.preventDefault?.();
-        options.onOpen?.(current.id);
-        icon.blur();
-        clearDomSelection();
-        suppressClick = false;
-      }
+    });
+
+    // Handle native dblclick event - MUST stop propagation AND open the app
+    // This is critical: the dblclick event bubbles independently from click events
+    // and will reach the workspace handler unless we stop it here
+    icon.addEventListener('dblclick', (event) => {
+      // Stop propagation FIRST before doing anything else
+      event.stopPropagation();
+      event.preventDefault?.();
+      
+      // If a dblclick fires, the user intended to open, not drag
+      // Reset suppressClick and open the application
+      suppressClick = false;
+      
+      // Open the application
+      options.onOpen?.(current.id);
+      icon.blur();
+      clearDomSelection();
     });
 
     icon.addEventListener('keydown', (event) => {

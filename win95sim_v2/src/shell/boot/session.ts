@@ -246,6 +246,25 @@ export function createShellSession(): ShellSession {
     workspace = document.createElement('div');
     workspace.className = 'desktop-root__workspace';
 
+    // Add build version badge
+    const versionBadge = document.createElement('div');
+    versionBadge.className = 'desktop-version-badge';
+    
+    // Build metadata is injected at build time
+    try {
+      const metadata = typeof __BUILD_METADATA__ !== 'undefined' ? __BUILD_METADATA__ : null;
+      if (metadata) {
+        versionBadge.textContent = `${metadata.version} (${metadata.commitShort})`;
+        versionBadge.title = `Build: ${metadata.buildNumber}\nCommit: ${metadata.commitSha}\nBranch: ${metadata.branch}\nBuilt: ${metadata.timestamp}`;
+      } else {
+        versionBadge.textContent = 'dev';
+      }
+    } catch {
+      versionBadge.textContent = 'dev';
+    }
+    
+    workspace.appendChild(versionBadge);
+
     desktopView = createDesktopView({
       onOpen: (id) => handleDesktopOpen(id),
       onSelect: (id, additive) => handleDesktopSelection(id, additive),

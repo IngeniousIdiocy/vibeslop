@@ -5,10 +5,12 @@ const fs = require('fs/promises');
 const { existsSync } = require('fs');
 const crypto = require('crypto');
 const esbuild = require('esbuild');
+const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const assetsDir = path.join(distDir, 'assets');
+const buildInfoPath = path.join(rootDir, 'build-info.json');
 
 async function clean() {
   await fs.rm(distDir, { recursive: true, force: true });
@@ -85,6 +87,86 @@ function createIntegrityHash(fileBuffer) {
   return crypto.createHash('sha256').update(fileBuffer).digest('hex').slice(0, 16);
 }
 
+function getGitCommitSha() {
+  try {
+    return execSync('git rev-parse HEAD', { cwd: rootDir, encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+function getGitCommitShort() {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: rootDir, encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+function getGitBranch() {
+  try {
+    return execSync('git rev-parse --abbrev-ref HEAD', { cwd: rootDir, encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+async function loadOrCreateBuildInfo() {
+  const currentCommit = getGitCommitSha();
+  
+  let buildInfo = {
+    lastCommit: null,
+    buildNumber: 0,
+  };
+
+  if (existsSync(buildInfoPath)) {
+    try {
+      const content = await fs.readFile(buildInfoPath, 'utf8');
+      buildInfo = JSON.parse(content);
+    } catch (error) {
+      console.warn('Could not read build-info.json, starting fresh');
+    }
+  }
+
+  // Increment build number if commit changed
+  if (buildInfo.lastCommit !== currentCommit) {
+    buildInfo.buildNumber += 1;
+    buildInfo.lastCommit = currentCommit;
+    await fs.writeFile(buildInfoPath, JSON.stringify(buildInfo, null, 2));
+    console.log(`Build number incremented to ${buildInfo.buildNumber} (commit changed)`);
+  } else {
+    console.log(`Build number ${buildInfo.buildNumber} (no commit change)`);
+  }
+
+  return buildInfo;
+}
+
+async function writeBuildMetadata(buildInfo) {
+  const metadata = {
+    buildNumber: buildInfo.buildNumber,
+    commitSha: getGitCommitSha(),
+    commitShort: getGitCommitShort(),
+    branch: getGitBranch(),
+    timestamp: new Date().toISOString(),
+    version: `build.${buildInfo.buildNumber}`,
+  };
+
+  await fs.writeFile(
+    path.join(distDir, 'build-metadata.json'),
+    JSON.stringify(metadata, null, 2)
+  );
+
+  // Also write to assets so it can be imported by the app
+  await fs.writeFile(
+    path.join(assetsDir, 'build-metadata.json'),
+    JSON.stringify(metadata, null, 2)
+  );
+
+  console.log(`Build metadata: ${metadata.version} (${metadata.commitShort}) at ${metadata.timestamp}`);
+  
+  return metadata;
+}
+
 async function writeHtml({ scriptPath, stylePaths }) {
   const html = `<!doctype html>
 <html lang="en">
@@ -108,6 +190,19 @@ async function build() {
   await clean();
   await ensureDir(assetsDir);
 
+  // Load or create build info
+  const buildInfo = await loadOrCreateBuildInfo();
+
+  // Prepare build metadata to inject into the bundle
+  const buildMetadata = {
+    buildNumber: buildInfo.buildNumber,
+    commitSha: getGitCommitSha(),
+    commitShort: getGitCommitShort(),
+    branch: getGitBranch(),
+    timestamp: new Date().toISOString(),
+    version: `build.${buildInfo.buildNumber}`,
+  };
+
   const result = await esbuild.build({
     entryPoints: [path.join(rootDir, 'src/main.ts')],
     bundle: true,
@@ -121,6 +216,9 @@ async function build() {
     loader: { '.css': 'css' },
     alias: aliasMap,
     metafile: true,
+    define: {
+      '__BUILD_METADATA__': JSON.stringify(buildMetadata),
+    },
   });
 
   const outputs = Object.entries(result.metafile.outputs);
@@ -159,7 +257,11 @@ async function build() {
     }),
   );
 
+  // Write build metadata
+  const metadata = await writeBuildMetadata(buildInfo);
+
   console.log('Build complete');
+  console.log(`Deployed version: ${metadata.version} (${metadata.commitShort})`);
 }
 
 async function main() {
