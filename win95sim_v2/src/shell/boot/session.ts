@@ -11,8 +11,11 @@ import { createStartMenuModel, type StartMenuManifestSection } from '@apps/shell
 import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
 import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
 import { createPaintApp, type PaintAppInstance } from '@apps/creative/paint';
+import { createNotepadApp } from '@apps/accessories/notepad';
+import { createNotepadWindow, type NotepadWindowInstance } from '@apps/accessories/notepad/ui';
 import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
 import { createRecentDocumentsService } from '@services/recent-documents';
+import { createDialogStateService } from '@services/dialog-state';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
 import { createTaskbarView } from '@ui/components/taskbar';
@@ -20,6 +23,7 @@ import { createStartMenuView } from '@ui/components/startMenu';
 import { createDesktopView, type DesktopDragEvent } from '@ui/components/desktopIcons';
 import { createVfsService } from '@services/vfs';
 import { createWindowInteractionController } from '@features/window-interactions';
+import { createPrintService } from '@services/print';
 
 export interface ShellSession {
   mount(root: HTMLElement): void;
@@ -177,6 +181,8 @@ export function createShellSession(): ShellSession {
   const windows = createWindowService();
   const windowManager = createWindowManager({ display, windows, bus });
   const diagnostics = createDiagnosticsService({ settings });
+  const dialogState = createDialogStateService();
+  const print = createPrintService();
   const vfs = createVfsService({ seed: DEFAULT_VFS_SEED });
   const recentDocuments = createRecentDocumentsService();
   const startMenuModel = createStartMenuModel({ recentDocuments });
@@ -209,6 +215,8 @@ export function createShellSession(): ShellSession {
   registry.register({ id: 'services/windows', version: '2.0.0', factory: () => windows });
   registry.register({ id: 'services/layout', version: '2.0.0', factory: () => layout });
   registry.register({ id: 'services/vfs', version: '2.0.0', factory: () => vfs });
+  registry.register({ id: 'services/dialog-state', version: '2.0.0', factory: () => dialogState });
+  registry.register({ id: 'services/print', version: '2.0.0', factory: () => print });
   registry.register({ id: 'apps/window-manager', version: '2.0.0', factory: () => windowManager });
   registry.register({ id: 'services/diagnostics', version: '2.0.0', factory: () => diagnostics });
   registry.register({ id: 'shell/session', version: '2.0.0', factory: () => ({ bus, registry }) });
@@ -217,6 +225,7 @@ export function createShellSession(): ShellSession {
   const windowControllers = new Map<string, ReturnType<typeof createWindowInteractionController>>();
   const pendingContent = new Map<string, HTMLElement>();
   const appTeardowns = new Map<string, () => void>();
+  const notepadWindows = new Map<string, NotepadWindowInstance>();
 
   let viewport: ReturnType<typeof createCrtViewport> | undefined;
   let workspace: HTMLElement | undefined;
@@ -809,16 +818,25 @@ export function createShellSession(): ShellSession {
     return container;
   }
 
-  function createNotepadContent(): HTMLElement {
-    const container = document.createElement('div');
-    container.className = 'app-notepad';
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'app-notepad__editor';
-    textarea.value = 'Welcome to Notepad!\n\nThis lightweight editor is just a demo, but feel free to type.';
-    container.appendChild(textarea);
-
-    return container;
+  function createNotepadContent(windowId: string): HTMLElement {
+    const appInstance = createNotepadApp({ settings, dialogState, print });
+    const instance = createNotepadWindow({
+      app: appInstance,
+      vfs,
+      recentDocuments,
+      onRequestClose: () => {
+        windowManager.closeWindow(windowId);
+      },
+      onTitleChange: (title) => {
+        try {
+          windowManager.update(windowId, { title });
+        } catch {
+          // Ignore errors if the window was already closed.
+        }
+      },
+    });
+    notepadWindows.set(windowId, instance);
+    return instance.element;
   }
 
   function createRunDialogContent(): HTMLElement {
@@ -1006,15 +1024,29 @@ export function createShellSession(): ShellSession {
         height: 280,
         content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
       }),
-    'shell:start:notepad': () =>
-      openWindow({
-        id: `app:notepad:${windowSequence}`,
+    'shell:start:notepad': () => {
+      const id = `app:notepad:${windowSequence++}`;
+      const descriptor = openWindow({
+        id,
         title: 'Notepad',
         icon: WINDOW_ICONS.notepad,
         width: 520,
         height: 340,
-        content: () => createNotepadContent(),
-      }),
+        content: () => createNotepadContent(id),
+      });
+      const teardown = appTeardowns.get(descriptor.id);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(descriptor.id, () => {
+        const instance = notepadWindows.get(descriptor.id);
+        if (instance) {
+          instance.dispose();
+          notepadWindows.delete(descriptor.id);
+        }
+      });
+      return descriptor;
+    },
     'shell:start:paint': () =>
       launchPaintWindow({
         id: `app:paint:${windowSequence}`,
