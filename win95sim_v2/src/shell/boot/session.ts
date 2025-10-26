@@ -916,6 +916,8 @@ export function createShellSession(): ShellSession {
         paintInstance = createPaintApp({
           width: 480,
           height: 320,
+          vfs,
+          defaultDirectory: 'C:/Documents',
         });
         paintInstance.mount(host);
         return host;
