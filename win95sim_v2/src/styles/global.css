@@ -673,6 +673,51 @@ body {
   resize: none;
 }
 
+.app-msdos {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #000000;
+  color: #c0c0c0;
+  font-family: 'Lucida Console', monospace;
+  font-size: 14px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.app-msdos__output {
+  flex: 1;
+  overflow-y: auto;
+  white-space: pre;
+  margin-bottom: 6px;
+}
+
+.app-msdos__line {
+  white-space: pre;
+  line-height: 1.4;
+}
+
+.app-msdos__input-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-msdos__prompt {
+  white-space: pre;
+}
+
+.app-msdos__input {
+  flex: 1;
+  background: #000000;
+  color: #c0c0c0;
+  border: none;
+  outline: none;
+  font-family: 'Lucida Console', monospace;
+  font-size: 14px;
+  caret-color: #c0c0c0;
+}
+
 .app-run {
   display: flex;
   flex-direction: column;
