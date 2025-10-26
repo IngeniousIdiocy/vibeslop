@@ -47,6 +47,7 @@ The current build ships working Win95 staples that double as reference integrati
 
 - **Internet Explorer** (`shell:start:internet-explorer`) – Navigator UI with toolbar, address bar, and sandboxed iframe viewport.
 - **Paint** (`shell:start:paint`) – Canvas-based paint studio backed by the Phase 06 engine and palette tooling.
+- **Minesweeper** (`shell:start:minesweeper`) – Classic grid puzzle powered by the shared game engine with difficulty presets.
 - **Notepad** (`shell:start:notepad`) – Phase 04 text editor with word wrap, font settings, and print integration.
 - **Windows Explorer** (`shell:start:explorer`) – VFS-driven file browser wired to the desktop layout service.
 

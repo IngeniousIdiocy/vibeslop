@@ -35,7 +35,8 @@ apps to keep boundaries clean.
 
 For games, reuse helpers from `@services/games` for deterministic RNG and `@services/highScores`
 for session scoring. Minesweeper provides a reference implementation in
-`src/apps/games/minesweeper/` showing how to compose these services.
+`src/apps/games/minesweeper/` showing how to compose these services through the
+`createMinesweeperApp()` UI wrapper.
 
 ## 4. Testing expectations
 

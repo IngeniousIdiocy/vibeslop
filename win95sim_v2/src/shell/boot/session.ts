@@ -12,6 +12,7 @@ import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
 import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
 import { createPaintApp, type PaintAppInstance } from '@apps/creative/paint';
 import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
+import { createMinesweeperApp, type MinesweeperAppInstance } from '@apps/games/minesweeper';
 import { createRecentDocumentsService } from '@services/recent-documents';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
@@ -872,6 +873,34 @@ export function createShellSession(): ShellSession {
     return form;
   }
 
+  function launchMinesweeperWindow(options: { id?: string; title?: string; icon?: string } = {}) {
+    let minesweeperInstance: MinesweeperAppInstance | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'Minesweeper',
+      icon: options.icon ?? WINDOW_ICONS.minesweeper,
+      width: 820,
+      height: 620,
+      content: () => {
+        const host = document.createElement('div');
+        minesweeperInstance = createMinesweeperApp();
+        minesweeperInstance.mount(host);
+        return host;
+      },
+    });
+    if (minesweeperInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        minesweeperInstance?.destroy();
+      });
+    }
+    return descriptor;
+  }
+
   function launchExplorerWindow(options: { id?: string; title?: string; startPath?: string; icon?: string } = {}) {
     let explorerInstance: ExplorerInstance | undefined;
     const descriptor = openWindow({
@@ -1021,13 +1050,9 @@ export function createShellSession(): ShellSession {
         title: 'Paint',
       }),
     'shell:start:minesweeper': () =>
-      openWindow({
+      launchMinesweeperWindow({
+        id: `app:minesweeper:${windowSequence}`,
         title: 'Minesweeper',
-        icon: WINDOW_ICONS.minesweeper,
-        width: 360,
-        height: 320,
-        content: () =>
-          createPlaceholderContent('Minesweeper', 'Careful! The mines are still being planted in this preview build.'),
       }),
     'shell:start:internet-explorer': () => launchNavigatorWindow(),
     'shell:start:internet-mail': () =>

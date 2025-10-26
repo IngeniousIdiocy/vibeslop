@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadModule } = require('./helpers/loadModule');
+const { withFakeDom } = require('./helpers/fakeDom');
 
 function serializeBoard(board) {
   return board.map((row) => row.map((cell) => (cell.hasMine ? 'M' : String(cell.adjacentMines))).join('')).join('\n');
@@ -77,4 +78,57 @@ test('seeded random generates repeatable sequences', () => {
   const intsA = Array.from({ length: 5 }, (_, index) => rngA.nextInt(0, index + 5));
   const intsB = Array.from({ length: 5 }, (_, index) => rngB.nextInt(0, index + 5));
   assert.deepEqual(intsA, intsB);
+});
+
+test('minesweeper app mounts board, controls, and cleans up', () => {
+  const { createMinesweeperApp } = loadModule('src/apps/games/minesweeper/index.ts');
+
+  withFakeDom(({ document, FakeElement }) => {
+    if (typeof FakeElement.prototype.removeEventListener !== 'function') {
+      FakeElement.prototype.removeEventListener = function removeEventListener(type, handler) {
+        const listeners = this.eventListeners?.get(type);
+        if (listeners) {
+          listeners.delete(handler);
+        }
+      };
+    }
+
+    const host = document.createElement('div');
+    const app = createMinesweeperApp();
+    app.mount(host);
+
+    assert.equal(host.children.length, 1);
+    const root = host.children[0];
+    assert.ok(root.className.includes('app-minesweeper'));
+
+    const findByClass = (node, className) => {
+      if (!node || !node.children) {
+        return undefined;
+      }
+      if (typeof node.className === 'string' && node.className.split(/\s+/).includes(className)) {
+        return node;
+      }
+      for (const child of node.children) {
+        const found = findByClass(child, className);
+        if (found) {
+          return found;
+        }
+      }
+      return undefined;
+    };
+
+    const toolbar = findByClass(root, 'app-minesweeper__toolbar');
+    const board = findByClass(root, 'app-minesweeper__board');
+    const select = findByClass(root, 'app-minesweeper__select');
+    const button = findByClass(root, 'app-minesweeper__button');
+
+    assert.ok(toolbar, 'expected toolbar to render');
+    assert.ok(board, 'expected board to render');
+    assert.ok(select, 'expected difficulty selector');
+    assert.ok(button, 'expected new game button');
+    assert.ok(board.children.length > 0, 'expected board to contain cells');
+
+    app.destroy();
+    assert.equal(host.children.length, 0);
+  });
 });

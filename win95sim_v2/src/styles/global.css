@@ -658,6 +658,193 @@ body {
   font-size: 18px;
 }
 
+.app-minesweeper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  background: var(--win95-color-window);
+}
+
+.app-minesweeper__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 4px 6px;
+  background: #c0c0c0;
+  border: 1px solid #808080;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 #ffffff;
+}
+
+.app-minesweeper__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-minesweeper__label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.app-minesweeper__select {
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid #808080;
+  background: #ffffff;
+}
+
+.app-minesweeper__button {
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid #808080;
+  background: #c0c0c0;
+  box-shadow:
+    inset -1px -1px 0 #000000,
+    inset 1px 1px 0 #ffffff;
+  cursor: default;
+}
+
+.app-minesweeper__button:active {
+  box-shadow:
+    inset 1px 1px 0 #000000,
+    inset -1px -1px 0 #ffffff;
+}
+
+.app-minesweeper__status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.app-minesweeper__counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 54px;
+  padding: 2px 6px;
+  border: 2px inset #808080;
+  background: #000000;
+  color: #ff0000;
+  font-family: 'Lucida Console', monospace;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.app-minesweeper__indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132px;
+  padding: 2px 8px;
+  border: 2px groove #808080;
+  background: #c0c0c0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-minesweeper__board-wrapper {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 6px;
+  border: 2px solid #c0c0c0;
+  background: #808080;
+}
+
+.app-minesweeper__board {
+  display: grid;
+  gap: 2px;
+  justify-content: start;
+  grid-auto-rows: 24px;
+}
+
+.app-minesweeper__cell {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: #c0c0c0;
+  box-shadow:
+    inset -2px -2px 0 #808080,
+    inset 2px 2px 0 #ffffff;
+  font-family: var(--win95-font-ui);
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.app-minesweeper__cell:focus-visible {
+  outline: 2px solid #000080;
+  outline-offset: -2px;
+}
+
+.app-minesweeper__cell--revealed {
+  background: #c0c0c0;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  cursor: default;
+}
+
+.app-minesweeper__cell--mine {
+  background: #ffcccc;
+}
+
+.app-minesweeper__cell--flagged {
+  color: #d00000;
+}
+
+.app-minesweeper__cell--incorrect {
+  color: #d00000;
+}
+
+.app-minesweeper__cell--number-1 {
+  color: #0000ff;
+}
+
+.app-minesweeper__cell--number-2 {
+  color: #008200;
+}
+
+.app-minesweeper__cell--number-3 {
+  color: #ff0000;
+}
+
+.app-minesweeper__cell--number-4 {
+  color: #000080;
+}
+
+.app-minesweeper__cell--number-5 {
+  color: #800000;
+}
+
+.app-minesweeper__cell--number-6 {
+  color: #008080;
+}
+
+.app-minesweeper__cell--number-7 {
+  color: #000000;
+}
+
+.app-minesweeper__cell--number-8 {
+  color: #808080;
+}
+
 .app-notepad {
   height: 100%;
   display: flex;
