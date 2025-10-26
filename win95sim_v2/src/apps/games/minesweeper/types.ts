@@ -35,3 +35,22 @@ export interface MinesweeperEngine {
   toggleFlag(x: number, y: number): MinesweeperState;
   reset(seed?: string): MinesweeperState;
 }
+
+export interface MinesweeperPreset {
+  id: MinesweeperDifficulty;
+  label: string;
+  config: MinesweeperConfig;
+}
+
+export interface MinesweeperAppOptions {
+  difficulty?: MinesweeperDifficulty;
+  presets?: MinesweeperPreset[];
+  engineFactory?: (config: MinesweeperConfig) => MinesweeperEngine;
+}
+
+export interface MinesweeperAppInstance {
+  mount(host: HTMLElement): void;
+  destroy(): void;
+  setDifficulty(difficulty: MinesweeperDifficulty): void;
+  getState(): MinesweeperState;
+}

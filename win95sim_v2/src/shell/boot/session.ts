@@ -11,9 +11,13 @@ import { createStartMenuModel, type StartMenuManifestSection } from '@apps/shell
 import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
 import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
 import { createPaintApp, type PaintAppInstance } from '@apps/creative/paint';
+import { createNotepadApp } from '@apps/accessories/notepad';
+import { createNotepadWindow, type NotepadWindowInstance } from '@apps/accessories/notepad/ui';
 import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
 import { createRecycleBinApp, type RecycleBinAppInstance } from '@apps/system/recycle-bin';
+import { createMinesweeperApp, type MinesweeperAppInstance } from '@apps/games/minesweeper';
 import { createRecentDocumentsService } from '@services/recent-documents';
+import { createDialogStateService } from '@services/dialog-state';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
 import { createTaskbarView } from '@ui/components/taskbar';
@@ -21,6 +25,8 @@ import { createStartMenuView } from '@ui/components/startMenu';
 import { createDesktopView, type DesktopDragEvent } from '@ui/components/desktopIcons';
 import { createVfsService } from '@services/vfs';
 import { createWindowInteractionController } from '@features/window-interactions';
+import { createMsDosPromptApp, type MsDosPromptInstance } from '@apps/system/msdos';
+import { createPrintService } from '@services/print';
 
 export interface ShellSession {
   mount(root: HTMLElement): void;
@@ -179,6 +185,8 @@ export function createShellSession(): ShellSession {
   const windows = createWindowService();
   const windowManager = createWindowManager({ display, windows, bus });
   const diagnostics = createDiagnosticsService({ settings });
+  const dialogState = createDialogStateService();
+  const print = createPrintService();
   const vfs = createVfsService({ seed: DEFAULT_VFS_SEED });
   const recentDocuments = createRecentDocumentsService();
   const startMenuModel = createStartMenuModel({ recentDocuments });
@@ -212,6 +220,8 @@ export function createShellSession(): ShellSession {
   registry.register({ id: 'services/windows', version: '2.0.0', factory: () => windows });
   registry.register({ id: 'services/layout', version: '2.0.0', factory: () => layout });
   registry.register({ id: 'services/vfs', version: '2.0.0', factory: () => vfs });
+  registry.register({ id: 'services/dialog-state', version: '2.0.0', factory: () => dialogState });
+  registry.register({ id: 'services/print', version: '2.0.0', factory: () => print });
   registry.register({ id: 'apps/window-manager', version: '2.0.0', factory: () => windowManager });
   registry.register({ id: 'services/diagnostics', version: '2.0.0', factory: () => diagnostics });
   registry.register({ id: 'shell/session', version: '2.0.0', factory: () => ({ bus, registry }) });
@@ -220,6 +230,7 @@ export function createShellSession(): ShellSession {
   const windowControllers = new Map<string, ReturnType<typeof createWindowInteractionController>>();
   const pendingContent = new Map<string, HTMLElement>();
   const appTeardowns = new Map<string, () => void>();
+  const notepadWindows = new Map<string, NotepadWindowInstance>();
 
   let viewport: ReturnType<typeof createCrtViewport> | undefined;
   let workspace: HTMLElement | undefined;
@@ -837,16 +848,25 @@ export function createShellSession(): ShellSession {
     return container;
   }
 
-  function createNotepadContent(): HTMLElement {
-    const container = document.createElement('div');
-    container.className = 'app-notepad';
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'app-notepad__editor';
-    textarea.value = 'Welcome to Notepad!\n\nThis lightweight editor is just a demo, but feel free to type.';
-    container.appendChild(textarea);
-
-    return container;
+  function createNotepadContent(windowId: string): HTMLElement {
+    const appInstance = createNotepadApp({ settings, dialogState, print });
+    const instance = createNotepadWindow({
+      app: appInstance,
+      vfs,
+      recentDocuments,
+      onRequestClose: () => {
+        windowManager.closeWindow(windowId);
+      },
+      onTitleChange: (title) => {
+        try {
+          windowManager.update(windowId, { title });
+        } catch {
+          // Ignore errors if the window was already closed.
+        }
+      },
+    });
+    notepadWindows.set(windowId, instance);
+    return instance.element;
   }
 
   function createRunDialogContent(): HTMLElement {
@@ -916,6 +936,22 @@ export function createShellSession(): ShellSession {
       },
     });
     if (recycleBinInstance) {
+  function launchMinesweeperWindow(options: { id?: string; title?: string; icon?: string } = {}) {
+    let minesweeperInstance: MinesweeperAppInstance | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'Minesweeper',
+      icon: options.icon ?? WINDOW_ICONS.minesweeper,
+      width: 820,
+      height: 620,
+      content: () => {
+        const host = document.createElement('div');
+        minesweeperInstance = createMinesweeperApp();
+        minesweeperInstance.mount(host);
+        return host;
+      },
+    });
+    if (minesweeperInstance) {
       const windowId = descriptor.id;
       const teardown = appTeardowns.get(windowId);
       if (teardown) {
@@ -923,6 +959,7 @@ export function createShellSession(): ShellSession {
       }
       appTeardowns.set(windowId, () => {
         recycleBinInstance?.destroy();
+        minesweeperInstance?.destroy();
       });
     }
     return descriptor;
@@ -972,6 +1009,8 @@ export function createShellSession(): ShellSession {
         paintInstance = createPaintApp({
           width: 480,
           height: 320,
+          vfs,
+          defaultDirectory: 'C:/Documents',
         });
         paintInstance.mount(host);
         return host;
@@ -986,6 +1025,40 @@ export function createShellSession(): ShellSession {
       appTeardowns.set(windowId, () => {
         paintInstance?.destroy();
       });
+    }
+    return descriptor;
+  }
+
+  function launchMsDosPromptWindow(options: { id?: string; title?: string; icon?: string } = {}) {
+    let msdosInstance: MsDosPromptInstance | undefined;
+    let requestClose: (() => void) | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'MS-DOS Prompt',
+      icon: options.icon ?? WINDOW_ICONS.msdos,
+      width: 520,
+      height: 360,
+      content: () => {
+        const host = document.createElement('div');
+        msdosInstance = createMsDosPromptApp({
+          vfs,
+          onExit: () => requestClose?.(),
+        });
+        msdosInstance.mount(host);
+        return host;
+      },
+    });
+    requestClose = () => windowManager.closeWindow(descriptor.id);
+    if (msdosInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        msdosInstance?.destroy();
+      });
+      msdosInstance.focus();
     }
     return descriptor;
   }
@@ -1059,28 +1132,38 @@ export function createShellSession(): ShellSession {
         title: 'Recycle Bin',
         icon: getRecycleBinIcon(),
       }),
-    'shell:start:notepad': () =>
-      openWindow({
-        id: `app:notepad:${windowSequence}`,
+    'shell:start:notepad': () => {
+      const id = `app:notepad:${windowSequence++}`;
+      const descriptor = openWindow({
+        id,
         title: 'Notepad',
         icon: WINDOW_ICONS.notepad,
         width: 520,
         height: 340,
-        content: () => createNotepadContent(),
-      }),
+        content: () => createNotepadContent(id),
+      });
+      const teardown = appTeardowns.get(descriptor.id);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(descriptor.id, () => {
+        const instance = notepadWindows.get(descriptor.id);
+        if (instance) {
+          instance.dispose();
+          notepadWindows.delete(descriptor.id);
+        }
+      });
+      return descriptor;
+    },
     'shell:start:paint': () =>
       launchPaintWindow({
         id: `app:paint:${windowSequence}`,
         title: 'Paint',
       }),
     'shell:start:minesweeper': () =>
-      openWindow({
+      launchMinesweeperWindow({
+        id: `app:minesweeper:${windowSequence}`,
         title: 'Minesweeper',
-        icon: WINDOW_ICONS.minesweeper,
-        width: 360,
-        height: 320,
-        content: () =>
-          createPlaceholderContent('Minesweeper', 'Careful! The mines are still being planted in this preview build.'),
       }),
     'shell:start:internet-explorer': () => launchNavigatorWindow(),
     'shell:start:internet-mail': () =>
@@ -1101,18 +1184,7 @@ export function createShellSession(): ShellSession {
         content: () =>
           createPlaceholderContent('Internet News', 'Newsreader integration will arrive alongside the mail client.'),
       }),
-    'shell:start:msdos': () =>
-      openWindow({
-        title: 'MS-DOS Prompt',
-        icon: WINDOW_ICONS.msdos,
-        width: 520,
-        height: 340,
-        content: () =>
-          createPlaceholderContent(
-            'MS-DOS Prompt',
-            'A fully functional command shell is planned for a future update.',
-          ),
-      }),
+    'shell:start:msdos': () => launchMsDosPromptWindow(),
     'shell:start:control-panel': () =>
       openWindow({
         title: 'Control Panel',
