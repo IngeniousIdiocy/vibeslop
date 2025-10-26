@@ -152,3 +152,116 @@ test('notepad app persists preferences, integrates dialogs, and spools print job
   app.rememberDirectory('dialogs:open', 'C:/Temp');
   assert.equal(app.getLastDirectory('dialogs:open'), 'C:/Temp');
 });
+
+test('notepad window saves through VFS, updates title, and tracks recents', async () => {
+  const { createNotepadWindow } = loadModule('src/apps/accessories/notepad/ui.ts');
+  const { createNotepadApp } = loadModule('src/apps/accessories/notepad/index.ts');
+  const { createSettingsService } = loadModule('src/services/settings/index.ts');
+  const { createDialogStateService } = loadModule('src/services/dialog-state/index.ts');
+  const { createPrintService } = loadModule('src/services/print/index.ts');
+  const { createRecentDocumentsService } = loadModule('src/services/recent-documents/index.ts');
+
+  await withFakeDom(async ({ document }) => {
+    const previousWindow = global.window;
+    global.window = {
+      confirm: () => true,
+      prompt: () => undefined,
+      alert: () => {},
+    };
+
+    try {
+      const settings = createSettingsService();
+      const dialogState = createDialogStateService();
+      const print = createPrintService({ autoProcess: false, now: () => 0 });
+      const app = createNotepadApp({ settings, dialogState, print });
+      const recentDocuments = createRecentDocumentsService({ clock: () => 123 });
+
+      const files = new Map();
+      const writes = [];
+      const vfs = {
+        async read(path) {
+          if (!files.has(path)) {
+            throw new Error(`File not found: ${path}`);
+          }
+          const text = files.get(path);
+          const encoder = new TextEncoder();
+          return {
+            kind: 'file',
+            path,
+            name: path.split('/').pop() || '',
+            size: text.length,
+            modified: Date.now(),
+            mimeType: 'text/plain',
+            content: encoder.encode(text),
+            textContent: text,
+          };
+        },
+        async writeFile(path, contents) {
+          const text = typeof contents === 'string' ? contents : new TextDecoder().decode(contents);
+          files.set(path, text);
+          writes.push({ path, contents: text });
+          const encoder = new TextEncoder();
+          return {
+            kind: 'file',
+            path,
+            name: path.split('/').pop() || '',
+            size: text.length,
+            modified: Date.now(),
+            mimeType: 'text/plain',
+            content: encoder.encode(text),
+            textContent: text,
+          };
+        },
+      };
+
+      let capturedTitle = '';
+      const instance = createNotepadWindow({
+        app,
+        vfs,
+        recentDocuments,
+        onTitleChange: (title) => {
+          capturedTitle = title;
+        },
+      });
+
+      document.body.appendChild(instance.element);
+
+      instance.setText('Hello world');
+      assert.equal(instance.getState().dirty, true);
+
+      await instance.saveAsPath('C:/Documents/demo');
+      assert.equal(writes.length, 1);
+      assert.equal(writes[0].path, 'C:/Documents/demo.txt');
+      assert.equal(instance.getState().dirty, false);
+      assert.equal(instance.getState().path, 'C:/Documents/demo.txt');
+      assert.equal(capturedTitle, 'demo.txt - Notepad');
+
+      const recent = recentDocuments.list();
+      assert.equal(recent.length, 1);
+      assert.equal(recent[0].path, 'C:/Documents/demo.txt');
+
+      instance.setText('Updated text');
+      assert.equal(instance.getState().dirty, true);
+
+      await instance.save();
+      assert.equal(writes.length, 2);
+      assert.equal(writes[1].path, 'C:/Documents/demo.txt');
+      assert.equal(instance.getState().dirty, false);
+
+      await instance.openPath('C:/Documents/demo.txt');
+      assert.equal(instance.getText(), 'Updated text');
+      assert.equal(instance.getState().dirty, false);
+
+      instance.dispose();
+      if (typeof instance.element.remove === 'function') {
+        instance.element.remove();
+      }
+    } finally {
+      if (previousWindow === undefined) {
+        delete global.window;
+      } else {
+        global.window = previousWindow;
+      }
+    }
+  });
+});

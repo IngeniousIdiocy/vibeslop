@@ -664,6 +664,91 @@ body {
   flex-direction: column;
 }
 
+.app-notepad__menubar {
+  display: flex;
+  gap: 8px;
+  padding: 2px 6px;
+  background: #c0c0c0;
+  border-bottom: 1px solid #808080;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+.app-notepad__menu {
+  position: relative;
+}
+
+.app-notepad__menu-button {
+  border: none;
+  background: transparent;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.app-notepad__menu-button:focus {
+  outline: 1px dotted #000000;
+  outline-offset: 1px;
+}
+
+.app-notepad__menu-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: none;
+  min-width: 160px;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+  background: #c0c0c0;
+  border: 1px solid #808080;
+  box-shadow: 1px 1px 0 #000000;
+  z-index: 5;
+}
+
+.app-notepad__menu[data-open='true'] .app-notepad__menu-dropdown {
+  display: block;
+}
+
+.app-notepad__menu-item {
+  display: flex;
+}
+
+.app-notepad__menu-command {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  padding: 2px 24px 2px 24px;
+  cursor: pointer;
+}
+
+.app-notepad__menu-command:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.app-notepad__menu-command:not(:disabled):hover,
+.app-notepad__menu-command:not(:disabled):focus {
+  background: #000080;
+  color: #ffffff;
+}
+
+.app-notepad__menu-accelerator {
+  margin-left: 24px;
+}
+
+.app-notepad__menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: #808080;
+  border-bottom: 1px solid #ffffff;
+}
+
 .app-notepad__editor {
   flex: 1;
   width: 100%;
@@ -671,6 +756,32 @@ body {
   font-family: 'Lucida Console', monospace;
   font-size: 14px;
   resize: none;
+}
+
+.app-notepad__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 6px;
+  font-family: var(--win95-font-ui);
+  font-size: 11px;
+  background: #c0c0c0;
+  border-top: 1px solid #808080;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+.app-notepad__status-message {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-notepad__status-position {
+  min-width: 96px;
+  text-align: right;
 }
 
 .app-run {
