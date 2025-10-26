@@ -11,8 +11,9 @@ Phase 06 introduces foundational utilities that future creative and media-focuse
 - Strokes use a Bresenham-based rasteriser and configurable brush size, allowing additional tool implementations (airbrush, shapes) to be layered on top without modifying the core engine.
 
 ### Paint application shell
-- **`@apps/creative/paint`** wraps the engine with a Win95-style UI: toolbar palette swatches, brush sizing, a layered `<canvas>` surface, and status bar feedback.
+- **`@apps/creative/paint`** wraps the engine with a Win95-style UI: toolbar palette swatches, brush sizing, a layered `<canvas>` surface, menu bar, and status bar feedback.
 - The factory `createPaintApp(options)` accepts the same sizing parameters as the engine and mounts/destroys itself without mutating the host DOM node. Downstream phases can embed the app in new shells (e.g., document editors) while reusing the same styling tokens.
+- Paint optionally integrates with the virtual file system by passing a `vfs` service and `defaultDirectory` into `createPaintApp`. When present, the UI lights up Open/Save commands that serialise `.w95p` snapshots through the shared VFS contracts.
 - Tests cover DOM mounting via the fake DOM helper, so new integrations should maintain node-based event listeners rather than reaching for global browser APIs.
 
 ## Media services
