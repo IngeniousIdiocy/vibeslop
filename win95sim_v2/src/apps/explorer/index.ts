@@ -28,6 +28,7 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
   let detailWatcher: (() => void) | null = null;
   const teardown: Array<() => void> = [];
   let treeRenderToken = 0;
+  const selectedPaths = new Set<string>();
 
   function normalize(path: string): string {
     return path.replace(/\\/g, '/');
@@ -41,6 +42,77 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
     treePane = null;
     detailsPane = null;
     breadcrumbs = null;
+  }
+
+  function focusDetailsPane() {
+    detailsPane?.focus({ preventScroll: true });
+  }
+
+  function updateSelectionStyles() {
+    if (!detailsPane) {
+      return;
+    }
+    let nodes: HTMLElement[] = [];
+    if (typeof detailsPane.querySelectorAll === 'function') {
+      nodes = Array.from(detailsPane.querySelectorAll<HTMLElement>('.win95-explorer__details-item'));
+    } else {
+      const rawChildren = (detailsPane as unknown as { children?: unknown }).children;
+      if (Array.isArray(rawChildren)) {
+        nodes = rawChildren as HTMLElement[];
+      } else if (rawChildren && typeof (rawChildren as { length: number }).length === 'number') {
+        nodes = Array.from(rawChildren as ArrayLike<HTMLElement>);
+      }
+    }
+    nodes.forEach((node) => {
+      const dataset = (node as HTMLElement & { dataset?: Record<string, string> }).dataset;
+      const path = dataset?.path ?? '';
+      if (!path) {
+        return;
+      }
+      if (selectedPaths.has(path)) {
+        if (dataset) {
+          dataset.selected = 'true';
+        }
+      } else if (dataset && Object.prototype.hasOwnProperty.call(dataset, 'selected')) {
+        delete dataset.selected;
+      }
+    });
+  }
+
+  function clearSelection() {
+    selectedPaths.clear();
+    updateSelectionStyles();
+  }
+
+  function selectEntry(path: string, options: { additive?: boolean } = {}) {
+    const additive = options.additive ?? false;
+    if (!additive) {
+      selectedPaths.clear();
+    }
+    if (additive && selectedPaths.has(path)) {
+      selectedPaths.delete(path);
+    } else {
+      selectedPaths.add(path);
+    }
+    updateSelectionStyles();
+    focusDetailsPane();
+  }
+
+  function deleteSelection() {
+    if (selectedPaths.size === 0) {
+      return;
+    }
+    const targets = Array.from(selectedPaths);
+    clearSelection();
+    void (async () => {
+      for (const target of targets) {
+        try {
+          await vfs.remove(target);
+        } catch (error) {
+          console.error('Failed to delete', target, error);
+        }
+      }
+    })();
   }
 
   async function buildTree(path: string, depth = 0): Promise<ExplorerTreeNode> {
@@ -139,6 +211,14 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
     item.dataset.path = entry.path;
     item.dataset.kind = entry.kind;
     item.textContent = entry.name;
+    if (selectedPaths.has(entry.path)) {
+      item.dataset.selected = 'true';
+    }
+    item.addEventListener('click', (event) => {
+      event.preventDefault();
+      const additive = event.ctrlKey || event.metaKey;
+      selectEntry(entry.path, { additive });
+    });
     if (entry.kind === 'directory') {
       item.addEventListener('dblclick', () => {
         void setPath(entry.path);
@@ -170,6 +250,7 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
       .forEach((entry) => {
         detailsPane!.appendChild(renderListItem(entry));
       });
+    updateSelectionStyles();
   }
 
   function bindDetailWatcher() {
@@ -187,6 +268,7 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
     if (container) {
       container.dataset.path = currentPath;
     }
+    clearSelection();
     bindDetailWatcher();
     renderBreadcrumbs(currentPath);
     await renderDetails();
@@ -216,6 +298,18 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
 
     detailsPane = document.createElement('div');
     detailsPane.className = 'win95-explorer__details';
+    detailsPane.tabIndex = 0;
+    detailsPane.addEventListener('keydown', (event) => {
+      if (event.key === 'Delete') {
+        event.preventDefault();
+        deleteSelection();
+      }
+    });
+    detailsPane.addEventListener('click', (event) => {
+      if (event.target === detailsPane) {
+        clearSelection();
+      }
+    });
     content.appendChild(detailsPane);
 
     layout.appendChild(content);
@@ -241,6 +335,7 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
     }
 
     teardown.splice(0).forEach((fn) => fn());
+    selectedPaths.clear();
     if (container) {
       container.remove();
     }

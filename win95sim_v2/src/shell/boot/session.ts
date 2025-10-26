@@ -12,6 +12,7 @@ import { createDesktopModule, type DesktopEntry } from '@apps/shell/desktop';
 import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
 import { createPaintApp, type PaintAppInstance } from '@apps/creative/paint';
 import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
+import { createRecycleBinApp, type RecycleBinAppInstance } from '@apps/system/recycle-bin';
 import { createRecentDocumentsService } from '@services/recent-documents';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
@@ -55,6 +56,7 @@ const WINDOW_ICONS = {
   welcome: 'icons/w98_windows.ico',
   myComputer: 'icons/w98_computer.ico',
   recycleBin: 'icons/w98_recycle_bin_empty.ico',
+  recycleBinFull: 'icons/w98_recycle_bin_full.ico',
   internetExplorer: 'icons/w98_msie1.ico',
   paint: 'icons/w98_paint.ico',
   notepad: 'icons/w98_notepad.ico',
@@ -188,6 +190,7 @@ export function createShellSession(): ShellSession {
     resolveEntries: () => desktopEntries,
     gridSize: 48,
   });
+  let recycleBinHasItems = false;
 
   layout.setItem(DESKTOP_SURFACE_ID, 'desktop/computer', { x: 30, y: 10 }, { snapToGrid: false });
   layout.setItem(DESKTOP_SURFACE_ID, 'desktop/recycle-bin', { x: 30, y: 78 }, { snapToGrid: false });
@@ -479,12 +482,37 @@ export function createShellSession(): ShellSession {
     return viewport;
   }
 
+  function getRecycleBinIcon(): string {
+    return recycleBinHasItems ? WINDOW_ICONS.recycleBinFull : WINDOW_ICONS.recycleBin;
+  }
+
+  function syncRecycleBinIcon() {
+    const entry = desktopEntries.find((item) => item.id === 'desktop/recycle-bin');
+    recycleBinHasItems = vfs.recycleBin.list().length > 0;
+    if (!entry) {
+      return;
+    }
+    const nextIcon = getRecycleBinIcon();
+    if (entry.icon !== nextIcon) {
+      entry.icon = nextIcon;
+      if (desktopView) {
+        renderDesktop();
+      }
+    }
+  }
+
   function renderDesktop() {
     if (!desktopView) {
       return;
     }
     desktopView.render(desktopModule.list());
   }
+
+  vfs.bus.on('vfs:recycle-bin:changed', () => {
+    syncRecycleBinIcon();
+  });
+
+  syncRecycleBinIcon();
 
   function handleDesktopSelection(id: string, additive: boolean) {
     const current = new Set(desktopModule.getSelection());
@@ -872,6 +900,34 @@ export function createShellSession(): ShellSession {
     return form;
   }
 
+  function launchRecycleBinWindow(options: { id?: string; title?: string; icon?: string } = {}) {
+    let recycleBinInstance: RecycleBinAppInstance | undefined;
+    const descriptor = openWindow({
+      id: options.id ?? 'shell:window:recycle-bin',
+      title: options.title ?? 'Recycle Bin',
+      icon: options.icon ?? getRecycleBinIcon(),
+      width: 480,
+      height: 360,
+      content: () => {
+        const host = document.createElement('div');
+        recycleBinInstance = createRecycleBinApp({ vfs });
+        recycleBinInstance.mount(host);
+        return host;
+      },
+    });
+    if (recycleBinInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        recycleBinInstance?.destroy();
+      });
+    }
+    return descriptor;
+  }
+
   function launchExplorerWindow(options: { id?: string; title?: string; startPath?: string; icon?: string } = {}) {
     let explorerInstance: ExplorerInstance | undefined;
     const descriptor = openWindow({
@@ -998,13 +1054,10 @@ export function createShellSession(): ShellSession {
         icon: WINDOW_ICONS.myComputer,
       }),
     'shell:start:recycle-bin': () =>
-      openWindow({
+      launchRecycleBinWindow({
         id: 'shell:window:recycle-bin',
         title: 'Recycle Bin',
-        icon: WINDOW_ICONS.recycleBin,
-        width: 340,
-        height: 280,
-        content: () => createPlaceholderContent('Recycle Bin', 'No deleted items to show right now.'),
+        icon: getRecycleBinIcon(),
       }),
     'shell:start:notepad': () =>
       openWindow({
