@@ -23,6 +23,7 @@ import { createStartMenuView } from '@ui/components/startMenu';
 import { createDesktopView, type DesktopDragEvent } from '@ui/components/desktopIcons';
 import { createVfsService } from '@services/vfs';
 import { createWindowInteractionController } from '@features/window-interactions';
+import { createMsDosPromptApp, type MsDosPromptInstance } from '@apps/system/msdos';
 import { createPrintService } from '@services/print';
 
 export interface ShellSession {
@@ -952,6 +953,40 @@ export function createShellSession(): ShellSession {
     return descriptor;
   }
 
+  function launchMsDosPromptWindow(options: { id?: string; title?: string; icon?: string } = {}) {
+    let msdosInstance: MsDosPromptInstance | undefined;
+    let requestClose: (() => void) | undefined;
+    const descriptor = openWindow({
+      id: options.id,
+      title: options.title ?? 'MS-DOS Prompt',
+      icon: options.icon ?? WINDOW_ICONS.msdos,
+      width: 520,
+      height: 360,
+      content: () => {
+        const host = document.createElement('div');
+        msdosInstance = createMsDosPromptApp({
+          vfs,
+          onExit: () => requestClose?.(),
+        });
+        msdosInstance.mount(host);
+        return host;
+      },
+    });
+    requestClose = () => windowManager.closeWindow(descriptor.id);
+    if (msdosInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        msdosInstance?.destroy();
+      });
+      msdosInstance.focus();
+    }
+    return descriptor;
+  }
+
   function launchNavigatorWindow(options: { id?: string; title?: string; icon?: string } = {}) {
     let navigatorInstance: NavigatorAppInstance | undefined;
     const descriptor = openWindow({
@@ -1080,18 +1115,7 @@ export function createShellSession(): ShellSession {
         content: () =>
           createPlaceholderContent('Internet News', 'Newsreader integration will arrive alongside the mail client.'),
       }),
-    'shell:start:msdos': () =>
-      openWindow({
-        title: 'MS-DOS Prompt',
-        icon: WINDOW_ICONS.msdos,
-        width: 520,
-        height: 340,
-        content: () =>
-          createPlaceholderContent(
-            'MS-DOS Prompt',
-            'A fully functional command shell is planned for a future update.',
-          ),
-      }),
+    'shell:start:msdos': () => launchMsDosPromptWindow(),
     'shell:start:control-panel': () =>
       openWindow({
         title: 'Control Panel',
