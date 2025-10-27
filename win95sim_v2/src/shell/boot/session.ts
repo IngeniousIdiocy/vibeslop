@@ -51,8 +51,8 @@ interface ShellWindowOptions {
   content?: WindowContentSource;
 }
 
-const DEFAULT_WINDOW_WIDTH = 360;
-const DEFAULT_WINDOW_HEIGHT = 260;
+const DEFAULT_WINDOW_WIDTH = 520;
+const DEFAULT_WINDOW_HEIGHT = 400;
 const WINDOW_CASCADE_STEP = 24;
 const DESKTOP_SURFACE_ID = '::desktop';
 const DEFAULT_EXPLORER_HOME = 'C:/';
@@ -75,7 +75,7 @@ const WINDOW_ICONS = {
   controlPanel: 'icons/w98_directory_control_panel.ico',
   taskbar: 'icons/w2k_taskbar.ico',
   findFiles: 'icons/w2k_search.ico',
-  help: 'icons/w98_help_book_cool.ico',
+  help: 'icons/w2k_help.ico',
   run: 'icons/w2k_run.ico',
   startup: 'icons/w2k_folder_open.ico',
   shutdown: 'icons/w2k_shutdown.ico',
@@ -1321,8 +1321,8 @@ export function createShellSession(): ShellSession {
       const descriptor = openWindow({
         title: 'Windows Help',
         icon: WINDOW_ICONS.help,
-        width: 460,
-        height: 360,
+        width: 640,
+        height: 480,
         content: () => {
           const host = document.createElement('div');
           helpInstance = createWindowsHelpApp({

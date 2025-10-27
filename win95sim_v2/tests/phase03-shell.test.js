@@ -238,6 +238,18 @@ test('windows help app renders tabbed viewer with default content', () => {
     const actionLabels = collectByClass('app-help__action-button').map((button) => button.textContent?.trim());
     assert.deepEqual(actionLabels, ['Display', 'Print...', 'Cancel']);
 
+    const toolbarIcons = collectByClass('app-help__toolbar-icon').map((img) => img.src);
+    toolbarIcons.forEach((src) => {
+      assert.ok(src && src.startsWith('assets/icons/'), `expected toolbar icon to resolve to assets/icons/, received ${src}`);
+    });
+
+    const viewerIcon = collectByClass('app-help__viewer-icon')[0];
+    assert.ok(viewerIcon);
+    assert.ok(
+      viewerIcon.src && viewerIcon.src.startsWith('assets/icons/'),
+      'expected viewer icon to use bundled asset path',
+    );
+
     app.destroy();
     assert.equal(host.children.length, 0);
   });
