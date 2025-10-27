@@ -21,6 +21,24 @@ let resolverPatched = false;
 const overrideModules = new Map();
 const overrideDir = path.join(cacheDir, '__overrides');
 
+function clearCompiledModuleCache() {
+  for (const cachePath of Object.keys(require.cache)) {
+    if (cachePath.startsWith(cacheDir)) {
+      delete require.cache[cachePath];
+    }
+  }
+}
+
+function withIsolatedModuleCache(fn) {
+  const originalCache = Module._cache;
+  Module._cache = Object.create(null);
+  try {
+    return fn();
+  } finally {
+    Module._cache = originalCache;
+  }
+}
+
 const tscBin = require.resolve('typescript/bin/tsc');
 
 function ensureCompiled() {
@@ -163,9 +181,10 @@ function loadModule(relativePath, options = {}) {
     }
 
     delete require.cache[compiledPath];
-    return require(compiledPath);
+    return withIsolatedModuleCache(() => require(compiledPath));
   } finally {
     restoreOverrides(previousOverrides);
+    clearCompiledModuleCache();
   }
 }
 

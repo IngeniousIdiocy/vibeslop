@@ -937,6 +937,18 @@ export function createShellSession(): ShellSession {
       },
     });
     if (recycleBinInstance) {
+      const windowId = descriptor.id;
+      const teardown = appTeardowns.get(windowId);
+      if (teardown) {
+        teardown();
+      }
+      appTeardowns.set(windowId, () => {
+        recycleBinInstance?.destroy();
+      });
+    }
+    return descriptor;
+  }
+
   function launchMinesweeperWindow(options: { id?: string; title?: string; icon?: string } = {}) {
     let minesweeperInstance: MinesweeperAppInstance | undefined;
     const descriptor = openWindow({
@@ -959,7 +971,6 @@ export function createShellSession(): ShellSession {
         teardown();
       }
       appTeardowns.set(windowId, () => {
-        recycleBinInstance?.destroy();
         minesweeperInstance?.destroy();
       });
     }

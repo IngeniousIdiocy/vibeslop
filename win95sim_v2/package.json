@@ -6,7 +6,7 @@
     "build": "node tools/build.js",
     "clean": "node tools/build.js --clean",
     "release": "node tools/release/packager.js",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "lint": "eslint \"src/**/*.{ts,tsx}\""
   },
   "devDependencies": {
