@@ -38,9 +38,10 @@ interface MenuItemConfig {
   id: string;
   label?: string;
   accelerator?: string;
-  type?: 'command' | 'separator';
+  type?: 'command' | 'separator' | 'checkbox';
   action?: () => void | Promise<void>;
   disabled?: () => boolean;
+  checked?: () => boolean;
 }
 
 const UNTITLED_NAME = 'Untitled';
@@ -117,6 +118,90 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
 
   const ownerDocument = container.ownerDocument ?? (typeof document !== 'undefined' ? document : undefined);
   const teardowns: Array<() => void> = [];
+  let statusVisible = true;
+  let lastFindQuery = '';
+  let lastFindMatchCase = false;
+
+  type MenuEntry = {
+    config: MenuItemConfig;
+    button: HTMLButtonElement;
+    check?: HTMLSpanElement;
+  };
+
+  const menuEntries = new Map<string, MenuEntry>();
+
+  type SelectionBehavior = 'select' | 'start' | 'end' | 'preserve';
+
+  function focusEditor() {
+    if (typeof (textarea as HTMLTextAreaElement).focus === 'function') {
+      (textarea as HTMLTextAreaElement).focus();
+    }
+  }
+
+  function promptUser(message: string, defaultValue?: string): string | null {
+    if (typeof window === 'undefined' || typeof window.prompt !== 'function') {
+      return null;
+    }
+    return window.prompt(message, defaultValue);
+  }
+
+  function alertUser(message: string): void {
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(message);
+    }
+  }
+
+  function execDocumentCommand(command: string): boolean {
+    if (!ownerDocument) {
+      return false;
+    }
+    const doc = ownerDocument as Document & { execCommand?: (commandId: string) => boolean };
+    if (typeof doc.execCommand !== 'function') {
+      return false;
+    }
+    try {
+      focusEditor();
+      return doc.execCommand(command);
+    } catch {
+      return false;
+    }
+  }
+
+  function replaceSelectionWith(text: string, behavior: SelectionBehavior = 'end') {
+    const element = textarea as HTMLTextAreaElement;
+    const start = typeof element.selectionStart === 'number' ? element.selectionStart : 0;
+    const end = typeof element.selectionEnd === 'number' ? element.selectionEnd : start;
+
+    if (typeof element.setRangeText === 'function') {
+      element.setRangeText(text, start, end, behavior);
+      handleTextInput();
+      return;
+    }
+
+    const value = textarea.value;
+    textarea.value = `${value.slice(0, start)}${text}${value.slice(end)}`;
+    const nextStart = behavior === 'start' ? start : start + text.length;
+    const nextEnd = behavior === 'select' ? start + text.length : nextStart;
+    if (typeof element.setSelectionRange === 'function') {
+      element.setSelectionRange(nextStart, nextEnd);
+    }
+    handleTextInput();
+  }
+
+  function updateEditorSelectionFromDocument() {
+    const selection = notepadDocument.getSelection();
+    const element = textarea as HTMLTextAreaElement;
+    if (typeof element.setSelectionRange === 'function') {
+      element.setSelectionRange(selection.start, selection.end);
+    }
+    updatePosition();
+    refreshMenuState();
+  }
+
+  function hasSelection(): boolean {
+    const selection = notepadDocument.getSelection();
+    return selection.end > selection.start;
+  }
 
   function setStatus(text: string) {
     statusText = text;
@@ -141,6 +226,7 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     textarea.style.whiteSpace = enabled ? 'pre-wrap' : 'pre';
     textarea.style.wordBreak = enabled ? 'break-word' : 'normal';
     notepadDocument.setWordWrap(enabled);
+    refreshMenuState();
   }
 
   function getRememberedDirectory(dialogId: string): string {
@@ -209,6 +295,7 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     const end = typeof element.selectionEnd === 'number' ? element.selectionEnd : notepadDocument.getSelection().end;
     notepadDocument.setSelection(start, end);
     updatePosition();
+    refreshMenuState();
   }
 
   async function confirmSaveIfNeeded(): Promise<boolean> {
@@ -262,9 +349,7 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
       updateRecentDocument(resolved);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        window.alert(`Unable to open file: ${message}`);
-      }
+      alertUser(`Unable to open file: ${message}`);
     }
   }
 
@@ -284,9 +369,7 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        window.alert(`Unable to save file: ${message}`);
-      }
+      alertUser(`Unable to save file: ${message}`);
       return false;
     }
   }
@@ -353,9 +436,7 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
   }
 
   function handlePageSetup() {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-      window.alert('Page setup is not available in this preview build of Notepad.');
-    }
+    alertUser('Page setup is not available in this preview build of Notepad.');
   }
 
   function handlePrint() {
@@ -364,10 +445,275 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
       setStatus('Document sent to printer');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        window.alert(`Unable to print document: ${message}`);
+      alertUser(`Unable to print document: ${message}`);
+    }
+  }
+
+  function handleUndo() {
+    if (!execDocumentCommand('undo')) {
+      setStatus('Nothing to undo');
+    }
+  }
+
+  async function handleCut() {
+    if (!hasSelection()) {
+      setStatus('Nothing selected to cut');
+      return;
+    }
+    if (execDocumentCommand('cut')) {
+      return;
+    }
+    const selection = notepadDocument.getSelection();
+    const text = notepadDocument.getText().slice(selection.start, selection.end);
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Ignore clipboard errors and fall back to local removal.
       }
     }
+    replaceSelectionWith('', 'start');
+    setStatus('Cut selection');
+  }
+
+  async function handleCopy() {
+    if (!hasSelection()) {
+      setStatus('Nothing selected to copy');
+      return;
+    }
+    if (execDocumentCommand('copy')) {
+      setStatus('Copied selection');
+      return;
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      const selection = notepadDocument.getSelection();
+      const text = notepadDocument.getText().slice(selection.start, selection.end);
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Copied selection');
+        return;
+      } catch {
+        // Ignore clipboard errors and fall through to alert.
+      }
+    }
+    alertUser('Copy is not available in this environment.');
+  }
+
+  async function handlePaste() {
+    if (execDocumentCommand('paste')) {
+      return;
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+      try {
+        const text = await navigator.clipboard.readText();
+        replaceSelectionWith(text, 'end');
+        setStatus('Pasted from clipboard');
+        return;
+      } catch {
+        // Ignore clipboard errors and fall through to alert.
+      }
+    }
+    alertUser('Paste is not available in this environment.');
+  }
+
+  function handleDelete() {
+    if (!hasSelection()) {
+      setStatus('Nothing selected to delete');
+      return;
+    }
+    replaceSelectionWith('', 'start');
+    setStatus('Deleted selection');
+  }
+
+  function handleSelectAll() {
+    focusEditor();
+    const element = textarea as HTMLTextAreaElement;
+    if (typeof element.select === 'function') {
+      element.select();
+      syncSelectionFromTextarea();
+      setStatus('Selected all');
+    }
+  }
+
+  function handleInsertTimeDate() {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const date = now.toLocaleDateString('en-US');
+    const stamp = `${time} ${date}`;
+    replaceSelectionWith(stamp, 'end');
+    setStatus('Inserted time/date');
+  }
+
+  function performFind(query: string, options?: Parameters<NotepadDocument['findNext']>[1]) {
+    if (!query) {
+      return false;
+    }
+    const result = notepadDocument.findNext(query, options);
+    if (!result) {
+      alertUser(`Cannot find "${query}"`);
+      return false;
+    }
+    updateEditorSelectionFromDocument();
+    setStatus(result.wrapped ? 'Reached beginning of document' : 'Found next');
+    return true;
+  }
+
+  function handleFind() {
+    const input = promptUser('Find what:', lastFindQuery || '');
+    if (input === null || input === '') {
+      return;
+    }
+    const matchCase =
+      typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm('Match case?')
+        : lastFindMatchCase;
+    lastFindQuery = input;
+    lastFindMatchCase = matchCase;
+    refreshMenuState();
+    performFind(lastFindQuery, {
+      direction: 'forward',
+      wrap: true,
+      matchCase: lastFindMatchCase,
+    });
+  }
+
+  function handleFindNext() {
+    if (!lastFindQuery) {
+      handleFind();
+      return;
+    }
+    performFind(lastFindQuery, {
+      direction: 'forward',
+      wrap: true,
+      matchCase: lastFindMatchCase,
+      fromIndex: notepadDocument.getSelection().end,
+    });
+  }
+
+  function handleReplace() {
+    const query = promptUser('Find what:', lastFindQuery || '');
+    if (query === null || query === '') {
+      return;
+    }
+    const replacement = promptUser('Replace with:', '');
+    if (replacement === null) {
+      return;
+    }
+    lastFindQuery = query;
+    const matchCase =
+      typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm('Match case?')
+        : lastFindMatchCase;
+    lastFindMatchCase = matchCase;
+    refreshMenuState();
+
+    const replaceAll = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm('Replace all occurrences?')
+      : false;
+
+    if (replaceAll) {
+      const result = notepadDocument.replaceAll(query, replacement, {
+        matchCase,
+        wrap: true,
+      });
+      textarea.value = notepadDocument.getText();
+      updateEditorSelectionFromDocument();
+      setDirtyState(notepadDocument.getText() !== savedSnapshot);
+      setStatus(result.replacements ? `Replaced ${result.replacements} occurrence(s)` : 'No matches found');
+      return;
+    }
+
+    const result = notepadDocument.replaceNext(query, replacement, {
+      matchCase,
+      wrap: true,
+    });
+    if (!result.replaced) {
+      alertUser(`Cannot find "${query}"`);
+      return;
+    }
+    textarea.value = notepadDocument.getText();
+    updateEditorSelectionFromDocument();
+    setDirtyState(notepadDocument.getText() !== savedSnapshot);
+    setStatus('Replaced selection');
+  }
+
+  function handleGoToLine() {
+    if (notepadDocument.getWordWrap()) {
+      setStatus('Disable word wrap to use Go To');
+      return;
+    }
+    const input = promptUser('Line number:', '');
+    if (!input) {
+      return;
+    }
+    const lineNumber = Number.parseInt(input, 10);
+    if (!Number.isFinite(lineNumber)) {
+      alertUser('Please enter a valid line number.');
+      return;
+    }
+    try {
+      notepadDocument.goToLine(lineNumber);
+      updateEditorSelectionFromDocument();
+      setStatus(`Moved to line ${lineNumber}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      alertUser(message);
+    }
+  }
+
+  function handleToggleWordWrap() {
+    const nextWrap = !notepadDocument.getWordWrap();
+    app.setWordWrap(nextWrap);
+    applyWordWrap(nextWrap);
+    if (nextWrap && statusVisible) {
+      applyStatusVisibility(false);
+    }
+    setStatus(`Word Wrap ${nextWrap ? 'enabled' : 'disabled'}`);
+    refreshMenuState();
+  }
+
+  function handleChooseFont() {
+    const font = app.getFont();
+    const family = promptUser('Font family:', font.family);
+    if (!family) {
+      return;
+    }
+    const sizeInput = promptUser('Font size (pt):', String(font.size));
+    if (!sizeInput) {
+      return;
+    }
+    const size = Number.parseInt(sizeInput, 10);
+    if (!Number.isFinite(size) || size <= 0) {
+      alertUser('Please enter a valid font size.');
+      return;
+    }
+    app.setFont({ family, size });
+    applyFontPreferences();
+    setStatus(`Font set to ${family} ${size}pt`);
+  }
+
+  function applyStatusVisibility(visible: boolean) {
+    statusVisible = visible;
+    status.style.display = visible ? 'flex' : 'none';
+  }
+
+  applyStatusVisibility(statusVisible);
+
+  function handleToggleStatusBar() {
+    if (notepadDocument.getWordWrap()) {
+      return;
+    }
+    applyStatusVisibility(!statusVisible);
+    setStatus(statusVisible ? STATUS_READY : 'Status bar hidden');
+    refreshMenuState();
+  }
+
+  function handleViewHelp() {
+    alertUser('Notepad help is not available in this preview build.');
+  }
+
+  function handleAbout() {
+    alertUser('Notepad\n\nWindows 95 Simulator Preview Build');
   }
 
   async function handleExit() {
@@ -378,7 +724,7 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     options.onRequestClose?.();
   }
 
-  const menuItems: MenuItemConfig[] = [
+  const fileMenuItems: MenuItemConfig[] = [
     { id: 'file:new', label: 'New', accelerator: 'Ctrl+N', action: () => handleNew() },
     { id: 'file:open', label: 'Open…', accelerator: 'Ctrl+O', action: () => handleOpen() },
     {
@@ -396,7 +742,87 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     { id: 'file:exit', label: 'Exit', action: () => handleExit() },
   ];
 
-  const menuButtons = new Map<string, HTMLButtonElement>();
+  const editMenuItems: MenuItemConfig[] = [
+    { id: 'edit:undo', label: 'Undo', accelerator: 'Ctrl+Z', action: () => handleUndo() },
+    { id: 'edit:separator-1', type: 'separator' },
+    {
+      id: 'edit:cut',
+      label: 'Cut',
+      accelerator: 'Ctrl+X',
+      action: () => handleCut(),
+      disabled: () => !hasSelection(),
+    },
+    {
+      id: 'edit:copy',
+      label: 'Copy',
+      accelerator: 'Ctrl+C',
+      action: () => handleCopy(),
+      disabled: () => !hasSelection(),
+    },
+    { id: 'edit:paste', label: 'Paste', accelerator: 'Ctrl+V', action: () => handlePaste() },
+    {
+      id: 'edit:delete',
+      label: 'Delete',
+      accelerator: 'Del',
+      action: () => handleDelete(),
+      disabled: () => !hasSelection(),
+    },
+    { id: 'edit:separator-2', type: 'separator' },
+    { id: 'edit:find', label: 'Find…', accelerator: 'Ctrl+F', action: () => handleFind() },
+    {
+      id: 'edit:find-next',
+      label: 'Find Next',
+      accelerator: 'F3',
+      action: () => handleFindNext(),
+      disabled: () => !lastFindQuery,
+    },
+    { id: 'edit:replace', label: 'Replace…', accelerator: 'Ctrl+H', action: () => handleReplace() },
+    {
+      id: 'edit:go-to',
+      label: 'Go To…',
+      accelerator: 'Ctrl+G',
+      action: () => handleGoToLine(),
+      disabled: () => notepadDocument.getWordWrap(),
+    },
+    { id: 'edit:separator-3', type: 'separator' },
+    { id: 'edit:select-all', label: 'Select All', accelerator: 'Ctrl+A', action: () => handleSelectAll() },
+    { id: 'edit:time-date', label: 'Time/Date', accelerator: 'F5', action: () => handleInsertTimeDate() },
+  ];
+
+  const formatMenuItems: MenuItemConfig[] = [
+    {
+      id: 'format:word-wrap',
+      label: 'Word Wrap',
+      type: 'checkbox',
+      action: () => handleToggleWordWrap(),
+      checked: () => notepadDocument.getWordWrap(),
+    },
+    { id: 'format:font', label: 'Font…', action: () => handleChooseFont() },
+  ];
+
+  const viewMenuItems: MenuItemConfig[] = [
+    {
+      id: 'view:status-bar',
+      label: 'Status Bar',
+      type: 'checkbox',
+      action: () => handleToggleStatusBar(),
+      checked: () => statusVisible,
+      disabled: () => notepadDocument.getWordWrap(),
+    },
+  ];
+
+  const helpMenuItems: MenuItemConfig[] = [
+    { id: 'help:view-help', label: 'View Help', action: () => handleViewHelp() },
+    { id: 'help:about', label: 'About Notepad', action: () => handleAbout() },
+  ];
+
+  const menuGroups = [
+    { label: 'File', items: fileMenuItems },
+    { label: 'Edit', items: editMenuItems },
+    { label: 'Format', items: formatMenuItems },
+    { label: 'View', items: viewMenuItems },
+    { label: 'Help', items: helpMenuItems },
+  ];
 
   function closeMenu(menu: HTMLElement) {
     menu.dataset.open = 'false';
@@ -424,8 +850,19 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'app-notepad__menu-command';
-    button.setAttribute('role', 'menuitem');
-    button.textContent = config.label ?? '';
+    button.setAttribute('role', config.type === 'checkbox' ? 'menuitemcheckbox' : 'menuitem');
+
+    let check: HTMLSpanElement | undefined;
+    if (config.type === 'checkbox') {
+      check = document.createElement('span');
+      check.className = 'app-notepad__menu-check';
+      button.appendChild(check);
+    }
+
+    const label = document.createElement('span');
+    label.className = 'app-notepad__menu-label';
+    label.textContent = config.label ?? '';
+    button.appendChild(label);
 
     const accelerator = document.createElement('span');
     accelerator.className = 'app-notepad__menu-accelerator';
@@ -441,30 +878,43 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
       if (isPromise(result)) {
         result.catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
-          if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-            window.alert(message);
-          }
+          alertUser(message);
         });
       }
     });
 
     item.appendChild(button);
     item.dataset.commandId = config.id;
-    menuButtons.set(config.id, button);
+    menuEntries.set(config.id, { config, button, check });
     return item;
   }
 
   function refreshMenuState() {
-    menuItems.forEach((config) => {
-      if (config.type === 'separator' || !config.action) {
-        return;
-      }
-      const button = menuButtons.get(config.id);
-      if (!button) {
+    menuEntries.forEach(({ config, button, check }) => {
+      if (config.type === 'separator') {
         return;
       }
       const disabled = config.disabled?.() ?? false;
-      button.toggleAttribute('disabled', disabled);
+      if (typeof button.toggleAttribute === 'function') {
+        button.toggleAttribute('disabled', disabled);
+      } else if (typeof button.setAttribute === 'function') {
+        if (disabled) {
+          button.setAttribute('disabled', 'true');
+        } else if (typeof button.removeAttribute === 'function') {
+          button.removeAttribute('disabled');
+        }
+      }
+      if (config.type === 'checkbox') {
+        const checked = config.checked?.() ?? false;
+        if (typeof button.setAttribute === 'function') {
+          button.setAttribute('aria-checked', checked ? 'true' : 'false');
+        }
+        if (check) {
+          check.textContent = checked ? '✓' : '';
+        }
+      } else if (typeof button.removeAttribute === 'function') {
+        button.removeAttribute('aria-checked');
+      }
     });
   }
 
@@ -507,8 +957,11 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     return menu;
   }
 
-  const fileMenu = createMenu('File', menuItems);
-  menubar.appendChild(fileMenu);
+  menuGroups.forEach(({ label, items }) => {
+    const menu = createMenu(label, items);
+    menubar.appendChild(menu);
+  });
+  refreshMenuState();
 
   function handleTextInput() {
     notepadDocument.setText(textarea.value);
@@ -524,6 +977,16 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
   textarea.addEventListener('click', () => syncSelectionFromTextarea());
 
   textarea.addEventListener('keydown', (event) => {
+    if (event.key === 'F5') {
+      event.preventDefault();
+      handleInsertTimeDate();
+      return;
+    }
+    if (event.key === 'F3' && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      event.preventDefault();
+      handleFindNext();
+      return;
+    }
     if (!event.ctrlKey) {
       return;
     }
@@ -540,6 +1003,34 @@ export function createNotepadWindow(options: NotepadWindowOptions): NotepadWindo
     } else if (key === 'p') {
       event.preventDefault();
       handlePrint();
+    } else if (key === 'z') {
+      event.preventDefault();
+      handleUndo();
+    } else if (key === 'x') {
+      event.preventDefault();
+      void handleCut();
+    } else if (key === 'c') {
+      event.preventDefault();
+      void handleCopy();
+    } else if (key === 'v') {
+      event.preventDefault();
+      void handlePaste();
+    } else if (key === 'f') {
+      event.preventDefault();
+      handleFind();
+    } else if (key === 'h') {
+      event.preventDefault();
+      handleReplace();
+    } else if (key === 'g') {
+      event.preventDefault();
+      if (notepadDocument.getWordWrap()) {
+        setStatus('Disable word wrap to use Go To');
+      } else {
+        handleGoToLine();
+      }
+    } else if (key === 'a') {
+      event.preventDefault();
+      handleSelectAll();
     }
   });
 
