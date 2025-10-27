@@ -59,6 +59,21 @@ test('filesystem service supports CRUD, watchers, search, and recycle bin', asyn
   assert.ok(events.some((event) => event.type === 'moved' && event.previousPath === 'C:/Projects/Archive'));
 });
 
+test('filesystem service exposes file association helpers', () => {
+  const { createVfsService } = loadModule('src/services/vfs/index.ts');
+  const vfs = createVfsService();
+  const registered = vfs.registerFileAssociation('.txt', { appId: 'apps/notepad', command: 'shell:start:notepad' });
+  assert.equal(registered.extension, '.txt');
+  assert.equal(registered.appId, 'apps/notepad');
+  const resolved = vfs.getFileAssociation('C:/Docs/Readme.TXT');
+  assert.ok(resolved, 'expected association to resolve for mixed case extension');
+  assert.equal(resolved.appId, 'apps/notepad');
+  const list = vfs.listFileAssociations();
+  assert.equal(list.length, 1);
+  vfs.unregisterFileAssociation('.txt');
+  assert.equal(vfs.getFileAssociation('C:/Docs/Readme.txt'), undefined);
+});
+
 function extractTreeLabels(node) {
   const labels = [];
   node.children.forEach((child) => {
@@ -121,6 +136,40 @@ test('explorer app renders tree and details panes reacting to VFS updates', asyn
     assert.ok(directoriesAfter.includes('Assets'));
     const updatedTreeLabels = extractTreeLabels(treePane);
     assert.ok(updatedTreeLabels.includes('Assets'));
+
+    explorer.destroy();
+  });
+});
+
+test('explorer double-click dispatches file open callback', async () => {
+  const { createVfsService } = loadModule('src/services/vfs/index.ts');
+  const { createExplorerApp } = loadModule('src/apps/explorer/index.ts');
+  const vfs = createVfsService({ seed: sampleTree() });
+  await vfs.writeFile('C:/Projects/Test.txt', 'content');
+
+  await withFakeDom(async () => {
+    const opened = [];
+    const host = document.createElement('div');
+    const explorer = createExplorerApp({
+      vfs,
+      startPath: 'C:/Projects',
+      onOpenNode: (node) => opened.push(node.path),
+    });
+    explorer.mount(host);
+
+    await flush();
+    await flush();
+
+    const container = host.children[0];
+    const layout = container.children[0];
+    const content = layout.children[1];
+    const detailsPane = content.children[1];
+    const items = Array.from(detailsPane.children);
+    const target = items.find((child) => child.dataset?.path === 'C:/Projects/Test.txt');
+    assert.ok(target, 'expected Test.txt item in details pane');
+    target.dispatchEvent('dblclick');
+
+    assert.deepEqual(opened, ['C:/Projects/Test.txt']);
 
     explorer.destroy();
   });

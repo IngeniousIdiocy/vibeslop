@@ -503,6 +503,10 @@ test('double-clicking desktop shortcuts launches core applications', () => {
               host.dataset.app = 'paint';
             }
           },
+          openDocument(path) {
+            this.openedPath = path;
+            return Promise.resolve();
+          },
           destroy() {
             this.destroyed = true;
           },

@@ -24,6 +24,7 @@ export interface PaintAppOptions {
 export interface PaintAppInstance {
   mount(host: HTMLElement): void;
   destroy(): void;
+  openDocument(path: string): Promise<void>;
 }
 
 const DEFAULT_WIDTH = 480;
@@ -661,6 +662,33 @@ export function createPaintApp(options: PaintAppOptions = {}): PaintAppInstance 
     }
   }
 
+  async function openDocumentFromPath(path: string, options: { confirm?: boolean } = {}): Promise<void> {
+    if (!vfs) {
+      setStatus('File system integration is unavailable.');
+      throw new Error('File system integration is unavailable.');
+    }
+    if (options.confirm !== false && !confirmDiscard()) {
+      return;
+    }
+    try {
+      const node = await vfs.read(path);
+      if (node.kind !== 'file') {
+        throw new Error('Selected item is not a paint document.');
+      }
+      const snapshot = decodeSnapshot(node.content);
+      currentFilePath = node.path;
+      loadSnapshot(snapshot);
+      setStatus(`Opened ${describeDocument(currentFilePath)}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        setStatus(`Open failed: ${error.message}`);
+        throw error;
+      }
+      setStatus('Open failed.');
+      throw new Error('Open failed.');
+    }
+  }
+
   async function handleOpenDocument(): Promise<void> {
     if (!vfs) {
       setStatus('File system integration is unavailable.');
@@ -674,22 +702,7 @@ export function createPaintApp(options: PaintAppOptions = {}): PaintAppInstance 
     if (!selected) {
       return;
     }
-    try {
-      const node = await vfs.read(selected);
-      if (node.kind !== 'file') {
-        throw new Error('Selected item is not a paint document.');
-      }
-      const snapshot = decodeSnapshot(node.content);
-      currentFilePath = normalizePath(selected);
-      loadSnapshot(snapshot);
-      setStatus(`Opened ${describeDocument(currentFilePath)}`);
-    } catch (error) {
-      if (error instanceof Error) {
-        setStatus(`Open failed: ${error.message}`);
-      } else {
-        setStatus('Open failed.');
-      }
-    }
+    await openDocumentFromPath(selected, { confirm: false }).catch(() => undefined);
   }
 
   function handleNewDocument() {
@@ -1261,6 +1274,9 @@ export function createPaintApp(options: PaintAppOptions = {}): PaintAppInstance 
       markClean();
       setStatus('Brush ready');
       bindGlobalShortcuts();
+    },
+    async openDocument(path: string) {
+      await openDocumentFromPath(path);
     },
     destroy() {
       closeMenu();

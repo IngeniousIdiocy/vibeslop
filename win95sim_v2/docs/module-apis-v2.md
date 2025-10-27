@@ -127,6 +127,18 @@ interface FileSystemService {
   write(path: string, contents: Uint8Array | string): Promise<void>;
   list(path: string): Promise<FileNode[]>;
   watch(path: string, handler: (event: FileEvent) => void): () => void;
+  registerFileAssociation(
+    extension: string,
+    association: { appId: string; command?: string },
+  ): FileAssociation;
+  getFileAssociation(path: string): FileAssociation | undefined;
+  listFileAssociations(): FileAssociation[];
+}
+
+interface FileAssociation {
+  extension: string;
+  appId: string;
+  command?: string;
 }
 ```
 
