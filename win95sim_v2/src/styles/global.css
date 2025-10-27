@@ -610,6 +610,10 @@ body {
   overflow: auto;
 }
 
+.window-body--flush {
+  padding: 0;
+}
+
 .window-content {
   flex: 1 1 auto;
   display: flex;
@@ -1178,23 +1182,40 @@ body {
   resize: none;
 }
 
+
 .app-msdos {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   height: 100%;
   background: #000000;
   color: #c0c0c0;
   font-family: 'Lucida Console', monospace;
   font-size: 14px;
-  padding: 6px;
-  box-sizing: border-box;
+}
+
+.app-msdos__host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  overflow: hidden;
 }
 
 .app-msdos__output {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
   white-space: pre;
-  margin-bottom: 6px;
+  padding: 12px 12px 0;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .app-msdos__line {
@@ -1206,6 +1227,9 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 12px;
+  padding-top: 6px;
+  box-sizing: border-box;
 }
 
 .app-msdos__prompt {
