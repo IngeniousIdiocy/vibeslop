@@ -181,6 +181,68 @@ test('start menu exposes manifest sections and recent documents', () => {
   assert.equal(startMenu.isOpen(), false);
 });
 
+test('windows help app renders tabbed viewer with default content', () => {
+  withFakeDom(() => {
+    const { createWindowsHelpApp } = loadModule('src/apps/system/help/index.ts');
+
+    const host = document.createElement('div');
+    const app = createWindowsHelpApp();
+    app.mount(host);
+
+    const rootElement = host.children[0];
+    const collectByClass = (className) => {
+      const results = [];
+      const stack = rootElement ? [rootElement] : [];
+      while (stack.length) {
+        const node = stack.pop();
+        if (!node) {
+          continue;
+        }
+        if (typeof node.className === 'string') {
+          const tokens = node.className.split(/\s+/).filter(Boolean);
+          if (tokens.includes(className)) {
+            results.push(node);
+          }
+        }
+        if (Array.isArray(node.children)) {
+          for (let index = node.children.length - 1; index >= 0; index -= 1) {
+            stack.push(node.children[index]);
+          }
+        }
+      }
+      return results;
+    };
+
+    const menuItems = collectByClass('app-help__menubar-item').map((item) => item.textContent?.trim());
+    assert.deepEqual(menuItems, ['File', 'Edit', 'Bookmark', 'Options', 'Help']);
+
+    const tabs = collectByClass('app-help__tab').map((tab) => tab.textContent?.trim());
+    assert.deepEqual(tabs, ['Contents', 'Index', 'Find']);
+
+    const topics = collectByClass('app-help__tree-button--topic');
+    assert.ok(topics.length >= 6, 'expected multiple help topics in contents tab');
+
+    const activeTopic = collectByClass('app-help__tree-button--active')[0];
+    assert.ok(activeTopic, 'expected a default active help topic');
+    assert.ok(/Windows 95/i.test(activeTopic.textContent ?? ''), 'expected initial topic to mention Windows 95');
+
+    const viewerTitle = collectByClass('app-help__viewer-title')[0];
+    assert.ok(viewerTitle);
+    assert.ok(/Windows/i.test(viewerTitle.textContent ?? ''));
+
+    const viewerBody = collectByClass('app-help__viewer-body')[0];
+    assert.ok(viewerBody);
+    const paragraphs = Array.from(viewerBody.children).map((child) => child.textContent ?? '').join(' ');
+    assert.ok(/Start menu|taskbar/i.test(paragraphs), 'expected details to describe Windows features');
+
+    const actionLabels = collectByClass('app-help__action-button').map((button) => button.textContent?.trim());
+    assert.deepEqual(actionLabels, ['Display', 'Print...', 'Cancel']);
+
+    app.destroy();
+    assert.equal(host.children.length, 0);
+  });
+});
+
 test('menu command registry composes declarative menu schemas', () => {
   const { createMenuCommandRegistry, realizeMenu } = loadModule('src/ui/menus/index.ts');
 

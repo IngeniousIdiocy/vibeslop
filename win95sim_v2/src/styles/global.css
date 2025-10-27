@@ -691,6 +691,464 @@ body {
   font-family: var(--win95-font-ui);
 }
 
+.app-help__host {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.app-help {
+  display: flex;
+  flex-direction: column;
+  background: #c0c0c0;
+  color: #000;
+  font-size: 12px;
+  line-height: 1.4;
+  min-height: 100%;
+}
+
+.app-help__menubar {
+  display: flex;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #c0c0c0;
+  border-bottom: 1px solid #808080;
+  box-shadow: inset 0 -1px 0 #ffffff;
+}
+
+.app-help__menubar-item {
+  padding: 2px 10px;
+  border: none;
+  background: transparent;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  color: #000;
+  cursor: default;
+}
+
+.app-help__menubar-item:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: 0;
+}
+
+.app-help__toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px 6px;
+  background: #c0c0c0;
+  border-bottom: 1px solid #808080;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -1px 0 #ffffff;
+}
+
+.app-help__toolbar-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 60px;
+  padding: 4px 6px;
+  border: 1px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-bottom-color: #404040;
+  border-right-color: #404040;
+  background: #c0c0c0;
+  cursor: pointer;
+  font-family: var(--win95-font-ui);
+  font-size: 11px;
+}
+
+.app-help__toolbar-button:active {
+  border-top-color: #404040;
+  border-left-color: #404040;
+  border-bottom-color: #ffffff;
+  border-right-color: #ffffff;
+}
+
+.app-help__toolbar-icon {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.app-help__toolbar-label {
+  font-size: 10px;
+}
+
+.app-help__workspace {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: #c0c0c0;
+  min-height: 0;
+}
+
+.app-help__navigation {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: #c0c0c0;
+  padding: 6px;
+  border: 1px solid #808080;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #404040;
+  min-height: 0;
+}
+
+.app-help__tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.app-help__tab {
+  flex: 1;
+  padding: 4px 12px;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  background: #d4d4d4;
+  border: 1px solid #808080;
+  border-bottom: none;
+  color: #000;
+  cursor: pointer;
+}
+
+.app-help__tab--active {
+  background: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px 0 0 #808080;
+}
+
+.app-help__tab:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+}
+
+.app-help__panels {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #808080;
+  background: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.app-help__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.app-help__panel[hidden] {
+  display: none;
+}
+
+.app-help__panel-intro,
+.app-help__find-description {
+  margin: 0;
+}
+
+.app-help__tree-frame {
+  flex: 1;
+  border: 1px solid #808080;
+  background: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  padding: 4px;
+  overflow: auto;
+}
+
+.app-help__tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-help__tree-node {
+  margin: 0;
+}
+
+.app-help__tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.app-help__tree-toggle {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-bottom-color: #404040;
+  border-right-color: #404040;
+  background: #c0c0c0;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.app-help__tree-toggle::before,
+.app-help__tree-toggle::after {
+  content: '';
+  position: absolute;
+  background: #000;
+}
+
+.app-help__tree-toggle::before {
+  top: 7px;
+  left: 3px;
+  right: 3px;
+  height: 1px;
+}
+
+.app-help__tree-toggle::after {
+  top: 3px;
+  bottom: 3px;
+  left: 7px;
+  width: 1px;
+}
+
+.app-help__tree-toggle--expanded::after {
+  display: none;
+}
+
+.app-help__tree-icon {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
+.app-help__tree-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  color: #000;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-help__tree-button:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: 0;
+}
+
+.app-help__tree-button--topic {
+  padding-left: 0;
+}
+
+.app-help__tree-button--active {
+  background: #000080;
+  color: #ffffff;
+}
+
+.app-help__tree-topic-icon {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+  margin-right: 6px;
+}
+
+.app-help__index-label,
+.app-help__find-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.app-help__index-input,
+.app-help__find-input {
+  padding: 4px;
+  border: 1px solid #808080;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  background: #ffffff;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+}
+
+.app-help__index-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid #808080;
+  background: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.app-help__index-item {
+  margin: 0;
+}
+
+.app-help__index-entry {
+  width: 100%;
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-help__index-entry--active {
+  background: #000080;
+  color: #ffffff;
+}
+
+.app-help__find-options {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px;
+  border: 1px solid #808080;
+  background: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-help__find-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-help__find-checkbox {
+  width: 16px;
+  height: 16px;
+}
+
+.app-help__find-option-label {
+  font-weight: bold;
+}
+
+.app-help__find-option-description {
+  margin: 0;
+}
+
+.app-help__viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #808080;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+  padding: 12px;
+  min-height: 0;
+}
+
+.app-help__viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-help__viewer-icon {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.app-help__viewer-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.app-help__viewer-summary {
+  margin: 8px 0;
+}
+
+.app-help__viewer-divider {
+  height: 1px;
+  background: linear-gradient(180deg, #ffffff, #808080);
+  margin-bottom: 8px;
+}
+
+.app-help__viewer-body {
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.app-help__viewer-body p {
+  margin: 0 0 8px;
+}
+
+.app-help__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #c0c0c0;
+  border-top: 1px solid #808080;
+  box-shadow: inset 0 1px 0 #ffffff;
+}
+
+.app-help__status {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #808080;
+  background: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #808080;
+}
+
+.app-help__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.app-help__action-button {
+  padding: 4px 12px;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  background: #c0c0c0;
+  border: 1px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-bottom-color: #404040;
+  border-right-color: #404040;
+  cursor: pointer;
+}
+
+.app-help__action-button:active {
+  border-top-color: #404040;
+  border-left-color: #404040;
+  border-bottom-color: #ffffff;
+  border-right-color: #ffffff;
+}
+
 .app-navigator__host {
   flex: 1 1 auto;
   display: flex;

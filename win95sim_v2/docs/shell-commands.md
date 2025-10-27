@@ -12,7 +12,7 @@ Phase 03 introduces a small set of shell command identifiers that are consumed b
 | `shell:start:control-panel` | Open the Control Panel surface. |
 | `shell:start:taskbar-settings` | Open the Taskbar & Start Menu settings panel. |
 | `shell:start:find-files` | Trigger the Find Files dialog. |
-| `shell:start:help` | Open the Windows Help viewer. |
+| `shell:start:help` | Open the Windows Help viewer with its classic menu, toolbar, tree-based contents, Index, and Find tabs. |
 | `shell:start:run` | Focus the Run command dialog. |
 | `shell:start:shutdown` | Begin the system shutdown workflow. |
 

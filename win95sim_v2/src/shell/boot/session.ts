@@ -13,6 +13,7 @@ import { createExplorerApp, type ExplorerInstance } from '@apps/explorer';
 import { createPaintApp, type PaintAppInstance } from '@apps/creative/paint';
 import { createNavigatorApp, type NavigatorAppInstance } from '@apps/internet/navigator';
 import { createRecentDocumentsService } from '@services/recent-documents';
+import { createWindowsHelpApp, type WindowsHelpAppInstance } from '@apps/system/help';
 import { createCrtViewport } from '@ui/components/crtViewport';
 import { createWindowFrame } from '@ui/components/windowFrame';
 import { createTaskbarView } from '@ui/components/taskbar';
@@ -1086,15 +1087,43 @@ export function createShellSession(): ShellSession {
         content: () =>
           createPlaceholderContent('Find Files', 'Search is nearly ready—use Windows Explorer to browse for now.'),
       }),
-    'shell:start:help': () =>
-      openWindow({
+    'shell:start:help': () => {
+      let helpInstance: WindowsHelpAppInstance | undefined;
+      const descriptor = openWindow({
         title: 'Windows Help',
         icon: WINDOW_ICONS.help,
-        width: 420,
-        height: 320,
-        content: () =>
-          createPlaceholderContent('Help', 'Need assistance? For now, exploration is the best teacher.'),
-      }),
+        width: 460,
+        height: 360,
+        content: () => {
+          const host = document.createElement('div');
+          helpInstance = createWindowsHelpApp({
+            requestClose: () => {
+              const frame = host.closest('.window-frame');
+              if (!frame) {
+                return;
+              }
+              const entry = Array.from(frames.entries()).find(([, value]) => value.element === frame);
+              if (entry) {
+                windowManager.closeWindow(entry[0]);
+              }
+            },
+          });
+          helpInstance.mount(host);
+          return host;
+        },
+      });
+      if (helpInstance) {
+        const windowId = descriptor.id;
+        const teardown = appTeardowns.get(windowId);
+        if (teardown) {
+          teardown();
+        }
+        appTeardowns.set(windowId, () => {
+          helpInstance?.destroy();
+          helpInstance = undefined;
+        });
+      }
+    },
     'shell:start:run': () =>
       openWindow({
         title: 'Run',
