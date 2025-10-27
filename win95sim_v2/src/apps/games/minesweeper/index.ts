@@ -31,17 +31,17 @@ function normalizePresetConfig(preset: MinesweeperPreset): MinesweeperConfig {
 const DEFAULT_PRESETS: MinesweeperPreset[] = [
   {
     id: 'beginner',
-    label: 'Beginner (9×9, 10 mines)',
+    label: 'Beginner\n(9\u00D79, 10 mines)',
     config: { width: 9, height: 9, mines: 10, difficulty: 'beginner', firstClickSafe: true },
   },
   {
     id: 'intermediate',
-    label: 'Intermediate (16×16, 40 mines)',
+    label: 'Intermediate\n(16\u00D716, 40 mines)',
     config: { width: 16, height: 16, mines: 40, difficulty: 'intermediate', firstClickSafe: true },
   },
   {
     id: 'expert',
-    label: 'Expert (30×16, 99 mines)',
+    label: 'Expert\n(30\u00D716, 99 mines)',
     config: { width: 30, height: 16, mines: 99, difficulty: 'expert', firstClickSafe: true },
   },
 ];
@@ -81,6 +81,7 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
   let timerCounter: HTMLSpanElement | null = null;
   let boardWrapper: HTMLDivElement | null = null;
   let boardElement: HTMLDivElement | null = null;
+  let cleanupWindowBodyPadding: (() => void) | undefined;
 
   const difficultyMenuItems = new Map<MinesweeperDifficulty, HTMLButtonElement>();
   let openMenu: 'game' | null = null;
@@ -90,6 +91,57 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
   let elapsedSeconds = 0;
 
   const cleanupListeners: Array<() => void> = [];
+
+  function applyWindowBodyFlush(target: HTMLElement) {
+    const schedule =
+      typeof queueMicrotask === 'function'
+        ? queueMicrotask
+        : (callback: () => void) => {
+            setTimeout(callback, 0);
+          };
+    schedule(() => {
+      if (host !== target) {
+        return;
+      }
+      let current: HTMLElement | null = target;
+      const targetClass = 'window-body';
+      while (current) {
+        const classList = current.classList as DOMTokenList | undefined;
+        const matchesClassList =
+          classList && typeof classList.contains === 'function' ? classList.contains(targetClass) : false;
+        const matchesClassName =
+          typeof current.className === 'string' && current.className.split(/\s+/).includes(targetClass);
+        if (matchesClassList || matchesClassName) {
+          break;
+        }
+        current = current.parentElement;
+      }
+      if (!current) {
+        return;
+      }
+      cleanupWindowBodyPadding?.();
+      if (current.classList && typeof current.classList.add === 'function') {
+        current.classList.add('window-body--flush');
+      } else if (typeof current.className === 'string') {
+        const tokens = new Set(current.className.split(/\s+/).filter(Boolean));
+        tokens.add('window-body--flush');
+        current.className = Array.from(tokens).join(' ');
+      }
+      cleanupWindowBodyPadding = () => {
+        if (!current) {
+          return;
+        }
+        if (current.classList && typeof current.classList.remove === 'function') {
+          current.classList.remove('window-body--flush');
+        } else if (typeof current.className === 'string') {
+          current.className = current.className
+            .split(/\s+/)
+            .filter((token) => token && token !== 'window-body--flush')
+            .join(' ');
+        }
+      };
+    });
+  }
 
   function updateTimerDisplay() {
     if (!timerCounter) {
@@ -660,11 +712,15 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
 
     host.appendChild(container);
 
+    applyWindowBodyFlush(target);
+
     resetTimer();
     render(currentState);
   }
 
   function destroy() {
+    cleanupWindowBodyPadding?.();
+    cleanupWindowBodyPadding = undefined;
     pauseTimer();
     cleanupListeners.splice(0).forEach((cleanup) => {
       try {

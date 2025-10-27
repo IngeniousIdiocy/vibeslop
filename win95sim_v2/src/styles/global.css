@@ -1009,6 +1009,7 @@ body {
 
 .app-minesweeper__menu-option-label {
   flex: 1;
+  white-space: pre-line;
 }
 
 .app-minesweeper__menu-option-accelerator {

@@ -80,6 +80,46 @@ test('seeded random generates repeatable sequences', () => {
   assert.deepEqual(intsA, intsB);
 });
 
+test('minesweeper engine keeps counters aligned with the board state', () => {
+  const { createMinesweeperEngine } = loadModule('src/apps/games/minesweeper/engine.ts');
+
+  const engine = createMinesweeperEngine({ width: 9, height: 9, mines: 10, seed: 'counter-sync' });
+
+  const assertConsistency = (state) => {
+    const flatten = state.board.flat();
+    const flagged = flatten.filter((cell) => cell.isFlagged).length;
+    const revealed = flatten.filter((cell) => cell.isRevealed && !cell.hasMine).length;
+    const mines = flatten.filter((cell) => cell.hasMine).length;
+    assert.equal(flagged, state.flags, 'flag counter should match flagged cells');
+    assert.equal(revealed, state.revealed, 'revealed counter should match revealed safe cells');
+    assert.equal(mines, state.mines, 'mine counter should match actual mines');
+  };
+
+  let state = engine.getState();
+  assertConsistency(state);
+
+  state = engine.toggleFlag(0, 0);
+  assertConsistency(state);
+
+  state = engine.toggleFlag(0, 0);
+  assertConsistency(state);
+
+  state = engine.reveal(3, 3);
+  assertConsistency(state);
+
+  state = engine.reveal(4, 4);
+  assertConsistency(state);
+
+  for (const cell of state.board.flat()) {
+    if (!cell.hasMine && !cell.isRevealed) {
+      state = engine.reveal(cell.x, cell.y);
+    }
+  }
+
+  assert.equal(state.status, 'won');
+  assertConsistency(state);
+});
+
 test('minesweeper app mounts board, controls, and cleans up', () => {
   const { createMinesweeperApp } = loadModule('src/apps/games/minesweeper/index.ts');
 
@@ -154,9 +194,9 @@ test('minesweeper app mounts board, controls, and cleans up', () => {
       menuOptions,
       [
         { label: 'New', role: 'menuitem', difficulty: null },
-        { label: 'Beginner (9×9, 10 mines)', role: 'menuitemradio', difficulty: 'beginner' },
-        { label: 'Intermediate (16×16, 40 mines)', role: 'menuitemradio', difficulty: 'intermediate' },
-        { label: 'Expert (30×16, 99 mines)', role: 'menuitemradio', difficulty: 'expert' },
+        { label: 'Beginner\n(9×9, 10 mines)', role: 'menuitemradio', difficulty: 'beginner' },
+        { label: 'Intermediate\n(16×16, 40 mines)', role: 'menuitemradio', difficulty: 'intermediate' },
+        { label: 'Expert\n(30×16, 99 mines)', role: 'menuitemradio', difficulty: 'expert' },
       ],
       'expected game menu entries for new game and difficulty presets',
     );

@@ -12,6 +12,30 @@ interface InternalState {
   firstMove: boolean;
 }
 
+function countFlags(board: MinesweeperCellState[][]): number {
+  let total = 0;
+  for (const row of board) {
+    for (const cell of row) {
+      if (cell.isFlagged) {
+        total += 1;
+      }
+    }
+  }
+  return total;
+}
+
+function countRevealedSafeCells(board: MinesweeperCellState[][]): number {
+  let total = 0;
+  for (const row of board) {
+    for (const cell of row) {
+      if (!cell.hasMine && cell.isRevealed) {
+        total += 1;
+      }
+    }
+  }
+  return total;
+}
+
 function createEmptyBoard(width: number, height: number): MinesweeperCellState[][] {
   const board: MinesweeperCellState[][] = [];
   for (let y = 0; y < height; y += 1) {
@@ -162,7 +186,9 @@ function evaluateStatus(state: InternalState) {
 
   const totalCells = state.config.width * state.config.height;
   const targetRevealed = totalCells - state.config.mines;
-  if (state.revealed >= targetRevealed) {
+  const revealedSafe = countRevealedSafeCells(state.board);
+  state.revealed = revealedSafe;
+  if (revealedSafe >= targetRevealed) {
     state.status = 'won';
   }
 }
@@ -213,11 +239,16 @@ function createInitialState(config: MinesweeperConfig): InternalState {
 }
 
 function toPublicState(state: InternalState): MinesweeperState {
+  const flags = countFlags(state.board);
+  const revealedSafe = countRevealedSafeCells(state.board);
+  state.flags = flags;
+  state.revealed = revealedSafe;
+
   return {
     board: cloneBoard(state.board),
     status: state.status,
-    revealed: state.revealed,
-    flags: state.flags,
+    revealed: revealedSafe,
+    flags: flags,
     mines: state.config.mines,
     width: state.config.width,
     height: state.config.height,
@@ -270,7 +301,7 @@ export function createMinesweeperEngine(config: MinesweeperConfig): MinesweeperE
       return;
     }
     cell.isFlagged = !cell.isFlagged;
-    internal.flags += cell.isFlagged ? 1 : -1;
+    internal.flags = countFlags(internal.board);
   }
 
   return {

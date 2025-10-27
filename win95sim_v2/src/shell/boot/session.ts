@@ -106,6 +106,8 @@ const DEFAULT_VFS_SEED: Array<{ path: string; kind: 'directory' | 'file' | 'shor
     content: 'Place shortcuts in this folder to launch applications automatically when Win95Sim boots.',
   },
 ];
+const CAN_AUTO_RESIZE_MINESWEEPER =
+  typeof window !== 'undefined' && typeof window.document !== 'undefined' && typeof window.document.querySelector === 'function';
 
 export const DESKTOP_DEFAULT_ENTRIES: DesktopEntry[] = [
   {
@@ -984,6 +986,7 @@ export function createShellSession(): ShellSession {
 
   function launchMinesweeperWindow(options: { id?: string; title?: string; icon?: string } = {}) {
     let minesweeperInstance: MinesweeperAppInstance | undefined;
+    let hostElement: HTMLElement | null = null;
     const descriptor = openWindow({
       id: options.id,
       title: options.title ?? 'Minesweeper',
@@ -992,6 +995,7 @@ export function createShellSession(): ShellSession {
       height: 340,
       content: () => {
         const host = document.createElement('div');
+        hostElement = host;
         minesweeperInstance = createMinesweeperApp();
         minesweeperInstance.mount(host);
         return host;
@@ -1003,8 +1007,137 @@ export function createShellSession(): ShellSession {
       if (teardown) {
         teardown();
       }
-      appTeardowns.set(windowId, () => {
+      const cleanupCallbacks: Array<() => void> = [];
+
+      if (CAN_AUTO_RESIZE_MINESWEEPER) {
+        const schedule = (() => {
+          if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            return (callback: () => void) => window.requestAnimationFrame(() => callback());
+          }
+          return (callback: () => void) => setTimeout(callback, 16);
+        })();
+
+        const setupAutoResize = (retries = 10) => {
+          if (!hostElement) {
+            if (retries > 0) {
+              schedule(() => setupAutoResize(retries - 1));
+            }
+            return;
+          }
+
+          const unsafeHost = hostElement as unknown as {
+            querySelector?: (selector: string) => HTMLElement | null;
+          };
+          if (typeof unsafeHost.querySelector !== 'function') {
+            return;
+          }
+          const container = unsafeHost.querySelector('.app-minesweeper');
+          if (!container || typeof (container as { getBoundingClientRect?: () => DOMRect }).getBoundingClientRect !== 'function') {
+            return;
+          }
+
+          const findAncestorByClass = (start: HTMLElement | null, className: string) => {
+            let current: HTMLElement | null = start;
+            while (current) {
+              const classList = current.classList as DOMTokenList | undefined;
+              const matchesClassList =
+                classList && typeof classList.contains === 'function' ? classList.contains(className) : false;
+              const matchesClassName =
+                typeof current.className === 'string' && current.className.split(/\s+/).includes(className);
+              if (matchesClassList || matchesClassName) {
+                return current;
+              }
+              current = current.parentElement;
+            }
+            return null;
+          };
+
+          const frameElement = findAncestorByClass(container ?? (hostElement as HTMLElement | null), 'window-frame');
+          const bodyElement = findAncestorByClass(container ?? (hostElement as HTMLElement | null), 'window-body');
+          if (!container || !frameElement || !bodyElement) {
+            if (retries > 0) {
+              schedule(() => setupAutoResize(retries - 1));
+            }
+            return;
+          }
+
+          if (
+            typeof (container as { getBoundingClientRect?: () => DOMRect }).getBoundingClientRect !== 'function' ||
+            typeof (frameElement as { getBoundingClientRect?: () => DOMRect }).getBoundingClientRect !== 'function' ||
+            typeof (bodyElement as { getBoundingClientRect?: () => DOMRect }).getBoundingClientRect !== 'function'
+          ) {
+            return;
+          }
+
+          let lastWidth: number | undefined;
+          let lastHeight: number | undefined;
+
+          const applyResize = () => {
+            if (!container.isConnected || !frameElement.isConnected || !bodyElement.isConnected) {
+              return;
+            }
+            const contentRect = container.getBoundingClientRect();
+            if (!contentRect.width || !contentRect.height) {
+              return;
+            }
+            const frameRect = frameElement.getBoundingClientRect();
+            const bodyRect = bodyElement.getBoundingClientRect();
+            if (!frameRect.width || !frameRect.height || !bodyRect.width || !bodyRect.height) {
+              return;
+            }
+
+            const chromeWidth = frameRect.width - bodyRect.width;
+            const chromeHeight = frameRect.height - bodyRect.height;
+            const paddingAllowance = 2;
+            const nextWidth = Math.ceil(contentRect.width + chromeWidth + paddingAllowance);
+            const nextHeight = Math.ceil(contentRect.height + chromeHeight + paddingAllowance);
+            if (nextWidth <= 0 || nextHeight <= 0) {
+              return;
+            }
+            if (lastWidth === nextWidth && lastHeight === nextHeight) {
+              return;
+            }
+            lastWidth = nextWidth;
+            lastHeight = nextHeight;
+            try {
+              windowManager.resizeWindow(descriptor.id, { width: nextWidth, height: nextHeight });
+            } catch (error) {
+              if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+                console.warn('Failed to resize Minesweeper window', error);
+              }
+            }
+          };
+
+          schedule(applyResize);
+
+          if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => schedule(applyResize));
+            observer.observe(container);
+            cleanupCallbacks.push(() => observer.disconnect());
+          } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+            const onWindowResize = () => schedule(applyResize);
+            window.addEventListener('resize', onWindowResize);
+            cleanupCallbacks.push(() => window.removeEventListener('resize', onWindowResize));
+          }
+        };
+
+        schedule(() => setupAutoResize());
+      }
+
+      cleanupCallbacks.push(() => {
         minesweeperInstance?.destroy();
+        minesweeperInstance = undefined;
+        hostElement = null;
+      });
+
+      appTeardowns.set(windowId, () => {
+        cleanupCallbacks.splice(0).reverse().forEach((cleanup) => {
+          try {
+            cleanup();
+          } catch {
+            // Ignore cleanup errors during teardown.
+          }
+        });
       });
     }
     return descriptor;
