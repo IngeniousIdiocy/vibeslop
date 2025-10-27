@@ -70,16 +70,20 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
 
   let host: HTMLElement | null = null;
   let container: HTMLElement | null = null;
-  let toolbar: HTMLDivElement | null = null;
-  let controls: HTMLDivElement | null = null;
-  let difficultySelect: HTMLSelectElement | null = null;
-  let newGameButton: HTMLButtonElement | null = null;
+  let menuBar: HTMLDivElement | null = null;
+  let gameMenuRoot: HTMLDivElement | null = null;
+  let gameMenuButton: HTMLButtonElement | null = null;
+  let gameMenu: HTMLDivElement | null = null;
+  let helpMenuButton: HTMLButtonElement | null = null;
   let statusPanel: HTMLDivElement | null = null;
   let minesCounter: HTMLSpanElement | null = null;
-  let statusIndicator: HTMLSpanElement | null = null;
+  let statusIndicator: HTMLButtonElement | null = null;
   let timerCounter: HTMLSpanElement | null = null;
   let boardWrapper: HTMLDivElement | null = null;
   let boardElement: HTMLDivElement | null = null;
+
+  const difficultyMenuItems = new Map<MinesweeperDifficulty, HTMLButtonElement>();
+  let openMenu: 'game' | null = null;
 
   let timerHandle: ReturnType<typeof setInterval> | undefined;
   let timerStartedAt: number | null = null;
@@ -214,15 +218,23 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     minesCounter.setAttribute('aria-label', `Mines remaining: ${remainingMines}`);
 
     const statusFaces: Record<MinesweeperState['status'], string> = {
-      ready: '🙂 Ready',
-      'in-progress': '😮 In progress',
-      won: '😎 You win!',
-      lost: '😵 Boom!',
+      ready: '🙂',
+      'in-progress': '😮',
+      won: '😎',
+      lost: '😵',
+    };
+
+    const statusLabels: Record<MinesweeperState['status'], string> = {
+      ready: 'Ready for a new game',
+      'in-progress': 'Game in progress',
+      won: 'Game won',
+      lost: 'Game lost',
     };
 
     statusIndicator.textContent = statusFaces[state.status];
     statusIndicator.dataset.state = state.status;
-    statusIndicator.setAttribute('aria-label', statusFaces[state.status]);
+    statusIndicator.setAttribute('aria-label', statusLabels[state.status]);
+    statusIndicator.title = statusLabels[state.status];
 
     switch (state.status) {
       case 'ready':
@@ -241,14 +253,153 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     }
   }
 
-  function render(state: MinesweeperState) {
-    if (difficultySelect) {
-      const presetExists = presetList.some((preset) => preset.id === state.difficulty);
-      difficultySelect.value = presetExists ? state.difficulty : activePreset.id;
+  function updateDifficultyMenuSelection(state: MinesweeperState) {
+    if (difficultyMenuItems.size === 0) {
+      return;
     }
 
+    const active = difficultyMenuItems.has(state.difficulty)
+      ? state.difficulty
+      : activePreset.id;
+
+    difficultyMenuItems.forEach((item, difficulty) => {
+      const isActive = difficulty === active;
+      const activeValue = isActive ? 'true' : 'false';
+      if (item.dataset) {
+        item.dataset.active = activeValue;
+      }
+      item.setAttribute('data-active', activeValue);
+      item.setAttribute('aria-checked', activeValue);
+    });
+  }
+
+  function closeMenus() {
+    openMenu = null;
+    if (gameMenuButton) {
+      gameMenuButton.setAttribute('aria-expanded', 'false');
+    }
+    if (gameMenu) {
+      if (gameMenu.classList && typeof gameMenu.classList.remove === 'function') {
+        gameMenu.classList.remove('app-minesweeper__menu--open');
+      } else if (typeof gameMenu.className === 'string') {
+        gameMenu.className = gameMenu.className
+          .split(/\s+/)
+          .filter((token) => token && token !== 'app-minesweeper__menu--open')
+          .join(' ');
+      }
+    }
+  }
+
+  function focusFirstMenuItem() {
+    if (!gameMenu) {
+      return;
+    }
+    const firstItem = gameMenu.querySelector<HTMLButtonElement>('.app-minesweeper__menu-option');
+    if (firstItem && typeof firstItem.focus === 'function') {
+      firstItem.focus();
+    }
+  }
+
+  function openGameMenu() {
+    if (!gameMenuButton || !gameMenu) {
+      return;
+    }
+    openMenu = 'game';
+    gameMenuButton.setAttribute('aria-expanded', 'true');
+    if (gameMenu.classList && typeof gameMenu.classList.add === 'function') {
+      gameMenu.classList.add('app-minesweeper__menu--open');
+    } else if (typeof gameMenu.className === 'string') {
+      const tokens = new Set(gameMenu.className.split(/\s+/).filter(Boolean));
+      tokens.add('app-minesweeper__menu--open');
+      gameMenu.className = Array.from(tokens).join(' ');
+    }
+  }
+
+  function toggleGameMenu(event?: Event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (openMenu === 'game') {
+      closeMenus();
+      gameMenuButton?.focus();
+    } else {
+      openGameMenu();
+      focusFirstMenuItem();
+    }
+  }
+
+  function handleDocumentClick(event: MouseEvent) {
+    if (openMenu !== 'game') {
+      return;
+    }
+    const target = event.target as Node | null;
+    if (!target) {
+      closeMenus();
+      return;
+    }
+    if (gameMenuRoot?.contains(target)) {
+      return;
+    }
+    closeMenus();
+  }
+
+  function handleDocumentKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && openMenu === 'game') {
+      closeMenus();
+      gameMenuButton?.focus();
+    }
+  }
+
+  function handleGameMenuButtonKeyDown(event: KeyboardEvent) {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (openMenu !== 'game') {
+        openGameMenu();
+      }
+      focusFirstMenuItem();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (openMenu !== 'game') {
+        openGameMenu();
+      }
+      if (gameMenu) {
+        const items = gameMenu.querySelectorAll<HTMLButtonElement>('.app-minesweeper__menu-option');
+        const last = items[items.length - 1];
+        last?.focus?.();
+      }
+    }
+  }
+
+  function handleMenuOptionKeyDown(event: KeyboardEvent) {
+    if (!gameMenu || !gameMenuButton) {
+      return;
+    }
+
+    const items = Array.from(gameMenu.querySelectorAll<HTMLButtonElement>('.app-minesweeper__menu-option'));
+    if (items.length === 0) {
+      return;
+    }
+
+    const current = event.currentTarget as HTMLButtonElement | null;
+    const currentIndex = items.findIndex((item) => item === current);
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const next = items[(currentIndex + 1) % items.length];
+      next?.focus?.();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const previous = items[(currentIndex - 1 + items.length) % items.length];
+      previous?.focus?.();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenus();
+      gameMenuButton.focus();
+    }
+  }
+
+  function render(state: MinesweeperState) {
     updateStatus(state);
     renderBoard(state);
+    updateDifficultyMenuSelection(state);
     updateTimerDisplay();
   }
 
@@ -307,14 +458,6 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     updateState(nextState);
   };
 
-  const handleDifficultyChange = () => {
-    if (!difficultySelect) {
-      return;
-    }
-    const value = difficultySelect.value as MinesweeperDifficulty;
-    selectPreset(value);
-  };
-
   function clearHost() {
     if (host && container && container.parentElement === host) {
       host.removeChild(container);
@@ -334,38 +477,119 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     container = document.createElement('div');
     container.className = 'app-minesweeper';
 
-    toolbar = document.createElement('div');
-    toolbar.className = 'app-minesweeper__toolbar';
-    container.appendChild(toolbar);
+    menuBar = document.createElement('div');
+    menuBar.className = 'app-minesweeper__menubar';
+    menuBar.setAttribute('role', 'menubar');
 
-    controls = document.createElement('div');
-    controls.className = 'app-minesweeper__controls';
-    toolbar.appendChild(controls);
+    difficultyMenuItems.clear();
 
-    const difficultyLabel = document.createElement('label');
-    difficultyLabel.className = 'app-minesweeper__label';
-    difficultyLabel.textContent = 'Difficulty:';
+    gameMenuRoot = document.createElement('div');
+    gameMenuRoot.className = 'app-minesweeper__menu-root';
 
-    difficultySelect = document.createElement('select');
-    difficultySelect.className = 'app-minesweeper__select';
+    gameMenuButton = document.createElement('button');
+    gameMenuButton.type = 'button';
+    gameMenuButton.className = 'app-minesweeper__menu-item';
+    gameMenuButton.textContent = 'Game';
+    gameMenuButton.setAttribute('role', 'menuitem');
+    gameMenuButton.setAttribute('aria-haspopup', 'true');
+    gameMenuButton.setAttribute('aria-expanded', 'false');
+    gameMenuRoot.appendChild(gameMenuButton);
+
+    gameMenu = document.createElement('div');
+    gameMenu.className = 'app-minesweeper__menu';
+    gameMenu.setAttribute('role', 'menu');
+    gameMenuRoot.appendChild(gameMenu);
+
+    const createMenuOption = (
+      label: string,
+      onSelect: () => void,
+      options: { accelerator?: string; type?: 'radio'; difficulty?: MinesweeperDifficulty } = {},
+    ) => {
+      if (!gameMenu) {
+        return;
+      }
+
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'app-minesweeper__menu-option';
+      option.setAttribute('role', options.type === 'radio' ? 'menuitemradio' : 'menuitem');
+      option.textContent = '';
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'app-minesweeper__menu-option-label';
+      labelSpan.textContent = label;
+      option.appendChild(labelSpan);
+
+      if (options.accelerator) {
+        const accelerator = document.createElement('span');
+        accelerator.className = 'app-minesweeper__menu-option-accelerator';
+        accelerator.textContent = options.accelerator;
+        option.appendChild(accelerator);
+      }
+
+      if (options.type === 'radio') {
+        if (option.dataset) {
+          option.dataset.role = 'radio';
+          option.dataset.active = 'false';
+        }
+        option.setAttribute('data-role', 'radio');
+        option.setAttribute('data-active', 'false');
+        option.setAttribute('aria-checked', 'false');
+      }
+
+      if (options.difficulty) {
+        if (option.dataset) {
+          option.dataset.difficulty = options.difficulty;
+        }
+        option.setAttribute('data-difficulty', options.difficulty);
+        difficultyMenuItems.set(options.difficulty, option);
+      }
+
+      const handleClick = (event: MouseEvent) => {
+        event.preventDefault();
+        onSelect();
+        closeMenus();
+      };
+
+      option.addEventListener('click', handleClick);
+      option.addEventListener('keydown', handleMenuOptionKeyDown);
+
+      cleanupListeners.push(() => {
+        option.removeEventListener('click', handleClick);
+        option.removeEventListener('keydown', handleMenuOptionKeyDown);
+      });
+
+      gameMenu.appendChild(option);
+    };
+
+    const addMenuSeparator = () => {
+      if (!gameMenu) {
+        return;
+      }
+      const separator = document.createElement('div');
+      separator.className = 'app-minesweeper__menu-separator';
+      gameMenu.appendChild(separator);
+    };
+
+    createMenuOption('New', handleNewGame, { accelerator: 'F2' });
+    addMenuSeparator();
     presetList.forEach((preset) => {
-      const option = document.createElement('option');
-      option.value = preset.id;
-      option.textContent = preset.label;
-      difficultySelect?.appendChild(option);
+      createMenuOption(preset.label, () => {
+        selectPreset(preset.id);
+      }, { type: 'radio', difficulty: preset.id });
     });
-    if (difficultySelect) {
-      difficultySelect.value = activePreset.id;
-      difficultyLabel.appendChild(difficultySelect);
-    }
 
-    newGameButton = document.createElement('button');
-    newGameButton.type = 'button';
-    newGameButton.className = 'app-minesweeper__button';
-    newGameButton.textContent = 'New Game';
+    menuBar.appendChild(gameMenuRoot);
 
-    controls.appendChild(difficultyLabel);
-    controls.appendChild(newGameButton);
+    helpMenuButton = document.createElement('button');
+    helpMenuButton.type = 'button';
+    helpMenuButton.className = 'app-minesweeper__menu-item';
+    helpMenuButton.textContent = 'Help';
+    helpMenuButton.setAttribute('role', 'menuitem');
+    menuBar.appendChild(helpMenuButton);
+
+    boardWrapper = document.createElement('div');
+    boardWrapper.className = 'app-minesweeper__board-wrapper';
 
     statusPanel = document.createElement('div');
     statusPanel.className = 'app-minesweeper__status';
@@ -375,21 +599,21 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     minesCounter.setAttribute('aria-live', 'polite');
     statusPanel.appendChild(minesCounter);
 
-    statusIndicator = document.createElement('span');
+    statusIndicator = document.createElement('button');
+    statusIndicator.type = 'button';
     statusIndicator.className = 'app-minesweeper__indicator';
-    statusIndicator.setAttribute('role', 'status');
     statusIndicator.setAttribute('aria-live', 'polite');
     statusPanel.appendChild(statusIndicator);
+
+    statusIndicator.addEventListener('click', handleNewGame);
+    cleanupListeners.push(() => statusIndicator?.removeEventListener('click', handleNewGame));
 
     timerCounter = document.createElement('span');
     timerCounter.className = 'app-minesweeper__counter';
     timerCounter.setAttribute('aria-live', 'polite');
     statusPanel.appendChild(timerCounter);
 
-    toolbar.appendChild(statusPanel);
-
-    boardWrapper = document.createElement('div');
-    boardWrapper.className = 'app-minesweeper__board-wrapper';
+    boardWrapper.appendChild(statusPanel);
 
     boardElement = document.createElement('div');
     boardElement.className = 'app-minesweeper__board';
@@ -397,13 +621,33 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     boardElement.setAttribute('aria-label', 'Minesweeper board');
     boardWrapper.appendChild(boardElement);
 
+    container.appendChild(menuBar);
     container.appendChild(boardWrapper);
 
-    difficultySelect?.addEventListener('change', handleDifficultyChange);
-    cleanupListeners.push(() => difficultySelect?.removeEventListener('change', handleDifficultyChange));
+    const doc = container.ownerDocument ?? document;
 
-    newGameButton.addEventListener('click', handleNewGame);
-    cleanupListeners.push(() => newGameButton?.removeEventListener('click', handleNewGame));
+    if (gameMenuButton) {
+      const handleClick = (event: MouseEvent) => {
+        toggleGameMenu(event);
+      };
+      const handleKeyDown = (event: KeyboardEvent) => {
+        handleGameMenuButtonKeyDown(event);
+      };
+      gameMenuButton.addEventListener('click', handleClick);
+      gameMenuButton.addEventListener('keydown', handleKeyDown);
+      cleanupListeners.push(() => {
+        gameMenuButton?.removeEventListener('click', handleClick);
+        gameMenuButton?.removeEventListener('keydown', handleKeyDown);
+      });
+    }
+
+    if (doc && typeof doc.addEventListener === 'function' && typeof doc.removeEventListener === 'function') {
+      doc.addEventListener('click', handleDocumentClick);
+      cleanupListeners.push(() => doc.removeEventListener('click', handleDocumentClick));
+
+      doc.addEventListener('keydown', handleDocumentKeyDown);
+      cleanupListeners.push(() => doc.removeEventListener('keydown', handleDocumentKeyDown));
+    }
 
     boardElement.addEventListener('click', handleCellClick);
     cleanupListeners.push(() => boardElement?.removeEventListener('click', handleCellClick));
@@ -429,12 +673,16 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
 
     clearHost();
 
+    closeMenus();
+    difficultyMenuItems.clear();
+
     host = null;
     container = null;
-    toolbar = null;
-    controls = null;
-    difficultySelect = null;
-    newGameButton = null;
+    menuBar = null;
+    gameMenuRoot = null;
+    gameMenuButton = null;
+    gameMenu = null;
+    helpMenuButton = null;
     statusPanel = null;
     minesCounter = null;
     statusIndicator = null;

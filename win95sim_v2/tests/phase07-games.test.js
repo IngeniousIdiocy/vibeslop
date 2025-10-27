@@ -117,15 +117,57 @@ test('minesweeper app mounts board, controls, and cleans up', () => {
       return undefined;
     };
 
-    const toolbar = findByClass(root, 'app-minesweeper__toolbar');
+    const menuBar = findByClass(root, 'app-minesweeper__menubar');
+    const status = findByClass(root, 'app-minesweeper__status');
     const board = findByClass(root, 'app-minesweeper__board');
-    const select = findByClass(root, 'app-minesweeper__select');
-    const button = findByClass(root, 'app-minesweeper__button');
+    const indicator = findByClass(root, 'app-minesweeper__indicator');
+    const gameMenu = findByClass(root, 'app-minesweeper__menu');
 
-    assert.ok(toolbar, 'expected toolbar to render');
+    const findAllByClass = (node, className, acc = []) => {
+      if (!node || !node.children) {
+        return acc;
+      }
+      if (typeof node.className === 'string' && node.className.split(/\s+/).includes(className)) {
+        acc.push(node);
+      }
+      for (const child of node.children) {
+        findAllByClass(child, className, acc);
+      }
+      return acc;
+    };
+
+    assert.ok(menuBar, 'expected menu bar to render');
+    const menuButtons = findAllByClass(menuBar, 'app-minesweeper__menu-item').map((buttonNode) => buttonNode.textContent?.trim());
+    assert.deepEqual(menuButtons, ['Game', 'Help'], 'expected Game and Help menu entries');
+
+    assert.ok(gameMenu, 'expected game menu to exist');
+    const menuOptions = findAllByClass(gameMenu, 'app-minesweeper__menu-option').map((option) => {
+      const difficultyAttr = typeof option.getAttribute === 'function' ? option.getAttribute('data-difficulty') : undefined;
+      const difficulty = difficultyAttr ?? option.dataset?.difficulty ?? null;
+      return {
+        label: findByClass(option, 'app-minesweeper__menu-option-label')?.textContent?.trim(),
+        role: option.getAttribute ? option.getAttribute('role') : undefined,
+        difficulty,
+      };
+    });
+    assert.deepEqual(
+      menuOptions,
+      [
+        { label: 'New', role: 'menuitem', difficulty: null },
+        { label: 'Beginner (9×9, 10 mines)', role: 'menuitemradio', difficulty: 'beginner' },
+        { label: 'Intermediate (16×16, 40 mines)', role: 'menuitemradio', difficulty: 'intermediate' },
+        { label: 'Expert (30×16, 99 mines)', role: 'menuitemradio', difficulty: 'expert' },
+      ],
+      'expected game menu entries for new game and difficulty presets',
+    );
+
+    assert.equal(findByClass(root, 'app-minesweeper__controls'), undefined, 'expected no bottom controls panel');
+
+    assert.ok(status, 'expected status panel to render');
+    assert.ok(status?.parentElement?.className.includes('app-minesweeper__board-wrapper'), 'status should sit inside board frame');
     assert.ok(board, 'expected board to render');
-    assert.ok(select, 'expected difficulty selector');
-    assert.ok(button, 'expected new game button');
+    assert.equal(indicator?.tagName, 'BUTTON', 'status indicator should be a button');
+    assert.equal(indicator?.textContent?.trim(), '🙂', 'status indicator should show ready face');
     assert.ok(board.children.length > 0, 'expected board to contain cells');
 
     app.destroy();

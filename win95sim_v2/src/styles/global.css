@@ -892,115 +892,245 @@ body {
 }
 
 .app-minesweeper {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
-  gap: 8px;
-  height: 100%;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
   background: var(--win95-color-window);
+  box-sizing: border-box;
 }
 
-.app-minesweeper__toolbar {
+.app-minesweeper__menubar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 4px 6px;
+  gap: 6px;
+  padding: 2px 6px 3px;
   background: #c0c0c0;
-  border: 1px solid #808080;
-  box-shadow:
-    inset 0 1px 0 #ffffff,
-    inset 0 -1px 0 #ffffff;
+  border: 1px solid #ffffff;
+  border-bottom-color: #808080;
+  box-shadow: inset 0 1px 0 #ffffff;
+  align-self: stretch;
 }
 
-.app-minesweeper__controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.app-minesweeper__label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-}
-
-.app-minesweeper__select {
+.app-minesweeper__menu-item {
   font-family: var(--win95-font-ui);
   font-size: 12px;
-  padding: 2px 4px;
-  border: 1px solid #808080;
-  background: #ffffff;
+  padding: 1px 6px;
+  border: none;
+  background: transparent;
+  color: #000000;
+  cursor: default;
+  user-select: none;
 }
 
-.app-minesweeper__button {
-  font-family: var(--win95-font-ui);
-  font-size: 12px;
-  padding: 2px 10px;
-  border: 1px solid #808080;
+.app-minesweeper__menu-item:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -1px;
+}
+
+.app-minesweeper__menu-item:active {
+  background: #000080;
+  color: #ffffff;
+}
+
+.app-minesweeper__menu-root {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.app-minesweeper__menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  min-width: 152px;
+  padding: 2px 0;
   background: #c0c0c0;
+  border: 2px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
   box-shadow:
-    inset -1px -1px 0 #000000,
+    2px 2px 0 #000000,
+    inset -1px -1px 0 #404040,
     inset 1px 1px 0 #ffffff;
+  z-index: 10;
+}
+
+.app-minesweeper__menu--open {
+  display: block;
+}
+
+.app-minesweeper__menu-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 2px 18px 2px 24px;
+  border: none;
+  background: transparent;
+  color: #000000;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  text-align: left;
   cursor: default;
 }
 
-.app-minesweeper__button:active {
-  box-shadow:
-    inset 1px 1px 0 #000000,
-    inset -1px -1px 0 #ffffff;
+.app-minesweeper__menu-option:hover,
+.app-minesweeper__menu-option:focus {
+  background: #000080;
+  color: #ffffff;
+}
+
+.app-minesweeper__menu-option[data-role='radio']::before {
+  content: '\2713';
+  position: absolute;
+  left: 6px;
+  color: transparent;
+  pointer-events: none;
+}
+
+.app-minesweeper__menu-option[data-role='radio'][data-active='true']::before {
+  color: #000000;
+}
+
+.app-minesweeper__menu-option[data-role='radio'][data-active='true']:hover::before,
+.app-minesweeper__menu-option[data-role='radio'][data-active='true']:focus::before {
+  color: currentColor;
+}
+
+.app-minesweeper__menu-option-label {
+  flex: 1;
+}
+
+.app-minesweeper__menu-option-accelerator {
+  color: #404040;
+}
+
+.app-minesweeper__menu-separator {
+  height: 1px;
+  margin: 3px 4px;
+  background: #808080;
+  box-shadow: 0 1px 0 #ffffff;
 }
 
 .app-minesweeper__status {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  background: #c0c0c0;
+  border: 2px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
   font-size: 12px;
+  box-shadow:
+    inset -1px -1px 0 #404040,
+    inset 1px 1px 0 #ffffff;
 }
 
 .app-minesweeper__counter {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  min-width: 54px;
+  min-width: 60px;
   padding: 2px 6px;
-  border: 2px inset #808080;
+  border: 2px solid #404040;
+  border-top-color: #808080;
+  border-left-color: #808080;
+  border-right-color: #000000;
+  border-bottom-color: #000000;
   background: #000000;
-  color: #ff0000;
-  font-family: 'Lucida Console', monospace;
-  font-size: 14px;
+  color: #ff1a1a;
+  font-family:
+    'Digital-7',
+    'DS-Digital',
+    'Quartz MS',
+    'Quartz',
+    'Segment7',
+    'Seven Segment',
+    'Digital Readout Upright',
+    'Digital Readout Thick Upright',
+    'Courier New',
+    monospace;
+  font-size: 22px;
   line-height: 1;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
+  text-shadow:
+    0 0 3px rgba(255, 0, 0, 0.4),
+    0 0 6px rgba(255, 0, 0, 0.2);
 }
 
 .app-minesweeper__indicator {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 132px;
-  padding: 2px 8px;
-  border: 2px groove #808080;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-right-color: #404040;
+  border-bottom-color: #404040;
   background: #c0c0c0;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow:
+    inset -1px -1px 0 #808080,
+    inset 1px 1px 0 #ffffff;
+  margin: 0 auto;
+}
+
+.app-minesweeper__indicator:active {
+  border-top-color: #404040;
+  border-left-color: #404040;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #808080,
+    inset -1px -1px 0 #ffffff;
 }
 
 .app-minesweeper__board-wrapper {
-  flex: 1 1 auto;
+  align-self: center;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
   overflow: auto;
   padding: 6px;
-  border: 2px solid #c0c0c0;
-  background: #808080;
+  border: 2px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-right-color: #404040;
+  border-bottom-color: #404040;
+  background: #c0c0c0;
+  box-shadow:
+    inset 1px 1px 0 #c0c0c0,
+    inset -1px -1px 0 #808080;
+  box-sizing: border-box;
 }
 
 .app-minesweeper__board {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   justify-content: start;
   grid-auto-rows: 24px;
+  padding: 3px;
+  background: #808080;
+  border: 2px solid #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  box-shadow:
+    inset 1px 1px 0 #404040,
+    inset -1px -1px 0 #ffffff;
 }
 
 .app-minesweeper__cell {
