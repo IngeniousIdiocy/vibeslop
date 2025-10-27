@@ -275,11 +275,19 @@ UI shell for the paint engine.
 ```ts
 import { createPaintApp } from '@apps/creative/paint';
 
-const paint = createPaintApp({ width: 480, height: 320, background: [255, 255, 255, 255] });
+const { vfs } = services;
+
+const paint = createPaintApp({
+  width: 480,
+  height: 320,
+  background: [255, 255, 255, 255],
+  vfs,
+  defaultDirectory: 'C:/Documents',
+});
 paint.mount(canvasHost);
 ```
 
-The instance exposes `{ mount(host), destroy() }`. It mounts palette swatches, brush controls, layered `<canvas>` surfaces, and a status bar while delegating undo/redo to `@apps/creative/paint/engine`.
+The instance exposes `{ mount(host), destroy() }`. It mounts palette swatches, brush controls, layered `<canvas>` surfaces, menus, and a status bar while delegating undo/redo to `@apps/creative/paint/engine`. When supplied with a VFS service the File menu activates Open/Save commands that serialise `.w95p` snapshots.
 
 ## UI primitives
 ### CSS tokens (`ui/tokens.css`)

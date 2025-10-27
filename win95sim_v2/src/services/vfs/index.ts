@@ -211,6 +211,10 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
   const watchers: WatchBucket[] = [];
   const { bin: recycleBin, capture, restore } = createRecycleBin();
 
+  function emitRecycleBinChanged() {
+    bus.emit('vfs:recycle-bin:changed', recycleBin.list());
+  }
+
   function emit(type: VfsWatchEventType, node: InternalNode, previousPath?: string) {
     const event: VfsWatchEvent = { type, node: toPublic(node, true), previousPath };
     watchers.forEach((bucket) => {
@@ -456,6 +460,7 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
     removeNode(normalized);
     emit('deleted', node);
     bus.emit('vfs:recycle-bin', entry);
+    emitRecycleBinChanged();
   }
 
   function watchPath(path: string, handler: (event: VfsWatchEvent) => void): () => void {
@@ -563,8 +568,15 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
 
   const recycleBinFacade: VfsRecycleBin = {
     list: () => recycleBin.list(),
-    empty: () => recycleBin.empty(),
-    restore: (id: string) => restoreFromRecycleBin(id),
+    empty: () => {
+      recycleBin.empty();
+      emitRecycleBinChanged();
+    },
+    restore: (id: string) => {
+      const restored = restoreFromRecycleBin(id);
+      emitRecycleBinChanged();
+      return restored;
+    },
   };
 
   const service: VfsService = {

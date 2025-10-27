@@ -9,6 +9,7 @@ Phase 03 introduces a small set of shell command identifiers that are consumed b
 | `shell:start:paint` | Launch the Paint application. |
 | `shell:start:minesweeper` | Launch the Minesweeper game. |
 | `shell:start:explorer` | Launch the Windows Explorer file browser. |
+| `shell:start:msdos` | Launch the MS-DOS Prompt application. |
 | `shell:start:control-panel` | Open the Control Panel surface. |
 | `shell:start:taskbar-settings` | Open the Taskbar & Start Menu settings panel. |
 | `shell:start:find-files` | Trigger the Find Files dialog. |

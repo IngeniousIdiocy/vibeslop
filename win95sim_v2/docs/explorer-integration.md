@@ -29,6 +29,15 @@ Paths are normalised (`C:/Folder/File.txt`) and drives are case insensitive.
 - Breadcrumb navigation emits `setPath` calls that downstream tooling can hook
   into for automation or testing.
 
+## Recycle Bin app
+- Mounted from `src/apps/system/recycle-bin/index.ts` and consumes the shared
+  VFS recycle bin surface to stay in sync with deletions and restores.
+- Presents a Win95-style chrome including File/Edit/View/Help menus, a command
+  toolbar, and a status bar with live object/size totals so QA scripts can match
+  the legacy simulator layout.
+- Emits the same `vfs:recycle-bin:*` events as Explorer, allowing desktop icons
+  and other apps to refresh when the bin changes state.
+
 ## Fixtures
 `tests/fixtures/vfs/sampleTree.js` exports a helper that returns a seed array
 compatible with `createVfsService({ seed })`. Other phases can reuse the fixture
