@@ -988,8 +988,8 @@ export function createShellSession(): ShellSession {
       id: options.id,
       title: options.title ?? 'Minesweeper',
       icon: options.icon ?? WINDOW_ICONS.minesweeper,
-      width: 360,
-      height: 380,
+      width: 280,
+      height: 340,
       content: () => {
         const host = document.createElement('div');
         minesweeperInstance = createMinesweeperApp();
