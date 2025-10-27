@@ -231,6 +231,74 @@ export function createMsDosPromptApp({ vfs, onExit }: MsDosPromptDependencies): 
   let promptTemplate = environment.get('PROMPT') ?? DEFAULT_PROMPT_TEMPLATE;
   let echoEnabled = true;
   let mountedHost: HTMLElement | undefined;
+  let cleanupWindowBodyPadding: (() => void) | undefined;
+
+  function addClassName(element: HTMLElement, className: string) {
+    const classList = element.classList as DOMTokenList | undefined;
+    if (classList && typeof classList.add === 'function') {
+      classList.add(className);
+      return;
+    }
+    const existing = typeof element.className === 'string'
+      ? element.className.split(/\s+/).filter((token) => token.length > 0)
+      : [];
+    if (!existing.includes(className)) {
+      existing.push(className);
+    }
+    element.className = existing.join(' ');
+  }
+
+  function removeClassName(element: HTMLElement, className: string) {
+    const classList = element.classList as DOMTokenList | undefined;
+    if (classList && typeof classList.remove === 'function') {
+      classList.remove(className);
+      return;
+    }
+    if (typeof element.className !== 'string') {
+      return;
+    }
+    const filtered = element.className
+      .split(/\s+/)
+      .filter((token) => token.length > 0 && token !== className);
+    element.className = filtered.join(' ');
+  }
+
+  function applyWindowBodyFlush(host: HTMLElement) {
+    queueMicrotask(() => {
+      if (mountedHost !== host) {
+        return;
+      }
+
+      let current: HTMLElement | null = host;
+      let windowBody: HTMLElement | null = null;
+      while (current) {
+        const hasClassList = current.classList?.contains?.('window-body');
+        const hasClassName = typeof current.className === 'string'
+          && current.className.split(/\s+/).includes('window-body');
+        if (hasClassList || hasClassName) {
+          windowBody = current;
+          break;
+        }
+        current = current.parentElement;
+      }
+
+      if (!windowBody) {
+        return;
+      }
+
+      if (cleanupWindowBodyPadding) {
+        cleanupWindowBodyPadding();
+      }
+
+      cleanupWindowBodyPadding = () => {
+        if (!windowBody) {
+          return;
+        }
+        removeClassName(windowBody, 'window-body--flush');
+      };
+      addClassName(windowBody, 'window-body--flush');
+    });
+  }
 
   function formatPrompt(): string {
     const drive = parts(cwd).drive;
@@ -844,15 +912,23 @@ export function createMsDosPromptApp({ vfs, onExit }: MsDosPromptDependencies): 
     if (mountedHost === host) {
       return;
     }
+    cleanupWindowBodyPadding?.();
+    if (mountedHost) {
+      removeClassName(mountedHost, 'app-msdos__host');
+    }
     mountedHost = host;
     host.innerHTML = '';
+    addClassName(host, 'app-msdos__host');
     host.appendChild(container);
+    applyWindowBodyFlush(host);
     resetScreen();
     updatePrompt();
     inputField.focus();
   }
 
   function destroy() {
+    cleanupWindowBodyPadding?.();
+    cleanupWindowBodyPadding = undefined;
     if (typeof inputForm.removeEventListener === 'function') {
       inputForm.removeEventListener('submit', submitHandler);
     }
@@ -861,6 +937,9 @@ export function createMsDosPromptApp({ vfs, onExit }: MsDosPromptDependencies): 
     }
     if (container.parentElement) {
       container.parentElement.removeChild(container);
+    }
+    if (mountedHost) {
+      removeClassName(mountedHost, 'app-msdos__host');
     }
     mountedHost = undefined;
   }

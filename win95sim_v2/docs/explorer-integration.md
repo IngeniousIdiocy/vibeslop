@@ -14,6 +14,9 @@ teams integrating with the new modules.
   - Recycle bin APIs exposed through `service.recycleBin` with `list`,
     `restore`, and `empty` helpers.
   - Shortcut resolution using `resolveShortcut(path)`.
+  - File association registry (`registerFileAssociation`,
+    `getFileAssociation`, `listFileAssociations`) for wiring extensions to
+    application handlers.
   - Event bus (`service.bus`) emitting `vfs:*` events for cross-service
     listeners.
 
@@ -23,9 +26,11 @@ Paths are normalised (`C:/Folder/File.txt`) and drives are case insensitive.
 ## Explorer app
 - Declared via `src/apps/explorer/explorer.app.json` so the process service can
   discover and spawn Explorer windows.
-- Runtime entry point `createExplorerApp({ vfs, startPath })` renders tree and
+- Runtime entry point `createExplorerApp({ vfs, startPath, onOpenNode })` renders tree and
   details panes. The app listens to VFS watchers so desktop icons and other apps
   can share the same service instance without refreshing the view manually.
+- Optional `onOpenNode` callback fires when users double-click a file in the
+  details pane so the shell can delegate to associated applications.
 - Breadcrumb navigation emits `setPath` calls that downstream tooling can hook
   into for automation or testing.
 
