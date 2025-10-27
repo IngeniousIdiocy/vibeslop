@@ -24,7 +24,7 @@ import { createWindowFrame } from '@ui/components/windowFrame';
 import { createTaskbarView } from '@ui/components/taskbar';
 import { createStartMenuView } from '@ui/components/startMenu';
 import { createDesktopView, type DesktopDragEvent } from '@ui/components/desktopIcons';
-import { createVfsService } from '@services/vfs';
+import { createVfsService, type VfsNode } from '@services/vfs';
 import { createWindowInteractionController } from '@features/window-interactions';
 import { createMsDosPromptApp, type MsDosPromptInstance } from '@apps/system/msdos';
 import { createPrintService } from '@services/print';
@@ -51,8 +51,8 @@ interface ShellWindowOptions {
   content?: WindowContentSource;
 }
 
-const DEFAULT_WINDOW_WIDTH = 360;
-const DEFAULT_WINDOW_HEIGHT = 260;
+const DEFAULT_WINDOW_WIDTH = 520;
+const DEFAULT_WINDOW_HEIGHT = 400;
 const WINDOW_CASCADE_STEP = 24;
 const DESKTOP_SURFACE_ID = '::desktop';
 const DEFAULT_EXPLORER_HOME = 'C:/';
@@ -75,7 +75,7 @@ const WINDOW_ICONS = {
   controlPanel: 'icons/w98_directory_control_panel.ico',
   taskbar: 'icons/w2k_taskbar.ico',
   findFiles: 'icons/w2k_search.ico',
-  help: 'icons/w98_help_book_cool.ico',
+  help: 'icons/w2k_help.ico',
   run: 'icons/w2k_run.ico',
   startup: 'icons/w2k_folder_open.ico',
   shutdown: 'icons/w2k_shutdown.ico',
@@ -189,6 +189,9 @@ export function createShellSession(): ShellSession {
   const dialogState = createDialogStateService();
   const print = createPrintService();
   const vfs = createVfsService({ seed: DEFAULT_VFS_SEED });
+  vfs.registerFileAssociation('.txt', { appId: 'apps/notepad' });
+  vfs.registerFileAssociation('.log', { appId: 'apps/notepad' });
+  vfs.registerFileAssociation('.w95p', { appId: 'apps/paint' });
   const recentDocuments = createRecentDocumentsService();
   const startMenuModel = createStartMenuModel({ recentDocuments });
   const taskbar = createTaskbarController({ windows, bus });
@@ -232,6 +235,7 @@ export function createShellSession(): ShellSession {
   const pendingContent = new Map<string, HTMLElement>();
   const appTeardowns = new Map<string, () => void>();
   const notepadWindows = new Map<string, NotepadWindowInstance>();
+  const paintWindows = new Map<string, PaintAppInstance>();
 
   let viewport: ReturnType<typeof createCrtViewport> | undefined;
   let workspace: HTMLElement | undefined;
@@ -849,7 +853,7 @@ export function createShellSession(): ShellSession {
     return container;
   }
 
-  function createNotepadContent(windowId: string): HTMLElement {
+  function createNotepadContent(windowId: string, initialPath?: string): HTMLElement {
     const appInstance = createNotepadApp({ settings, dialogState, print });
     const instance = createNotepadWindow({
       app: appInstance,
@@ -867,6 +871,11 @@ export function createShellSession(): ShellSession {
       },
     });
     notepadWindows.set(windowId, instance);
+    if (initialPath) {
+      void instance
+        .openPath(initialPath)
+        .catch((error) => console.error('Failed to open document in Notepad', error));
+    }
     return instance.element;
   }
 
@@ -919,6 +928,30 @@ export function createShellSession(): ShellSession {
     form.appendChild(actions);
 
     return form;
+  }
+
+  function launchNotepadWindow(options: { id?: string; title?: string; icon?: string; path?: string } = {}) {
+    const windowId = options.id ?? `app:notepad:${windowSequence++}`;
+    const descriptor = openWindow({
+      id: windowId,
+      title: options.title ?? 'Notepad',
+      icon: options.icon ?? WINDOW_ICONS.notepad,
+      width: 520,
+      height: 340,
+      content: () => createNotepadContent(windowId, options.path),
+    });
+    const teardown = appTeardowns.get(descriptor.id);
+    if (teardown) {
+      teardown();
+    }
+    appTeardowns.set(descriptor.id, () => {
+      const instance = notepadWindows.get(descriptor.id);
+      if (instance) {
+        instance.dispose();
+        notepadWindows.delete(descriptor.id);
+      }
+    });
+    return descriptor;
   }
 
   function launchRecycleBinWindow(options: { id?: string; title?: string; icon?: string } = {}) {
@@ -990,6 +1023,9 @@ export function createShellSession(): ShellSession {
         explorerInstance = createExplorerApp({
           vfs,
           startPath: options.startPath ?? DEFAULT_EXPLORER_HOME,
+          onOpenNode: (node) => {
+            void openFileWithAssociation(node.path);
+          },
         });
         explorerInstance.mount(host);
         return host;
@@ -1008,10 +1044,11 @@ export function createShellSession(): ShellSession {
     return descriptor;
   }
 
-  function launchPaintWindow(options: { id?: string; title?: string; icon?: string } = {}) {
+  function launchPaintWindow(options: { id?: string; title?: string; icon?: string; documentPath?: string } = {}) {
+    const windowId = options.id ?? `app:paint:${windowSequence++}`;
     let paintInstance: PaintAppInstance | undefined;
     const descriptor = openWindow({
-      id: options.id,
+      id: windowId,
       title: options.title ?? 'Paint',
       icon: options.icon ?? WINDOW_ICONS.paint,
       width: 620,
@@ -1029,16 +1066,94 @@ export function createShellSession(): ShellSession {
       },
     });
     if (paintInstance) {
-      const windowId = descriptor.id;
-      const teardown = appTeardowns.get(windowId);
+      paintWindows.set(descriptor.id, paintInstance);
+      const teardown = appTeardowns.get(descriptor.id);
       if (teardown) {
         teardown();
       }
-      appTeardowns.set(windowId, () => {
-        paintInstance?.destroy();
+      appTeardowns.set(descriptor.id, () => {
+        const instance = paintWindows.get(descriptor.id);
+        if (instance) {
+          instance.destroy();
+          paintWindows.delete(descriptor.id);
+        }
       });
+      if (options.documentPath) {
+        void paintInstance
+          .openDocument(options.documentPath)
+          .catch((error) => console.error('Failed to open document in Paint', error));
+      }
     }
     return descriptor;
+  }
+
+  async function openFileWithAssociation(path: string): Promise<void> {
+    let node: VfsNode;
+    try {
+      node = await vfs.read(path);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      openWindow({
+        title: 'Win95Sim',
+        icon: WINDOW_ICONS.defaultApp,
+        width: 360,
+        height: 220,
+        content: () =>
+          createPlaceholderContent('Unable to open file', `Win95Sim could not open "${path}" (${message}).`),
+      });
+      return;
+    }
+
+    if (node.kind === 'directory') {
+      launchExplorerWindow({
+        title: node.name,
+        startPath: node.path,
+        icon: WINDOW_ICONS.explorer,
+      });
+      return;
+    }
+
+    if (node.kind !== 'file') {
+      return;
+    }
+
+    const association = vfs.getFileAssociation(node.path);
+    if (!association) {
+      openWindow({
+        title: node.name,
+        icon: WINDOW_ICONS.defaultApp,
+        width: 360,
+        height: 220,
+        content: () =>
+          createPlaceholderContent(
+            node.name,
+            `Win95Sim doesn't know how to open "${node.name}" yet.`,
+          ),
+      });
+      return;
+    }
+
+    switch (association.appId) {
+      case 'apps/notepad':
+        launchNotepadWindow({ path: node.path });
+        break;
+      case 'apps/paint':
+        launchPaintWindow({ documentPath: node.path, title: node.name });
+        break;
+      default:
+        openWindow({
+          title: node.name,
+          icon: WINDOW_ICONS.defaultApp,
+          width: 360,
+          height: 220,
+          content: () =>
+            createPlaceholderContent(
+              node.name,
+              `Application "${association.appId}" is not available in this build.`,
+            ),
+        });
+        break;
+    }
   }
 
   function launchMsDosPromptWindow(options: { id?: string; title?: string; icon?: string } = {}) {
@@ -1144,29 +1259,7 @@ export function createShellSession(): ShellSession {
         title: 'Recycle Bin',
         icon: getRecycleBinIcon(),
       }),
-    'shell:start:notepad': () => {
-      const id = `app:notepad:${windowSequence++}`;
-      const descriptor = openWindow({
-        id,
-        title: 'Notepad',
-        icon: WINDOW_ICONS.notepad,
-        width: 520,
-        height: 340,
-        content: () => createNotepadContent(id),
-      });
-      const teardown = appTeardowns.get(descriptor.id);
-      if (teardown) {
-        teardown();
-      }
-      appTeardowns.set(descriptor.id, () => {
-        const instance = notepadWindows.get(descriptor.id);
-        if (instance) {
-          instance.dispose();
-          notepadWindows.delete(descriptor.id);
-        }
-      });
-      return descriptor;
-    },
+    'shell:start:notepad': () => launchNotepadWindow(),
     'shell:start:paint': () =>
       launchPaintWindow({
         id: `app:paint:${windowSequence}`,
@@ -1228,8 +1321,8 @@ export function createShellSession(): ShellSession {
       const descriptor = openWindow({
         title: 'Windows Help',
         icon: WINDOW_ICONS.help,
-        width: 460,
-        height: 360,
+        width: 640,
+        height: 480,
         content: () => {
           const host = document.createElement('div');
           helpInstance = createWindowsHelpApp({
@@ -1299,14 +1392,7 @@ export function createShellSession(): ShellSession {
       const recentId = command.slice('shell:open:recent:'.length);
       const entry = recentDocuments.list().find((item) => item.id === recentId);
       if (entry) {
-        openWindow({
-          title: entry.title,
-          icon: WINDOW_ICONS.documents,
-          width: 420,
-          height: 260,
-          content: () =>
-            createPlaceholderContent(entry.title, `Win95Sim cannot open "${entry.path}" yet, but it's on the roadmap.`),
-        });
+        void openFileWithAssociation(entry.path);
         if (shouldCloseStartMenu) {
           closeStartMenu();
         }

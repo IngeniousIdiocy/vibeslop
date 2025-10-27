@@ -591,6 +591,9 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     boardWrapper = document.createElement('div');
     boardWrapper.className = 'app-minesweeper__board-wrapper';
 
+    boardWrapper = document.createElement('div');
+    boardWrapper.className = 'app-minesweeper__board-wrapper';
+
     statusPanel = document.createElement('div');
     statusPanel.className = 'app-minesweeper__status';
 

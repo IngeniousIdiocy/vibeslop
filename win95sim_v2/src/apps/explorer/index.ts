@@ -9,6 +9,7 @@ interface ExplorerTreeNode {
 export interface ExplorerOptions {
   vfs: VfsService;
   startPath?: string;
+  onOpenNode?: (node: VfsNode) => void;
 }
 
 export interface ExplorerInstance {
@@ -222,6 +223,10 @@ export function createExplorerApp(options: ExplorerOptions): ExplorerInstance {
     if (entry.kind === 'directory') {
       item.addEventListener('dblclick', () => {
         void setPath(entry.path);
+      });
+    } else if (entry.kind === 'file') {
+      item.addEventListener('dblclick', () => {
+        options.onOpenNode?.(entry);
       });
     }
     return item;

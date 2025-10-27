@@ -10,6 +10,7 @@ const MIME_TABLE = new Map<string, { mime: string; icon: string }>([
   ['wav', { mime: 'audio/wav', icon: 'audio' }],
   ['mp3', { mime: 'audio/mpeg', icon: 'audio' }],
   ['lnk', { mime: 'application/x-ms-shortcut', icon: 'shortcut' }],
+  ['w95p', { mime: 'application/x-win95paint', icon: 'image' }],
 ]);
 
 const DEFAULT_ENTRY = { mime: 'application/octet-stream', icon: 'file' };

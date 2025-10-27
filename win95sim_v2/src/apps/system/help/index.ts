@@ -42,6 +42,19 @@ interface HelpSearchOption {
   description: string;
 }
 
+function resolveIconPath(icon?: string): string | undefined {
+  if (!icon) {
+    return undefined;
+  }
+  if (icon.startsWith('assets/')) {
+    return icon;
+  }
+  if (icon.startsWith('/')) {
+    return `assets${icon}`;
+  }
+  return `assets/${icon}`;
+}
+
 const CONTENT_TREE: HelpContentNode[] = [
   {
     type: 'book',
@@ -413,10 +426,9 @@ export function createWindowsHelpApp(options: WindowsHelpAppOptions = {}): Windo
       splitIntoParagraphs(detailsBody, body);
     }
     if (detailsIcon) {
-      if (icon) {
-        detailsIcon.src = icon;
-      }
-      detailsIcon.hidden = !icon;
+      const resolvedIcon = resolveIconPath(icon);
+      detailsIcon.src = resolvedIcon ?? '';
+      detailsIcon.hidden = !resolvedIcon;
     }
   }
 
@@ -449,10 +461,10 @@ export function createWindowsHelpApp(options: WindowsHelpAppOptions = {}): Windo
     references.toggle.className = shouldExpand ? 'app-help__tree-toggle app-help__tree-toggle--expanded' : 'app-help__tree-toggle';
     if (shouldExpand) {
       references.children.removeAttribute('hidden');
-      references.icon.src = references.node.iconOpen;
+      references.icon.src = resolveIconPath(references.node.iconOpen) ?? '';
     } else {
       references.children.setAttribute('hidden', '');
-      references.icon.src = references.node.iconClosed;
+      references.icon.src = resolveIconPath(references.node.iconClosed) ?? '';
     }
   }
 
@@ -646,7 +658,7 @@ export function createWindowsHelpApp(options: WindowsHelpAppOptions = {}): Windo
 
       const icon = document.createElement('img');
       icon.className = 'app-help__toolbar-icon';
-      icon.src = definition.icon;
+      icon.src = resolveIconPath(definition.icon) ?? '';
       icon.alt = '';
 
       const label = document.createElement('span');
@@ -693,7 +705,7 @@ export function createWindowsHelpApp(options: WindowsHelpAppOptions = {}): Windo
 
         const icon = document.createElement('img');
         icon.className = 'app-help__tree-icon';
-        icon.src = expanded ? node.iconOpen : node.iconClosed;
+        icon.src = resolveIconPath(expanded ? node.iconOpen : node.iconClosed) ?? '';
         icon.alt = '';
 
         const label = document.createElement('button');
@@ -737,7 +749,7 @@ export function createWindowsHelpApp(options: WindowsHelpAppOptions = {}): Windo
 
         const icon = document.createElement('img');
         icon.className = 'app-help__tree-topic-icon';
-        icon.src = node.icon;
+        icon.src = resolveIconPath(node.icon) ?? '';
         icon.alt = '';
 
         button.textContent = node.title;

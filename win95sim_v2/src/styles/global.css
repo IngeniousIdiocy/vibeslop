@@ -610,6 +610,10 @@ body {
   overflow: auto;
 }
 
+.window-body--flush {
+  padding: 0;
+}
+
 .window-content {
   flex: 1 1 auto;
   display: flex;
@@ -1266,8 +1270,9 @@ body {
 
 .app-notepad__menu-command {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
+  gap: 4px;
   width: 100%;
   border: none;
   background: transparent;
@@ -1275,6 +1280,19 @@ body {
   font-size: 12px;
   padding: 2px 24px 2px 24px;
   cursor: pointer;
+}
+
+.app-notepad__menu-check {
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+}
+
+.app-notepad__menu-label {
+  flex: 1;
+  text-align: left;
 }
 
 .app-notepad__menu-command:disabled {
@@ -1289,7 +1307,8 @@ body {
 }
 
 .app-notepad__menu-accelerator {
-  margin-left: 24px;
+  margin-left: auto;
+  padding-left: 24px;
 }
 
 .app-notepad__menu-separator {
@@ -1297,6 +1316,28 @@ body {
   margin: 4px 6px;
   background: #808080;
   border-bottom: 1px solid #ffffff;
+}
+
+.app-notepad__status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 8px;
+  font-family: var(--win95-font-ui);
+  font-size: 12px;
+  background: #c0c0c0;
+  border-top: 1px solid #ffffff;
+  box-shadow: inset 0 1px 0 #808080;
+}
+
+.app-notepad__status-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-notepad__status-position {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .app-notepad__editor {
@@ -1308,23 +1349,40 @@ body {
   resize: none;
 }
 
+
 .app-msdos {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   height: 100%;
   background: #000000;
   color: #c0c0c0;
   font-family: 'Lucida Console', monospace;
   font-size: 14px;
-  padding: 6px;
-  box-sizing: border-box;
+}
+
+.app-msdos__host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  overflow: hidden;
 }
 
 .app-msdos__output {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
   white-space: pre;
-  margin-bottom: 6px;
+  padding: 12px 12px 0;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .app-msdos__line {
@@ -1336,6 +1394,9 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 12px;
+  padding-top: 6px;
+  box-sizing: border-box;
 }
 
 .app-msdos__prompt {
