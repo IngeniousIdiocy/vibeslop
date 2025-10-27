@@ -117,15 +117,28 @@ test('minesweeper app mounts board, controls, and cleans up', () => {
       return undefined;
     };
 
-    const toolbar = findByClass(root, 'app-minesweeper__toolbar');
+    const menuBar = findByClass(root, 'app-minesweeper__menubar');
+    const status = findByClass(root, 'app-minesweeper__status');
     const board = findByClass(root, 'app-minesweeper__board');
+    const controlsPanel = findByClass(root, 'app-minesweeper__controls');
     const select = findByClass(root, 'app-minesweeper__select');
     const button = findByClass(root, 'app-minesweeper__button');
+    const indicator = findByClass(root, 'app-minesweeper__indicator');
 
-    assert.ok(toolbar, 'expected toolbar to render');
+    assert.ok(menuBar, 'expected menu bar to render');
+    assert.deepEqual(
+      Array.from(menuBar?.children ?? []).map((child) => child.textContent?.trim()),
+      ['Game', 'Help'],
+      'expected Game and Help menu entries',
+    );
+    assert.ok(status, 'expected status panel to render');
+    assert.ok(status?.parentElement?.className.includes('app-minesweeper__board-wrapper'), 'status should sit inside board frame');
     assert.ok(board, 'expected board to render');
+    assert.ok(controlsPanel, 'expected controls panel to render');
     assert.ok(select, 'expected difficulty selector');
     assert.ok(button, 'expected new game button');
+    assert.equal(indicator?.tagName, 'BUTTON', 'status indicator should be a button');
+    assert.equal(indicator?.textContent?.trim(), '🙂', 'status indicator should show ready face');
     assert.ok(board.children.length > 0, 'expected board to contain cells');
 
     app.destroy();
