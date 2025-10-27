@@ -70,13 +70,13 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
 
   let host: HTMLElement | null = null;
   let container: HTMLElement | null = null;
-  let toolbar: HTMLDivElement | null = null;
+  let menuBar: HTMLDivElement | null = null;
   let controls: HTMLDivElement | null = null;
   let difficultySelect: HTMLSelectElement | null = null;
   let newGameButton: HTMLButtonElement | null = null;
   let statusPanel: HTMLDivElement | null = null;
   let minesCounter: HTMLSpanElement | null = null;
-  let statusIndicator: HTMLSpanElement | null = null;
+  let statusIndicator: HTMLButtonElement | null = null;
   let timerCounter: HTMLSpanElement | null = null;
   let boardWrapper: HTMLDivElement | null = null;
   let boardElement: HTMLDivElement | null = null;
@@ -214,15 +214,23 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     minesCounter.setAttribute('aria-label', `Mines remaining: ${remainingMines}`);
 
     const statusFaces: Record<MinesweeperState['status'], string> = {
-      ready: '🙂 Ready',
-      'in-progress': '😮 In progress',
-      won: '😎 You win!',
-      lost: '😵 Boom!',
+      ready: '🙂',
+      'in-progress': '😮',
+      won: '😎',
+      lost: '😵',
+    };
+
+    const statusLabels: Record<MinesweeperState['status'], string> = {
+      ready: 'Ready for a new game',
+      'in-progress': 'Game in progress',
+      won: 'Game won',
+      lost: 'Game lost',
     };
 
     statusIndicator.textContent = statusFaces[state.status];
     statusIndicator.dataset.state = state.status;
-    statusIndicator.setAttribute('aria-label', statusFaces[state.status]);
+    statusIndicator.setAttribute('aria-label', statusLabels[state.status]);
+    statusIndicator.title = statusLabels[state.status];
 
     switch (state.status) {
       case 'ready':
@@ -334,13 +342,26 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     container = document.createElement('div');
     container.className = 'app-minesweeper';
 
-    toolbar = document.createElement('div');
-    toolbar.className = 'app-minesweeper__toolbar';
-    container.appendChild(toolbar);
+    menuBar = document.createElement('div');
+    menuBar.className = 'app-minesweeper__menubar';
+    menuBar.setAttribute('role', 'menubar');
+
+    const gameMenuItem = document.createElement('button');
+    gameMenuItem.type = 'button';
+    gameMenuItem.className = 'app-minesweeper__menu-item';
+    gameMenuItem.textContent = 'Game';
+    gameMenuItem.setAttribute('role', 'menuitem');
+    menuBar.appendChild(gameMenuItem);
+
+    const helpMenuItem = document.createElement('button');
+    helpMenuItem.type = 'button';
+    helpMenuItem.className = 'app-minesweeper__menu-item';
+    helpMenuItem.textContent = 'Help';
+    helpMenuItem.setAttribute('role', 'menuitem');
+    menuBar.appendChild(helpMenuItem);
 
     controls = document.createElement('div');
     controls.className = 'app-minesweeper__controls';
-    toolbar.appendChild(controls);
 
     const difficultyLabel = document.createElement('label');
     difficultyLabel.className = 'app-minesweeper__label';
@@ -367,6 +388,9 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     controls.appendChild(difficultyLabel);
     controls.appendChild(newGameButton);
 
+    boardWrapper = document.createElement('div');
+    boardWrapper.className = 'app-minesweeper__board-wrapper';
+
     statusPanel = document.createElement('div');
     statusPanel.className = 'app-minesweeper__status';
 
@@ -375,21 +399,21 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     minesCounter.setAttribute('aria-live', 'polite');
     statusPanel.appendChild(minesCounter);
 
-    statusIndicator = document.createElement('span');
+    statusIndicator = document.createElement('button');
+    statusIndicator.type = 'button';
     statusIndicator.className = 'app-minesweeper__indicator';
-    statusIndicator.setAttribute('role', 'status');
     statusIndicator.setAttribute('aria-live', 'polite');
     statusPanel.appendChild(statusIndicator);
+
+    statusIndicator.addEventListener('click', handleNewGame);
+    cleanupListeners.push(() => statusIndicator?.removeEventListener('click', handleNewGame));
 
     timerCounter = document.createElement('span');
     timerCounter.className = 'app-minesweeper__counter';
     timerCounter.setAttribute('aria-live', 'polite');
     statusPanel.appendChild(timerCounter);
 
-    toolbar.appendChild(statusPanel);
-
-    boardWrapper = document.createElement('div');
-    boardWrapper.className = 'app-minesweeper__board-wrapper';
+    boardWrapper.appendChild(statusPanel);
 
     boardElement = document.createElement('div');
     boardElement.className = 'app-minesweeper__board';
@@ -397,7 +421,10 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
     boardElement.setAttribute('aria-label', 'Minesweeper board');
     boardWrapper.appendChild(boardElement);
 
+    container.appendChild(menuBar);
     container.appendChild(boardWrapper);
+
+    container.appendChild(controls);
 
     difficultySelect?.addEventListener('change', handleDifficultyChange);
     cleanupListeners.push(() => difficultySelect?.removeEventListener('change', handleDifficultyChange));
@@ -431,7 +458,7 @@ export function createMinesweeperApp(options: MinesweeperAppOptions = {}): Mines
 
     host = null;
     container = null;
-    toolbar = null;
+    menuBar = null;
     controls = null;
     difficultySelect = null;
     newGameButton = null;
