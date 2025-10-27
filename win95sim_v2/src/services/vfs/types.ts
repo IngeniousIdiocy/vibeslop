@@ -84,6 +84,20 @@ export interface VfsRecycleBin {
 export interface CreateVfsServiceOptions {
   /** Optional seed tree used by tests/fixtures. */
   seed?: Array<{ path: string; kind: VfsNodeKind; content?: string | Uint8Array; target?: string }>;
+  /** Optional file association seed table applied during bootstrap. */
+  associations?: VfsFileAssociationSeed[];
+}
+
+export interface VfsFileAssociationSeed {
+  extension: string;
+  appId: string;
+  command?: string;
+}
+
+export interface VfsFileAssociation {
+  extension: string;
+  appId: string;
+  command?: string;
 }
 
 export interface VfsService {
@@ -98,5 +112,9 @@ export interface VfsService {
   search(query: string, options?: VfsSearchOptions): Promise<VfsNode[]>;
   resolveShortcut(path: string): Promise<VfsNode>;
   recycleBin: VfsRecycleBin;
+  registerFileAssociation(extension: string, association: Omit<VfsFileAssociation, 'extension'>): VfsFileAssociation;
+  unregisterFileAssociation(extension: string): void;
+  getFileAssociation(path: string): VfsFileAssociation | undefined;
+  listFileAssociations(): VfsFileAssociation[];
   bus: EventBus;
 }

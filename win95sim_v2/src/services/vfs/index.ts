@@ -6,6 +6,8 @@ import { lookupIcon } from './utils/icons';
 import type {
   CreateVfsServiceOptions,
   VfsDirectoryNode,
+  VfsFileAssociation,
+  VfsFileAssociationSeed,
   VfsFileNode,
   VfsNode,
   VfsRecycleBin,
@@ -42,6 +44,23 @@ interface WatchBucket {
 }
 
 const DEFAULT_DRIVES = ['C:/'];
+
+function normalizeExtension(extension: string): string {
+  const trimmed = extension.trim();
+  if (!trimmed) {
+    throw new Error('Extension cannot be empty');
+  }
+  const normalized = trimmed.startsWith('.') ? trimmed.toLowerCase() : `.${trimmed.toLowerCase()}`;
+  return normalized;
+}
+
+function extractExtension(path: string): string | undefined {
+  const match = /\.([^.]+)$/.exec(path.toLowerCase());
+  if (!match) {
+    return undefined;
+  }
+  return `.${match[1]}`;
+}
 
 function now(): number {
   return Date.now();
@@ -210,6 +229,7 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
   const nodes = new Map<string, InternalNode>();
   const watchers: WatchBucket[] = [];
   const { bin: recycleBin, capture, restore } = createRecycleBin();
+  const fileAssociations = new Map<string, VfsFileAssociation>();
 
   function emitRecycleBinChanged() {
     bus.emit('vfs:recycle-bin:changed', recycleBin.list());
@@ -562,6 +582,13 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
         void createShortcut(seed.path, seed.target, undefined);
       }
     });
+
+    options.associations?.forEach((association: VfsFileAssociationSeed) => {
+      registerFileAssociation(association.extension, {
+        appId: association.appId,
+        command: association.command,
+      });
+    });
   }
 
   bootstrap();
@@ -593,6 +620,37 @@ export function createVfsService(options: CreateVfsServiceOptions = {}): VfsServ
     search,
     resolveShortcut,
     recycleBin: recycleBinFacade,
+    registerFileAssociation(extension, association) {
+      const normalized = normalizeExtension(extension);
+      const record: VfsFileAssociation = {
+        extension: normalized,
+        appId: association.appId,
+        command: association.command,
+      };
+      fileAssociations.set(normalized, record);
+      return { ...record };
+    },
+    unregisterFileAssociation(extension) {
+      const normalized = normalizeExtension(extension);
+      fileAssociations.delete(normalized);
+    },
+    getFileAssociation(path) {
+      let normalizedPath: string;
+      try {
+        normalizedPath = normalizePath(path);
+      } catch {
+        normalizedPath = path.replace(/\\/g, '/');
+      }
+      const extension = extractExtension(normalizedPath);
+      if (!extension) {
+        return undefined;
+      }
+      const record = fileAssociations.get(extension);
+      return record ? { ...record } : undefined;
+    },
+    listFileAssociations() {
+      return Array.from(fileAssociations.values()).map((entry) => ({ ...entry }));
+    },
     bus,
   };
 
