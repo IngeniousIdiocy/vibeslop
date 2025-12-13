@@ -212,37 +212,18 @@ class LC7001Client extends EventEmitter {
 
   _connectOnce() {
     return new Promise((resolve, reject) => {
-      const socket = new net.Socket();
+      // Use the same simple connection style as the v1 bridge
+      const socket = net.createConnection({ host: this.host, port: this.port }, () => {
+        log.info(`LC7001 connected to ${this.host}:${this.port}`);
+        this.emit('connected');
+        resolve();
+      });
+
       this._socket = socket;
       this._buffer = '';
       this._ready = false;
       this._authMode = 'unknown';
       this._seenFirstJson = false;
-
-      let connectTimeout = null;
-
-      const cleanup = () => {
-        if (connectTimeout) clearTimeout(connectTimeout);
-        connectTimeout = null;
-        socket.removeAllListeners();
-      };
-
-      connectTimeout = setTimeout(() => {
-        cleanup();
-        try {
-          socket.destroy();
-        } catch {}
-        reject(new Error(`Connect timeout after ${this.connectTimeoutMs}ms`));
-      }, this.connectTimeoutMs);
-
-      socket.setKeepAlive(true);
-
-      socket.on('connect', () => {
-        log.info(`LC7001 connected to ${this.host}:${this.port}`);
-        if (connectTimeout) clearTimeout(connectTimeout);
-        connectTimeout = null;
-        this.emit('connected');
-      });
 
       socket.on('data', (buf) => this._onData(buf));
       socket.on('error', (err) => {
@@ -258,28 +239,6 @@ class LC7001Client extends EventEmitter {
         log.warn('LC7001 socket closed');
         this.emit('disconnected', { wasReady });
       });
-
-      const onReady = () => {
-        cleanup();
-        resolve();
-      };
-      const onFail = (err) => {
-        cleanup();
-        reject(err);
-      };
-
-      const readyTimeoutMs = clamp(this.connectTimeoutMs * 3, 3000, 20000);
-      const readyTimeout = setTimeout(() => {
-        this.removeListener('ready', onReady);
-        onFail(new Error(`Did not reach READY state within ${readyTimeoutMs}ms`));
-      }, readyTimeoutMs);
-
-      this.once('ready', () => {
-        clearTimeout(readyTimeout);
-        onReady();
-      });
-
-      socket.connect(this.port, this.host);
     });
   }
 
@@ -296,29 +255,12 @@ class LC7001Client extends EventEmitter {
     log.info(`[LC7001 RX RAW] ${chunk.replace(/\0/g, '<NUL>').slice(0, 300)}`);
     this._buffer += chunk;
 
-    const frames = [];
+    // Use the simple brace-counting extractor like the v1 bridge
+    const extracted = this._extractJsonMessages(this._buffer);
+    this._buffer = extracted.remaining;
 
-    // First, split by configured delimiter to capture both JSON and plain tokens
-    if (this.delimiter === '\0' || this.delimiter === '\n') {
-      let idx;
-      while ((idx = this._buffer.indexOf(this.delimiter)) !== -1) {
-        const frame = this._buffer.slice(0, idx);
-        this._buffer = this._buffer.slice(idx + 1);
-        if (frame) frames.push(frame);
-      }
-    }
-
-    // Fallback: if we still have a full JSON object without a delimiter, extract it
-    if (this._buffer.includes('{')) {
-      const extracted = this._extractJsonMessages(this._buffer);
-      this._buffer = extracted.remaining;
-      for (const jsonStr of extracted.messages) {
-        frames.push(jsonStr);
-      }
-    }
-
-    for (const frame of frames) {
-      this._handleMessage(frame);
+    for (const jsonStr of extracted.messages) {
+      this._handleMessage(jsonStr);
     }
   }
 
@@ -585,24 +527,30 @@ class LC7001Client extends EventEmitter {
     const raw = JSON.stringify(msg);
 
     log.info(`[LC7001 TX] ID=${id} Service=${payload.Service}`);
-    await this._writeWithSpacing(raw + this.delimiter);
-
     return await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this._pending.delete(id);
         reject(new Error(`Request timeout (${this.requestTimeoutMs}ms) for ID=${id} ${payload.Service}`));
       }, this.requestTimeoutMs);
 
+      // Register pending BEFORE the write so we can match very fast responses
       this._pending.set(id, { resolve, reject, timeout });
+
+      this._writeWithSpacing(raw + this.delimiter).catch((err) => {
+        clearTimeout(timeout);
+        this._pending.delete(id);
+        reject(err);
+      });
     });
   }
 
   _writeWithSpacing(data) {
-    // Simplified: write directly like the old working code
+    // Write directly like the v1 bridge
     return new Promise((resolve, reject) => {
       try {
         log.info(`[LC7001 TX RAW] ${data.replace(/\0/g, '<NUL>')}`);
-        this._socket.write(data, 'utf8', (err) => {
+        const buf = Buffer.from(data, 'utf8');
+        this._socket.write(buf, (err) => {
           if (err) return reject(err);
           resolve();
         });
