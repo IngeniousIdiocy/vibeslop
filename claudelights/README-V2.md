@@ -1,6 +1,6 @@
 # LC7001 Bridge V2 — AI-Powered Smart Lighting for Your Entire Network
 
-> **"Hey, turn on the kitchen lights to 50%"** — and it just works. From your iPhone, from your Mac, from any AI agent on your network.
+> **"Hey, my kid is going to be late for the bus, so strobe the lights in their room for a minute"** — and it just works. From your iPhone, from your Mac, from any AI agent on your network.
 
 The LC7001 Bridge V2 transforms your Legrand/Wattstopper LC7001 lighting controller into a network-accessible, AI-powered lighting brain. Speak naturally. Control everything. Let AI handle the details.
 
