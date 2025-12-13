@@ -184,7 +184,8 @@ class LC7001Client extends EventEmitter {
   async _connectLoop() {
     let backoffMs = 500;
     while (this._shouldRun) {
-      if (this.isReady()) {
+      // If we already have a live socket (even if not marked ready yet), wait.
+      if (this._socket && !this._socket.destroyed) {
         await sleepMs(500, undefined).catch(() => {});
         continue;
       }
@@ -234,6 +235,7 @@ class LC7001Client extends EventEmitter {
         this._ready = false;
         this._authMode = 'unknown';
         this._seenFirstJson = false;
+        this._socket = null;
         this._rejectAllPending(new Error('Socket closed'));
 
         log.warn('LC7001 socket closed');
@@ -252,7 +254,7 @@ class LC7001Client extends EventEmitter {
 
   _onData(buf) {
     const chunk = buf.toString('utf8');
-    log.info(`[LC7001 RX RAW] ${chunk.replace(/\0/g, '<NUL>').slice(0, 300)}`);
+    log.debug(`[LC7001 RX RAW] ${chunk.replace(/\0/g, '<NUL>').slice(0, 300)}`);
     this._buffer += chunk;
 
     // Use the simple brace-counting extractor like the v1 bridge
@@ -444,6 +446,18 @@ class LC7001Client extends EventEmitter {
   _handleJson(obj) {
     const id = obj.ID ?? obj.Id ?? obj.id;
     const service = obj.Service ?? obj.service;
+
+    // Quiet the noisy LC7001 keepalives/broadcasts unless debugging
+    if (id === 0) {
+      if (service === 'ping') {
+        log.debug(`[LC7001] ping seq=${obj.PingSeq} time=${obj.CurrentTime}`);
+        return;
+      }
+      if (service === 'EliotErrors' || service === 'BroadcastDiagnostics' || service === 'BroadcastMemory') {
+        log.debug(`[LC7001] ${service} ${JSON.stringify(obj)}`);
+        return;
+      }
+    }
 
     if (typeof id === 'number' && id !== 0 && this._pending.has(id)) {
       log.info(`[LC7001 RX] Matched pending request ID=${id}`);
@@ -1420,7 +1434,7 @@ const SYSTEM_PROMPT = `You are a professional home lighting control assistant. Y
 Your responses should be:
 - Professional and concise
 - Specific about what was done (zone names, levels)
-- Brief (this gets read aloud)
+- Brief (this gets read aloud) so IP addresses and GUIDs are not helpful.
 
 House layout:
 - Second floor: bedrooms and office
@@ -1907,7 +1921,7 @@ async function startMcpServer({ port, lc, jobs, lights }) {
   // On connect (not ready), immediately try to load zones like the old working code
   lc.on('connected', async () => {
     log.info('LC7001 connected. Loading zones immediately...');
-    
+
     // Retry up to 3 times
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
