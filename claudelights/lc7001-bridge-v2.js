@@ -801,83 +801,55 @@ class JobManager extends EventEmitter {
 
 /* --------------------------- target resolution ----------------------------- */
 
-function normalizeName(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/['"]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function scoreCandidate(query, candidate) {
-  const q = normalizeName(query);
-  const c = normalizeName(candidate);
-  if (!q || !c) return 0;
-  if (q === c) return 1000;
-  if (c.includes(q)) return 600 + q.length;
-  if (q.includes(c)) return 500 + c.length;
-
-  const qTokens = new Set(q.split(' ').filter(Boolean));
-  const cTokens = new Set(c.split(' ').filter(Boolean));
-  let overlap = 0;
-  for (const t of qTokens) if (cTokens.has(t)) overlap++;
-  return overlap * 50;
-}
-
-function bestZoneMatch(zones, query) {
-  const q = normalizeName(query);
-  if (!q) return null;
-
-  let best = null;
-  let bestScore = -1;
-
-  for (const z of zones) {
-    const score = scoreCandidate(q, z.name || `Zone ${z.zid}`);
-    if (score > bestScore) {
-      bestScore = score;
-      best = z;
-    }
-  }
-
-  if (bestScore < 50) return null;
-  return best;
-}
-
 function resolveTargets(lc, targets) {
   const zones = lc.getZoneSnapshot();
   const allIds = zones.map((z) => z.zid);
 
-  if (!targets || typeof targets !== 'object') return [];
+  if (!targets || typeof targets !== 'object') {
+    return { zoneIds: [], errors: ['No targets specified'] };
+  }
 
-  if (targets.all === true) return allIds;
+  if (targets.all === true) {
+    return { zoneIds: allIds, errors: [] };
+  }
 
   const ids = new Set();
+  const errors = [];
 
+  // Direct zone IDs - validate they exist
   if (Array.isArray(targets.zoneIds)) {
-    for (const id of targets.zoneIds) if (typeof id === 'number') ids.add(id);
+    for (const id of targets.zoneIds) {
+      if (typeof id !== 'number') continue;
+      if (zones.find(z => z.zid === id)) {
+        ids.add(id);
+      } else {
+        errors.push(`Zone ID ${id} does not exist`);
+      }
+    }
   }
 
-  const nameList = []
-    .concat(targets.zoneNames || [])
-    .concat(targets.rooms || [])
-    .filter((x) => typeof x === 'string' && x.trim() !== '');
-
-  for (const name of nameList) {
-    const m = bestZoneMatch(zones, name);
-    if (m) ids.add(m.zid);
-  }
-
-  if (typeof targets.query === 'string' && targets.query.trim() !== '') {
-    const m = bestZoneMatch(zones, targets.query);
-    if (m) ids.add(m.zid);
+  // Zone names - EXACT match only (case-insensitive)
+  if (Array.isArray(targets.zoneNames)) {
+    for (const name of targets.zoneNames) {
+      if (typeof name !== 'string' || !name.trim()) continue;
+      
+      const exactMatch = zones.find(z => 
+        z.name && z.name.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (exactMatch) {
+        ids.add(exactMatch.zid);
+      } else {
+        errors.push(`Zone "${name}" not found`);
+      }
+    }
   }
 
   if (Array.isArray(targets.excludeZoneIds)) {
     for (const id of targets.excludeZoneIds) ids.delete(id);
   }
 
-  return [...ids.values()];
+  return { zoneIds: [...ids.values()], errors };
 }
 
 /* ----------------------------- effects engine ------------------------------ */
@@ -906,106 +878,24 @@ async function setManyZones(lc, zoneIds, props, { concurrency = 6 } = {}) {
     }
   });
 
-  return { ok: true, count: unique.length, successCount: results.ok, errors: results.errors, props };
-}
-
-async function pulseEffect(lc, zoneIds, opts, signal) {
-  const durationMs = clamp(opts.durationMs ?? 60_000, 100, 60 * 60 * 1000);
-  const periodMs = clamp(opts.periodMs ?? 600, 50, 60 * 1000);
-  const onLevel = clamp(opts.onLevel ?? 100, 1, 100);
-  const offPower = opts.offPower ?? false;
-  const restore = opts.restore ?? false;
-
-  const snapshot = restore ? lc.getZoneSnapshot().filter((z) => zoneIds.includes(z.zid)) : null;
-
-  const endAt = Date.now() + durationMs;
-  let on = true;
-
-  while (Date.now() < endAt) {
-    if (signal?.aborted) throw Object.assign(new Error('Aborted'), { code: 'ABORTED' });
-
-    if (on) {
-      await setManyZones(lc, zoneIds, { Power: true, PowerLevel: onLevel, RampRate: 100 }, { concurrency: 6 });
-    } else {
-      await setManyZones(lc, zoneIds, { Power: offPower }, { concurrency: 6 });
-    }
-
-    on = !on;
-    await sleepMs(periodMs, signal);
-  }
-
-  if (restore && snapshot) {
-    for (const z of snapshot) {
-      const props = {};
-      if (typeof z.power === 'boolean') props.Power = z.power;
-      if (typeof z.powerLevel === 'number') props.PowerLevel = z.powerLevel;
-      if (typeof z.rampRate === 'number') props.RampRate = z.rampRate;
-      await lc.setZoneProperties(z.zid, props);
-    }
-  }
-
-  return { ok: true, effect: 'pulse', zoneCount: zoneIds.length };
-}
-
-function easeInOutQuad(t) {
-  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-}
-
-async function rampEffect(lc, zoneIds, opts, signal) {
-  const durationMs = clamp(opts.durationMs ?? 10 * 60_000, 200, 6 * 60 * 60_000);
-  const stepMs = clamp(opts.stepMs ?? 1000, 50, 60_000);
-  const toLevel = clamp(opts.toLevel ?? 1, 1, 100);
-  const fromLevelOpt = opts.fromLevel;
-  const curve = (opts.curve || 'ease').toLowerCase();
-
-  const snapshot = lc.getZoneSnapshot().filter((z) => zoneIds.includes(z.zid));
-  const fromLevels = new Map();
-  for (const z of snapshot) {
-    const from = typeof fromLevelOpt === 'number' ? fromLevelOpt : z.powerLevel ?? 100;
-    fromLevels.set(z.zid, clamp(from, 1, 100));
-  }
-
-  const started = Date.now();
-  while (true) {
-    if (signal?.aborted) throw Object.assign(new Error('Aborted'), { code: 'ABORTED' });
-
-    const t = (Date.now() - started) / durationMs;
-    if (t >= 1) break;
-
-    const k = curve === 'linear' ? t : easeInOutQuad(t);
-
-    await mapLimit(zoneIds, 6, async (zid) => {
-      const from = fromLevels.get(zid) ?? 100;
-      const level = Math.round(from + (toLevel - from) * k);
-      await lc.setZoneProperties(zid, { Power: true, PowerLevel: clamp(level, 1, 100), RampRate: 100 });
-    });
-
-    await sleepMs(stepMs, signal);
-  }
-
-  await setManyZones(lc, zoneIds, { Power: true, PowerLevel: toLevel, RampRate: 100 }, { concurrency: 6 });
-  return { ok: true, effect: 'ramp', zoneCount: zoneIds.length, toLevel };
-}
-
-async function breatheEffect(lc, zoneIds, opts, signal) {
-  const durationMs = clamp(opts.durationMs ?? 60_000, 200, 60 * 60 * 1000);
-  const stepMs = clamp(opts.stepMs ?? 200, 50, 5_000);
-  const minLevel = clamp(opts.minLevel ?? 10, 1, 100);
-  const maxLevel = clamp(opts.maxLevel ?? 100, 1, 100);
-  const periodMs = clamp(opts.periodMs ?? 4000, 200, 60_000);
-
-  const start = Date.now();
-  while (Date.now() - start < durationMs) {
-    if (signal?.aborted) throw Object.assign(new Error('Aborted'), { code: 'ABORTED' });
-
-    const t = ((Date.now() - start) % periodMs) / periodMs;
-    const wave = (1 - Math.cos(2 * Math.PI * t)) / 2;
-    const level = Math.round(minLevel + (maxLevel - minLevel) * wave);
-
-    await setManyZones(lc, zoneIds, { Power: true, PowerLevel: level, RampRate: 100 }, { concurrency: 6 });
-    await sleepMs(stepMs, signal);
-  }
-  return { ok: true, effect: 'breathe', zoneCount: zoneIds.length };
+  const hasErrors = results.errors.length > 0;
+  const allFailed = results.ok === 0 && hasErrors;
+  
+  return { 
+    ok: !allFailed,  // ok=false only if ALL failed; partial success is ok=true with warnings
+    count: unique.length, 
+    successCount: results.ok, 
+    failureCount: results.errors.length,
+    errors: results.errors,
+    props,
+    // Add a clear status message for Claude
+    status: allFailed ? 'all_failed' : hasErrors ? 'partial_failure' : 'success',
+    message: allFailed 
+      ? `All ${unique.length} zone(s) failed to update` 
+      : hasErrors 
+        ? `${results.ok} of ${unique.length} zone(s) updated successfully, ${results.errors.length} failed`
+        : `${results.ok} zone(s) updated successfully`,
+  };
 }
 
 /* ---------------------------- script sandbox -------------------------- */
@@ -1095,19 +985,31 @@ function makeLightsApi(lc, jobs) {
     resolveTargets: (targets) => resolveTargets(lc, targets),
 
     async set(targets, props) {
-      const zoneIds = resolveTargets(lc, targets);
+      const resolved = resolveTargets(lc, targets);
+      const { zoneIds, errors: resolutionErrors } = resolved;
       
       // Log target resolution
       const targetDesc = targets.all ? 'ALL' : 
-        targets.query ? `query:"${targets.query}"` :
         targets.zoneNames ? `names:${JSON.stringify(targets.zoneNames)}` :
-        targets.rooms ? `rooms:${JSON.stringify(targets.rooms)}` :
         targets.zoneIds ? `ids:${JSON.stringify(targets.zoneIds)}` : 
         JSON.stringify(targets);
       
-      if (!zoneIds.length) {
-        log.warn(`[SET] No zones matched target: ${targetDesc}`);
-        return { ok: false, error: 'No targets resolved', targets };
+      // If there were any resolution errors, report them
+      if (resolutionErrors.length > 0) {
+        const availableZones = lc.getZoneSnapshot().map(z => z.name).filter(Boolean);
+        log.warn(`[SET] Resolution errors for ${targetDesc}: ${resolutionErrors.join(', ')}`);
+        
+        if (zoneIds.length === 0) {
+          // Complete failure - nothing resolved
+          return { 
+            ok: false, 
+            error: `Target resolution failed: ${resolutionErrors.join('; ')}`,
+            resolutionErrors,
+            availableZoneNames: availableZones,
+          };
+        }
+        // Partial resolution - some worked, some didn't. Continue but report.
+        log.warn(`[SET] Partial resolution: ${zoneIds.length} zones resolved, ${resolutionErrors.length} failed`);
       }
 
       const zoneNames = zoneIds.map(id => lc.zones.get(id)?.name || `Zone ${id}`);
@@ -1115,11 +1017,33 @@ function makeLightsApi(lc, jobs) {
 
       const clean = {};
       if (props && typeof props === 'object') {
-        if (typeof props.Power === 'boolean') clean.Power = props.Power;
-        if (typeof props.power === 'boolean') clean.Power = props.power;
+        // Track if Power was explicitly set
+        let powerExplicitlySet = false;
+        if (typeof props.Power === 'boolean') { clean.Power = props.Power; powerExplicitlySet = true; }
+        if (typeof props.power === 'boolean') { clean.Power = props.power; powerExplicitlySet = true; }
 
-        if (typeof props.PowerLevel === 'number') clean.PowerLevel = clamp(props.PowerLevel, 1, 100);
-        if (typeof props.powerLevel === 'number') clean.PowerLevel = clamp(props.powerLevel, 1, 100);
+        // Handle powerLevel - note: 0 means "off"
+        let requestedLevel = null;
+        if (typeof props.PowerLevel === 'number') requestedLevel = props.PowerLevel;
+        if (typeof props.powerLevel === 'number') requestedLevel = props.powerLevel;
+
+        if (requestedLevel !== null) {
+          if (requestedLevel <= 0) {
+            // Level 0 (or negative) means turn off
+            clean.PowerLevel = 1; // LC7001 minimum is 1, but we're turning off anyway
+            if (!powerExplicitlySet) {
+              clean.Power = false;
+              log.debug('[SET] Auto-setting Power=false since PowerLevel=0 requested');
+            }
+          } else {
+            // Level > 0 means turn on at that brightness
+            clean.PowerLevel = clamp(requestedLevel, 1, 100);
+            if (!powerExplicitlySet) {
+              clean.Power = true;
+              log.debug('[SET] Auto-setting Power=true since PowerLevel > 0 was set');
+            }
+          }
+        }
 
         if (typeof props.RampRate === 'number') clean.RampRate = clamp(props.RampRate, 1, 100);
         if (typeof props.rampRate === 'number') clean.RampRate = clamp(props.rampRate, 1, 100);
@@ -1129,32 +1053,30 @@ function makeLightsApi(lc, jobs) {
       }
 
       const result = await setManyZones(lc, zoneIds, clean, { concurrency: 6 });
-      return { ok: true, zoneIds, applied: clean, ...result };
-    },
-
-    async pulse(targets, opts = {}, signal) {
-      const zoneIds = resolveTargets(lc, targets);
-      if (!zoneIds.length) throw new Error('No targets resolved');
-      return await pulseEffect(lc, zoneIds, opts, signal);
-    },
-
-    async strobe(targets, opts = {}, signal) {
-      const zoneIds = resolveTargets(lc, targets);
-      if (!zoneIds.length) throw new Error('No targets resolved');
-      const merged = { periodMs: 150, durationMs: 5000, ...opts };
-      return await pulseEffect(lc, zoneIds, merged, signal);
-    },
-
-    async breathe(targets, opts = {}, signal) {
-      const zoneIds = resolveTargets(lc, targets);
-      if (!zoneIds.length) throw new Error('No targets resolved');
-      return await breatheEffect(lc, zoneIds, opts, signal);
-    },
-
-    async ramp(targets, opts = {}, signal) {
-      const zoneIds = resolveTargets(lc, targets);
-      if (!zoneIds.length) throw new Error('No targets resolved');
-      return await rampEffect(lc, zoneIds, opts, signal);
+      
+      // Get zone names for clearer reporting
+      const affectedZones = zoneIds.map(id => {
+        const zone = lc.zones.get(id);
+        return { zid: id, name: zone?.name || `Zone ${id}` };
+      });
+      
+      // Include any resolution errors in the response
+      if (resolutionErrors.length > 0) {
+        return {
+          ...result,
+          zoneIds,
+          affectedZones,
+          applied: clean,
+          resolutionErrors,  // Let Claude know some targets didn't resolve
+        };
+      }
+      
+      return { 
+        ...result,  // includes ok, status, message, errors, etc.
+        zoneIds, 
+        affectedZones,
+        applied: clean,
+      };
     },
 
     sleep: async (ms, signal) => await sleepMs(clamp(ms, 0, 24 * 60 * 60 * 1000), signal),
@@ -1168,25 +1090,8 @@ function makeLightsApi(lc, jobs) {
       });
     },
 
-    startEffectJob({ effect, name, targets, options }) {
-      const eff = String(effect || '').toLowerCase();
-      const runner = async (signal) => {
-        if (eff === 'pulse') return await this.pulse(targets, options || {}, signal);
-        if (eff === 'strobe') return await this.strobe(targets, options || {}, signal);
-        if (eff === 'breathe') return await this.breathe(targets, options || {}, signal);
-        if (eff === 'ramp' || eff === 'dim') return await this.ramp(targets, options || {}, signal);
-        throw new Error(`Unknown effect: ${effect}`);
-      };
-
-      return jobs.startLongRunning({
-        type: 'effect',
-        name: name || `effect-${eff}`,
-        details: { effect: eff, targets, options },
-        runner,
-      });
-    },
-
     startScriptJob({ name, code, timeoutMs }) {
+      const self = this;
       return jobs.startLongRunning({
         type: 'script',
         name: name || 'lighting-script',
@@ -1197,15 +1102,20 @@ function makeLightsApi(lc, jobs) {
             timeoutMs,
             signal,
             lightsApi: {
+              // Get all zones with their current state
               listZones: async () => lc.getZoneSnapshot(),
-              refreshZones: async (full = true) => await lc.refreshZones({ full }),
-              set: async (targets, props) => await this.set(targets, props),
-              pulse: async (targets, opts) => await this.pulse(targets, opts, signal),
-              strobe: async (targets, opts) => await this.strobe(targets, opts, signal),
-              breathe: async (targets, opts) => await this.breathe(targets, opts, signal),
-              ramp: async (targets, opts) => await this.ramp(targets, opts, signal),
-              sleep: async (ms) => await sleepMs(ms, signal),
+              
+              // Set zone properties - Claude writes all logic in script
+              set: async (targets, props) => await self.set(targets, props),
+              
+              // Sleep for timing between operations
+              sleep: async (ms) => await sleepMs(clamp(ms, 0, 300000), signal),
+              
+              // Current timestamp
               now: () => Date.now(),
+              
+              // Check if script should abort
+              isAborted: () => signal?.aborted ?? false,
             },
           });
         },
@@ -1229,54 +1139,25 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'lights_set',
-    description: 'Set power on/off and/or brightness level for one or more zones. Use targets to specify which lights.',
+    description: 'Set power on/off and/or brightness level for one or more zones. IMPORTANT: Use exact zone names from the system prompt zone list. Setting powerLevel > 0 automatically turns on; powerLevel = 0 turns off.',
     input_schema: {
       type: 'object',
       properties: {
         targets: {
           type: 'object',
-          description: 'Which zones to target. Use {all: true} for all, or zoneIds/zoneNames/rooms/query for specific ones.',
+          description: 'Which zones to target. PREFER zoneNames with exact names from the zone list. Use {all: true} for all zones.',
           properties: {
             all: { type: 'boolean', description: 'Target all zones' },
             zoneIds: { type: 'array', items: { type: 'number' }, description: 'Specific zone IDs' },
-            zoneNames: { type: 'array', items: { type: 'string' }, description: 'Zone names (fuzzy matched)' },
-            rooms: { type: 'array', items: { type: 'string' }, description: 'Room names (fuzzy matched)' },
-            query: { type: 'string', description: 'Single search query (fuzzy matched)' },
+            zoneNames: { type: 'array', items: { type: 'string' }, description: 'PREFERRED: Exact zone names from the zone list (e.g. "Kitchen Main", "Living or Family Rm")' },
             excludeZoneIds: { type: 'array', items: { type: 'number' }, description: 'Zone IDs to exclude' },
           },
         },
-        power: { type: 'boolean', description: 'Turn on (true) or off (false)' },
-        powerLevel: { type: 'number', description: 'Brightness 1-100' },
+        power: { type: 'boolean', description: 'Turn on (true) or off (false). Auto-set based on powerLevel if omitted.' },
+        powerLevel: { type: 'number', description: 'Brightness 0-100. 0 = off, 1-100 = on at that level.' },
         rampRate: { type: 'number', description: 'Transition speed 1-100 (100=instant)' },
       },
       required: ['targets'],
-    },
-  },
-  {
-    name: 'lights_run_effect',
-    description: 'Run a lighting effect (pulse, strobe, breathe, ramp) as a background job. Returns job ID that can be stopped.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        effect: { type: 'string', enum: ['pulse', 'strobe', 'breathe', 'ramp'], description: 'Effect type' },
-        targets: {
-          type: 'object',
-          description: 'Which zones to target',
-          properties: {
-            all: { type: 'boolean' },
-            zoneIds: { type: 'array', items: { type: 'number' } },
-            zoneNames: { type: 'array', items: { type: 'string' } },
-            rooms: { type: 'array', items: { type: 'string' } },
-            query: { type: 'string' },
-          },
-        },
-        options: {
-          type: 'object',
-          description: 'Effect options: durationMs, periodMs, onLevel, minLevel, maxLevel, toLevel, etc.',
-        },
-        name: { type: 'string', description: 'Optional job name' },
-      },
-      required: ['effect', 'targets'],
     },
   },
   {
@@ -1297,12 +1178,12 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'lights_run_script',
-    description: 'Run a custom JavaScript lighting script. You can write creative lighting behaviors. The script runs sandboxed with access to lights.set(), lights.pulse(), lights.breathe(), lights.ramp(), lights.sleep(), etc.',
+    description: `Run a JavaScript lighting script as a background job. Use for effects, animations, sequences, or any time-based behavior. See system prompt for API and examples. Returns job ID for stopping later.`,
     input_schema: {
       type: 'object',
       properties: {
-        code: { type: 'string', description: 'JavaScript code to run. Use await for async operations.' },
-        timeoutMs: { type: 'number', description: 'Max runtime in ms (default 20000)' },
+        code: { type: 'string', description: 'JavaScript code. Use await for async. Zone names are in the system prompt - use exact names.' },
+        timeoutMs: { type: 'number', description: 'Max runtime in ms (default 20000, max 120000)' },
         name: { type: 'string', description: 'Optional job name' },
       },
       required: ['code'],
@@ -1357,16 +1238,6 @@ async function executeTool(name, args, { lc, jobs, lights }) {
         rampRate: args.rampRate,
       };
       return await lights.set(targets, props);
-    }
-
-    case 'lights_run_effect': {
-      const job = lights.startEffectJob({
-        effect: args.effect,
-        name: args.name,
-        targets: args.targets || {},
-        options: args.options || {},
-      });
-      return { ok: true, jobId: job.id, jobName: job.name, status: job.status };
     }
 
     case 'lights_schedule_set': {
@@ -1429,26 +1300,90 @@ async function executeTool(name, args, { lc, jobs, lights }) {
 
 /* ----------------------------- Claude NL endpoint -------------------------- */
 
-const SYSTEM_PROMPT = `You are a professional home lighting control assistant. You control smart lights via the LC7001 system.
+const SYSTEM_PROMPT_BASE = `You are a home lighting control assistant. You control smart lights via the LC7001 system.
 
-Your responses should be:
-- Professional and concise
-- Specific about what was done (zone names, levels)
-- Brief (this gets read aloud) so IP addresses and GUIDs are not helpful.
+RESPONSE STYLE:
+- Brief and specific (responses are read aloud)
+- Name the zones affected and their new state
+- For errors: "X of Y failed: [zone names and reason]"
 
-House layout:
-- Second floor: bedrooms and office
-- First/main floor: everything else (kitchen, living room, dining room, etc.)
+HOUSE LAYOUT:
+- Second floor: bedrooms and office  
+- First/main floor: kitchen, living room, dining room, etc.
 
-When reporting success, name the zones affected and their new state.
-When reporting errors, state "X errors out of Y calls" then specify which zones failed and why.
+TOOL SELECTION:
+- lights_set: Simple commands like "kitchen 50%" or "turn off bedroom"
+- lights_run_script: Any dynamic behavior - effects, animations, sequences, timed changes
 
-Examples:
-- "Set kitchen to 100%. Living room set to 75%."
-- "All first floor lights turned off. 5 zones affected."
-- "2 errors out of 4 calls. Kitchen and garage timed out. Dining room and living room set to 50%."
-- "Status: 12 zones online. Kitchen at 80%, living room off, bedroom at 30%."
-- "Started pulse effect on office lights for 60 seconds."`;
+ZONE NAMES:
+Use EXACT names from the zone list below. Never abbreviate or guess.
+
+WRITING SCRIPTS:
+Scripts run as background jobs. They have access to:
+- lights.set(targets, props) - control zones
+- lights.sleep(ms) - pause execution  
+- lights.now() - current timestamp
+- lights.isAborted() - check if user stopped the job
+
+Common patterns:
+
+PULSE/STROBE (alternate on/off):
+const endTime = lights.now() + 60000; // 60 seconds
+while (lights.now() < endTime && !lights.isAborted()) {
+  await lights.set({zoneNames: ["Kitchen Main"]}, {powerLevel: 100});
+  await lights.sleep(500);
+  await lights.set({zoneNames: ["Kitchen Main"]}, {powerLevel: 0});
+  await lights.sleep(500);
+}
+
+BREATHE (smooth wave):
+const endTime = lights.now() + 60000;
+while (lights.now() < endTime && !lights.isAborted()) {
+  for (let pct = 10; pct <= 100; pct += 5) {
+    await lights.set({zoneNames: ["Office"]}, {powerLevel: pct});
+    await lights.sleep(100);
+  }
+  for (let pct = 100; pct >= 10; pct -= 5) {
+    await lights.set({zoneNames: ["Office"]}, {powerLevel: pct});
+    await lights.sleep(100);
+  }
+}
+
+RAMP/FADE (gradual transition):
+const steps = 20;
+for (let i = 0; i <= steps && !lights.isAborted(); i++) {
+  const level = Math.round(100 - (i / steps) * 100); // 100 down to 0
+  await lights.set({zoneNames: ["Bedroom"]}, {powerLevel: level});
+  await lights.sleep(30000 / steps); // 30 sec total
+}
+
+RANDOM ZONES:
+const zones = ["Kitchen Main", "Living or Family Rm", "Office First Floor"];
+const pick = zones[Math.floor(Math.random() * zones.length)];
+await lights.set({zoneNames: [pick]}, {powerLevel: 100});
+
+SEQUENCE TIMING (e.g., Fibonacci):
+let fib = [1, 1];
+for (let i = 0; i < 10 && !lights.isAborted(); i++) {
+  await lights.set({zoneNames: ["Kitchen Main"]}, {powerLevel: i % 2 ? 100 : 20});
+  await lights.sleep(fib[fib.length - 1] * 1000);
+  fib.push(fib[fib.length - 1] + fib[fib.length - 2]);
+}`;
+
+function buildSystemPrompt(zones) {
+  const zoneList = zones.map(z => {
+    const powerStr = z.power ? 'ON' : 'OFF';
+    const levelStr = z.powerLevel ?? '?';
+    return `  - "${z.name}" (ZID ${z.zid}, ${z.deviceType || 'unknown'}, ${powerStr} ${levelStr}%)`;
+  }).join('\n');
+
+  return `${SYSTEM_PROMPT_BASE}
+
+=== AVAILABLE ZONES (${zones.length} total) ===
+${zoneList}
+
+Use these exact zone names when targeting lights.`
+}
 
 async function callClaudeWithTools({ command, lc, jobs, lights }) {
   const apiKey = envStr('ANTHROPIC_API_KEY');
@@ -1458,6 +1393,11 @@ async function callClaudeWithTools({ command, lc, jobs, lights }) {
 
   const model = envStr('ANTHROPIC_MODEL') || 'claude-haiku-4-5';
   const maxIterations = envInt('MAX_TOOL_ITERATIONS', 100);
+
+  // Fetch current zones and build system prompt with zone list
+  const currentZones = lc.getZoneSnapshot();
+  const systemPrompt = buildSystemPrompt(currentZones);
+  log.debug(`[NL] System prompt includes ${currentZones.length} zones`);
 
   const messages = [{ role: 'user', content: command }];
 
@@ -1470,7 +1410,7 @@ async function callClaudeWithTools({ command, lc, jobs, lights }) {
     const body = {
       model,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       tools: TOOL_DEFINITIONS,
       messages,
     };
@@ -1505,13 +1445,23 @@ async function callClaudeWithTools({ command, lc, jobs, lights }) {
     if (data.stop_reason === 'tool_use') {
       // Claude wants to use tools
       const toolUseBlocks = (data.content || []).filter((b) => b.type === 'tool_use');
+      const textBlocks = (data.content || []).filter((b) => b.type === 'text');
+      
+      // Log any reasoning Claude included with the tool calls
+      if (textBlocks.length > 0) {
+        const reasoning = textBlocks.map((b) => b.text).join(' ').trim();
+        if (reasoning) {
+          log.debug(`[NL] Claude reasoning: "${reasoning.slice(0, 200)}${reasoning.length > 200 ? '...' : ''}"`);
+        }
+      }
 
       if (toolUseBlocks.length === 0) {
         // Weird state - treat as done
-        const textBlocks = (data.content || []).filter((b) => b.type === 'text');
         const responseText = textBlocks.map((b) => b.text).join('\n').trim();
         return { response: responseText || 'Done.', iterations, toolCalls: totalToolCalls };
       }
+      
+      log.info(`[NL] Iteration ${iterations}: Claude requested ${toolUseBlocks.length} tool call(s)`);
 
       // Add assistant message with the content (including tool_use blocks)
       messages.push({ role: 'assistant', content: data.content });
@@ -1524,14 +1474,21 @@ async function callClaudeWithTools({ command, lc, jobs, lights }) {
         const toolInput = toolUse.input || {};
         const toolUseId = toolUse.id;
 
-        log.info(`[NL] Tool: ${toolName}(${JSON.stringify(toolInput).slice(0, 150)}...)`);
+        log.info(`[NL] Tool call #${totalToolCalls}: ${toolName}(${JSON.stringify(toolInput).slice(0, 200)})`);
 
         let result;
         try {
           result = await executeTool(toolName, toolInput, { lc, jobs, lights });
         } catch (e) {
-          result = { ok: false, error: e?.message || String(e) };
+          result = { ok: false, error: e?.message || String(e), stack: e?.stack?.split('\n').slice(0, 3).join(' | ') };
+          log.warn(`[NL] Tool ${toolName} threw exception: ${e?.message || e}`);
         }
+
+        // Log the result status clearly
+        const resultStatus = result?.ok === false ? '❌ FAILED' : 
+                            result?.status === 'partial_failure' ? '⚠️ PARTIAL' : '✓ OK';
+        const resultPreview = JSON.stringify(result).slice(0, 300);
+        log.info(`[NL] Tool result: ${resultStatus} - ${resultPreview}${resultPreview.length >= 300 ? '...' : ''}`);
 
         toolResults.push({
           type: 'tool_result',
@@ -1540,8 +1497,10 @@ async function callClaudeWithTools({ command, lc, jobs, lights }) {
         });
       }
 
-      // Add tool results as user message
+      // Add tool results as user message - this gives Claude full context
       messages.push({ role: 'user', content: toolResults });
+      
+      log.debug(`[NL] Conversation now has ${messages.length} messages, continuing to iteration ${iterations + 1}...`);
 
       continue;
     }
@@ -1634,11 +1593,16 @@ function startHttpServer({ port, lc, jobs, lights }) {
           return sendJson(400, { ok: false, error: 'Missing "command" in request body' });
         }
 
+        log.info(`[NL] ========== NEW REQUEST ==========`);
         log.info(`[NL] Command: "${command}"`);
+        log.info(`[NL] Zones available: ${lc.zones.size}`);
 
         try {
           const result = await callClaudeWithTools({ command, lc, jobs, lights });
-          log.info(`[NL] Response (${result.iterations} iterations, ${result.toolCalls} tools): ${result.response.slice(0, 100)}...`);
+          log.info(`[NL] ========== COMPLETE ==========`);
+          log.info(`[NL] Iterations: ${result.iterations}, Tool calls: ${result.toolCalls}`);
+          log.info(`[NL] Response: "${result.response}"`);
+          log.info(`[NL] ================================`);
           return sendJson(200, {
             ok: true,
             command,
@@ -1650,18 +1614,6 @@ function startHttpServer({ port, lc, jobs, lights }) {
           log.error('[NL] Error:', e?.message || e);
           return sendJson(500, { ok: false, error: e?.message || String(e) });
         }
-      }
-
-      // Start effect job directly
-      if (req.method === 'POST' && path === '/effects') {
-        const body = await readBody();
-        const job = lights.startEffectJob({
-          effect: body.effect,
-          name: body.name,
-          targets: body.targets || {},
-          options: body.options || body,
-        });
-        return sendJson(200, { ok: true, job });
       }
 
       // Schedule job directly
@@ -1716,7 +1668,7 @@ function startHttpServer({ port, lc, jobs, lights }) {
 
   server.listen(port, () => {
     log.info(`HTTP API listening on http://0.0.0.0:${port}`);
-    log.info('Endpoints: GET /health, GET /zones, POST /nl, POST /effects, POST /schedule, POST /scripts, GET /jobs');
+    log.info('Endpoints: GET /health, GET /zones, POST /nl, POST /schedule, POST /scripts, GET /jobs');
   });
 }
 

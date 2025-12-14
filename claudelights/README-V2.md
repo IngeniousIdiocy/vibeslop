@@ -53,9 +53,9 @@ One server. Multiple access patterns. All your lights.
                                  │  │      Shared Tool Layer and Script Engine      │  │     ┌──────────────┐
                                  │  │                                               │  │     │              │
                                  │  │  • lights_list_zones    • lights_run_script   │  │ TCP │    LC7001    │
-                                 │  │  • lights_set           • lights_schedule     │──┼────▶│  Controller  │
-                                 │  │  • lights_run_effect    • lights_list_jobs    │  │     │              │
-                                 │  │  • lights_stop_job      • lights_health       │  │     │  (Legrand/   │
+                                 │  │  • lights_set           • lights_schedule_set │──┼────▶│  Controller  │
+                                 │  │  • lights_list_jobs     • lights_stop_job     │  │     │              │
+                                 │  │  • lights_health                              │  │     │  (Legrand/   │
                                  │  │                                               │  │     │ Wattstopper) │
                                  │  └───────────────────────────────────────────────┘  │     │              │
                                  │                        ▲                            │     └──────────────┘
@@ -102,7 +102,7 @@ One server. Multiple access patterns. All your lights.
 
 The **`/nl` endpoint** (port 3080) accepts plain English, calls Claude API internally, runs an agentic tool loop, and returns a response. Your iPhone says "turn on the kitchen" → Claude figures out which tool calls to make → lights change.
 
-The **MCP server** (port 3081) exposes raw tools. An external AI (Claude Desktop, your own agent) connects, sees `lights_set`, `lights_run_effect`, etc., and calls them directly. No intermediary Claude — the connecting AI **is** the reasoning engine.
+The **MCP server** (port 3081) exposes raw tools. An external AI (Claude Desktop, your own agent) connects, sees `lights_set`, `lights_run_script`, etc., and calls them directly. No intermediary Claude — the connecting AI **is** the reasoning engine.
 
 ---
 
@@ -198,7 +198,9 @@ The killer feature. Ask Siri to control your lights.
 - "Make the office brighter"
 - "Dim the bedroom to 20%"
 - "Turn off everything except the kitchen"
-- "Start a slow dim in the bedroom over 10 minutes"
+- "Slowly fade the bedroom to 10% over 5 minutes"
+- "Pulse the kitchen lights for 30 seconds"
+- "Make the office lights breathe for a minute"
 
 ---
 
@@ -225,11 +227,11 @@ curl -X POST http://localhost:3080/nl \
 ### Direct Zone Control (No AI)
 
 ```bash
-# Turn on specific zones by name
+# Turn on specific zones by name (use EXACT zone names!)
 curl -X POST http://localhost:3080/zones/set \
   -H "Content-Type: application/json" \
   -d '{
-    "targets": {"zoneNames": ["Kitchen Main", "Living Room"]},
+    "targets": {"zoneNames": ["Kitchen Main", "Living or Family Rm"]},
     "props": {"power": true, "powerLevel": 75}
   }'
 
@@ -237,6 +239,11 @@ curl -X POST http://localhost:3080/zones/set \
 curl -X POST http://localhost:3080/zones/set \
   -H "Content-Type: application/json" \
   -d '{"targets": {"all": true}, "props": {"power": false}}'
+
+# Setting powerLevel > 0 automatically turns on, powerLevel = 0 turns off
+curl -X POST http://localhost:3080/zones/set \
+  -H "Content-Type: application/json" \
+  -d '{"targets": {"zoneNames": ["Office First Floor"]}, "props": {"powerLevel": 50}}'
 ```
 
 ### List All Zones
@@ -248,25 +255,25 @@ curl http://localhost:3080/zones
 curl "http://localhost:3080/zones?refresh=true"
 ```
 
-### Run Effects
+### Run Scripts (for effects/animations)
 
 ```bash
-# Start a pulse effect
-curl -X POST http://localhost:3080/effects \
+# Start a pulse effect via script
+curl -X POST http://localhost:3080/scripts \
   -H "Content-Type: application/json" \
   -d '{
-    "effect": "pulse",
-    "targets": {"query": "office"},
-    "options": {"durationMs": 30000, "periodMs": 1000}
+    "name": "office-pulse",
+    "code": "const end = lights.now() + 30000; while (lights.now() < end && !lights.isAborted()) { await lights.set({zoneNames: [\"Office First Floor\"]}, {powerLevel: 100}); await lights.sleep(500); await lights.set({zoneNames: [\"Office First Floor\"]}, {powerLevel: 10}); await lights.sleep(500); }",
+    "timeoutMs": 60000
   }'
 
-# Start a slow dim (ramp down over 10 minutes)
-curl -X POST http://localhost:3080/effects \
+# Start a slow fade via script
+curl -X POST http://localhost:3080/scripts \
   -H "Content-Type: application/json" \
   -d '{
-    "effect": "ramp",
-    "targets": {"query": "bedroom"},
-    "options": {"durationMs": 600000, "toLevel": 5}
+    "name": "bedroom-fade",
+    "code": "for (let i = 100; i >= 5 && !lights.isAborted(); i -= 5) { await lights.set({zoneNames: [\"Master Main\"]}, {powerLevel: i}); await lights.sleep(30000); }",
+    "timeoutMs": 660000
   }'
 ```
 
@@ -372,9 +379,9 @@ async def main():
     tools = await client.list_tools()
     print("Available tools:", [t.name for t in tools])
     
-    # Call a tool
+    # Call a tool (use exact zone names!)
     result = await client.call_tool("lights_set", {
-        "targets": {"query": "kitchen"},
+        "targets": {"zoneNames": ["Kitchen Main"]},
         "power": True,
         "powerLevel": 75
     })
@@ -408,8 +415,7 @@ All tools are available through both `/nl` (via Claude) and MCP (direct).
 |------|-------------|
 | `lights_list_zones` | List all zones with current power/level state |
 | `lights_set` | Set power and/or brightness for target zones |
-| `lights_run_effect` | Run pulse/strobe/breathe/ramp as background job |
-| `lights_run_script` | Execute custom JS lighting scripts (sandboxed) |
+| `lights_run_script` | Run JS lighting scripts for effects/animations (sandboxed) |
 | `lights_schedule_set` | Schedule a future lighting change |
 | `lights_list_jobs` | List all running/scheduled jobs |
 | `lights_stop_job` | Stop a running job by ID |
@@ -417,7 +423,7 @@ All tools are available through both `/nl` (via Claude) and MCP (direct).
 
 ### Target Resolution
 
-The `targets` parameter is flexible:
+The `targets` parameter uses **exact zone names** (case-insensitive):
 
 ```javascript
 // All zones
@@ -426,88 +432,83 @@ The `targets` parameter is flexible:
 // By zone ID
 { "zoneIds": [0, 1, 2] }
 
-// By name (fuzzy matched)
-{ "zoneNames": ["Kitchen Main", "Living Room"] }
-
-// By room (fuzzy matched)
-{ "rooms": ["kitchen", "bedroom"] }
-
-// Single query (fuzzy matched)
-{ "query": "office" }
+// By exact name (case-insensitive)
+{ "zoneNames": ["Kitchen Main", "Living or Family Rm"] }
 
 // Exclude specific zones
 { "all": true, "excludeZoneIds": [5] }
 ```
 
----
-
-## 🎬 Effects
-
-### Pulse
-
-Rapidly toggle lights on/off.
-
-```json
-{
-  "effect": "pulse",
-  "options": {
-    "durationMs": 60000,
-    "periodMs": 500,
-    "onLevel": 100
-  }
-}
-```
-
-### Strobe
-
-Fast pulse (party mode).
-
-```json
-{
-  "effect": "strobe",
-  "options": {
-    "durationMs": 5000,
-    "periodMs": 150
-  }
-}
-```
-
-### Breathe
-
-Smooth sine-wave oscillation.
-
-```json
-{
-  "effect": "breathe",
-  "options": {
-    "durationMs": 60000,
-    "periodMs": 4000,
-    "minLevel": 20,
-    "maxLevel": 100
-  }
-}
-```
-
-### Ramp
-
-Gradual dim/brighten over time (great for bedtime routines).
-
-```json
-{
-  "effect": "ramp",
-  "options": {
-    "durationMs": 600000,
-    "toLevel": 1,
-    "curve": "ease"
-  }
-}
-```
+**Important:** Zone names must match exactly. No fuzzy matching — if you get a name wrong, you'll receive an error listing the available zones so you can retry.
 
 ---
 
-## 📜 Custom Scripts
+## 📜 Scripts & Effects
 
-Write JavaScript to create complex lighting behaviors.
+All dynamic lighting behaviors (effects, animations, sequences) are implemented via JavaScript scripts. Claude writes these automatically when you ask for effects via natural language.
+
+### Script API
+
+Inside scripts, you have access to:
+
+| Function | Description |
+|----------|-------------|
+| `await lights.set(targets, props)` | Set zone properties (power, powerLevel, rampRate) |
+| `await lights.sleep(ms)` | Pause execution (max 5 min per call) |
+| `lights.now()` | Current timestamp in milliseconds |
+| `lights.isAborted()` | Check if user stopped the job |
+
+### Example: Pulse Effect
+
+```javascript
+const endTime = lights.now() + 60000; // 60 seconds
+while (lights.now() < endTime && !lights.isAborted()) {
+  await lights.set({zoneNames: ["Kitchen Main"]}, {powerLevel: 100});
+  await lights.sleep(500);
+  await lights.set({zoneNames: ["Kitchen Main"]}, {powerLevel: 0});
+  await lights.sleep(500);
+}
+```
+
+### Example: Breathing Effect
+
+```javascript
+const endTime = lights.now() + 60000;
+while (lights.now() < endTime && !lights.isAborted()) {
+  // Fade up
+  for (let pct = 10; pct <= 100; pct += 5) {
+    await lights.set({zoneNames: ["Office First Floor"]}, {powerLevel: pct});
+    await lights.sleep(100);
+  }
+  // Fade down
+  for (let pct = 100; pct >= 10; pct -= 5) {
+    await lights.set({zoneNames: ["Office First Floor"]}, {powerLevel: pct});
+    await lights.sleep(100);
+  }
+}
+```
+
+### Example: Gradual Fade (Bedtime)
+
+```javascript
+const steps = 20;
+for (let i = 0; i <= steps && !lights.isAborted(); i++) {
+  const level = Math.round(100 - (i / steps) * 100);
+  await lights.set({zoneNames: ["Master Main"]}, {powerLevel: level});
+  await lights.sleep(30000 / steps); // 30 sec total
+}
+```
+
+### Via Natural Language
+
+Just ask Claude:
+
+> "Pulse the office lights for 30 seconds"
+> "Slowly dim the bedroom over 10 minutes"
+> "Make the kitchen lights breathe"
+> "Flash all the lights 5 times"
+
+Claude writes and executes the appropriate script automatically.
 
 ### Via curl
 
@@ -516,28 +517,10 @@ curl -X POST http://localhost:3080/scripts \
   -H "Content-Type: application/json" \
   -d '{
     "name": "party-mode",
-    "code": "for (let i = 0; i < 10; i++) { await lights.set({all: true}, {power: true, powerLevel: Math.random() * 100}); await sleep(500); }",
+    "code": "for (let i = 0; i < 10 && !lights.isAborted(); i++) { await lights.set({all: true}, {powerLevel: Math.floor(Math.random() * 100)}); await lights.sleep(500); }",
     "timeoutMs": 30000
   }'
 ```
-
-### Via Natural Language
-
-> "Run a script that makes the kitchen lights flash 5 times"
-
-Claude will write and execute the script for you.
-
-### Script API
-
-Inside scripts, you have access to:
-
-- `lights.listZones()` — get all zones
-- `lights.set(targets, props)` — set zone properties
-- `lights.pulse(targets, opts)` — run pulse effect
-- `lights.breathe(targets, opts)` — run breathe effect
-- `lights.ramp(targets, opts)` — run ramp effect
-- `sleep(ms)` — async sleep
-- `console.log()` — logging
 
 ---
 
@@ -574,9 +557,8 @@ Inside scripts, you have access to:
 | GET | `/zones` | List all zones (add `?refresh=true` for fresh data) |
 | POST | `/zones/set` | Set zone properties directly |
 | POST | `/nl` | Natural language command (Claude-powered) |
-| POST | `/effects` | Start an effect job |
 | POST | `/schedule` | Schedule a future lighting change |
-| POST | `/scripts` | Run a custom JS script |
+| POST | `/scripts` | Run a custom JS script as background job |
 | GET | `/jobs` | List all jobs |
 | POST | `/jobs/stop/:id` | Stop a job by ID |
 
