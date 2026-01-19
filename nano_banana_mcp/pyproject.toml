@@ -1,0 +1,12 @@
+[project]
+name = "nano-banana-mcp"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "httpx",
+    "Pillow",
+]
+
+[project.scripts]
+nano-banana = "nano_banana_mcp:main"
